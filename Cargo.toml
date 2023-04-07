@@ -1,0 +1,22 @@
+[package]
+name = "athir"
+version = "0.1.0"
+edition = "2021"
+default-run = "athir"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "athir"
+path = "src/main.rs"
+
+[[bin]]
+name = "regex_gen"
+path = "src/tools/regex_gen.rs"
+
+[[bin]]
+name = "lexeme_gen"
+path = "src/tools/lexeme_gen/mod.rs"
+
+[dependencies]
+logos = "0.12.1"
+rand = "0.8.5"
