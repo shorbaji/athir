@@ -1,9 +1,9 @@
 # athir 
 
-**athir** (work-in-progress) is an experimental Scheme interpreter 
+**athir** is a Lisp engine with
 
-- a distributed VM 
+- native multi-tenancy with first-class identity (and access management)
 - a universal, supra-global scope
-- first-class identity and access management
+- a distributed VM 
 
-&copy Omar Shorbaji
+(c) Athir LLC

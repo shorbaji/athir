@@ -1,29 +1,41 @@
+//! **athir** is a Cloud Lisp engine
+//! 
+//! Language features are:
+//! - native multi-tenancy with first-class identity (and access management)
+//! - a universal, supra-global, persistent scope
+//! - a universal distributed VM 
+//! 
+
 mod lexer;
 mod tools;
 
-use lexer::*;
-use logos::Logos;
-use std::io::Write;
+mod repl {
+    use crate::lexer::*;
+    use logos::Logos;
+    use std::io::Write;
 
-fn repl() {
-    loop {
-
-        for line in std::io::stdin().lines() {
-            let line = line.unwrap();
-            let lex = Token::lexer(&line);
-            for token in lex {
-                println!("token: {:?}", token);
+    pub fn repl() {
+        print!("> ");
+        std::io::stdout().flush().unwrap();
+            loop {
+    
+            for line in std::io::stdin().lines() {
+                let line = line.unwrap();
+                let lex = Token::lexer(&line);
+                for token in lex {
+                    println!("token: {:?}", token);
+                }
+                print!("> ");
+                std::io::stdout().flush().unwrap();
             }
-            print!("> ");
-            std::io::stdout().flush().unwrap();
         }
-    }
+    }    
 }
+
+use repl::repl;
 
 fn main() -> std::io::Result<()>{
     println!("athir (c) 2023 Omar Shorbaji");
-    print!("> ");
-    std::io::stdout().flush().unwrap();
     repl();
     Ok(())
 }

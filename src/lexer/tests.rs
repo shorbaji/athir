@@ -1,6 +1,7 @@
 
 mod tests {
-    use crate::*;
+    use logos::Logos;
+    use crate::lexer::Token;
 
     fn test_input<T> (input: &str, expected: T) 
     where T : IntoIterator<Item = Token>
