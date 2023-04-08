@@ -1,3 +1,3 @@
-mod regex_gen;
-mod lexeme_gen;
 mod benchmark;
+mod lexeme_gen;
+mod regex_gen;

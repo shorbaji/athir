@@ -1,4 +1,3 @@
-pub trait Randomizable 
-{
+pub trait Randomizable {
     fn random() -> Self;
-}    
+}

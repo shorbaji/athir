@@ -1,10 +1,10 @@
-
 mod tests {
-    use logos::Logos;
     use crate::lexer::Token;
+    use logos::Logos;
 
-    fn test_input<T> (input: &str, expected: T) 
-    where T : IntoIterator<Item = Token>
+    fn test_input<T>(input: &str, expected: T)
+    where
+        T: IntoIterator<Item = Token>,
     {
         let mut lex = Token::lexer(input);
 
@@ -15,14 +15,16 @@ mod tests {
 
     #[test]
     fn test_boolean() {
-        [("#t", true),
-        ("#f", false),
-        ("#true", true),
-        ("#false", false),
-        ("#T", true),
-        ("#F", false),
-        ("#True", true),
-        ("#False", false)]
+        [
+            ("#t", true),
+            ("#f", false),
+            ("#true", true),
+            ("#false", false),
+            ("#T", true),
+            ("#F", false),
+            ("#True", true),
+            ("#False", false),
+        ]
         .iter()
         .for_each(|(s, b)| test_input(s, vec![Token::Boolean(*b)]));
     }
@@ -51,13 +53,9 @@ mod tests {
     }
     #[test]
     fn test_char_simple() {
-        [
-            ("#\\a", 'a'), 
-            ("#\\\\", '\\'),
-            ("#\\\"", '\"')
-        ]
-        .iter()
-        .for_each(|(s, c)| test_input(s, vec![Token::Character(*c)]));
+        [("#\\a", 'a'), ("#\\\\", '\\'), ("#\\\"", '\"')]
+            .iter()
+            .for_each(|(s, c)| test_input(s, vec![Token::Character(*c)]));
     }
 
     #[test]
@@ -79,96 +77,127 @@ mod tests {
 
     #[test]
     fn test_char_hex() {
-        [
-            ("#\\x41", 'A'),
-            ("#\\x6a", 'j'),
-            ("#\\x263a", '☺'),
-        ]
-        .iter()
-        .for_each(|(s, c)| test_input(s, vec![Token::Character(*c)]));
+        [("#\\x41", 'A'), ("#\\x6a", 'j'), ("#\\x263a", '☺')]
+            .iter()
+            .for_each(|(s, c)| test_input(s, vec![Token::Character(*c)]));
     }
 
     #[test]
-    fn test_comma() { test_input(",", vec![Token::Comma]); }
+    fn test_comma() {
+        test_input(",", vec![Token::Comma]);
+    }
 
     #[test]
-    fn test_comma_at() { test_input(",@", vec![Token::CommaAt]); }
+    fn test_comma_at() {
+        test_input(",@", vec![Token::CommaAt]);
+    }
 
     #[test]
-    fn test_dot() { test_input(".", vec![Token::Dot]); }
+    fn test_dot() {
+        test_input(".", vec![Token::Dot]);
+    }
 
     #[test]
     fn test_identifier() {
-        ["a", "cc", "c0", "d+", "e-", "f.",
-        "g@", "|h|", "+", "+j", "--", "+@",
-        "+.k", "+..", ".lmn"]
+        [
+            "a", "cc", "c0", "d+", "e-", "f.", "g@", "|h|", "+", "+j", "--", "+@", "+.k", "+..",
+            ".lmn",
+        ]
         .iter()
         .for_each(|s| test_input(s, vec![Token::Identifier(s.to_string())]));
     }
 
     #[test]
     fn test_number() {
-        ["0", "#b1", "#o#e23", "#x#i45", "#d6@7", "#b101+111i",
-        "#o#e23-45i", "#xabc-i", "#d#e+i", "-inf.0", "+NAN.0", "#b-nan.0i",
-        "+i", "-i", "1.234e567"]
+        [
+            "0",
+            "#b1",
+            "#o#e23",
+            "#x#i45",
+            "#d6@7",
+            "#b101+111i",
+            "#o#e23-45i",
+            "#xabc-i",
+            "#d#e+i",
+            "-inf.0",
+            "+NAN.0",
+            "#b-nan.0i",
+            "+i",
+            "-i",
+            "1.234e567",
+        ]
         .iter()
         .for_each(|s| test_input(s, vec![Token::Number(String::from(*s))]));
     }
 
     #[test]
-    fn test_paren_open() { test_input("(", vec![Token::ParenOpen]); }
+    fn test_paren_open() {
+        test_input("(", vec![Token::ParenOpen]);
+    }
 
     #[test]
-    fn test_paren_close() { test_input(")", vec![Token::ParenClose]); }
+    fn test_paren_close() {
+        test_input(")", vec![Token::ParenClose]);
+    }
 
     #[test]
-    fn test_sharp_open() { test_input("#(", vec![Token::SharpOpen]); }
+    fn test_sharp_open() {
+        test_input("#(", vec![Token::SharpOpen]);
+    }
 
     #[test]
-    fn test_sharp_u8_open() { test_input("#u8(", vec![Token::SharpU8Open]); }
+    fn test_sharp_u8_open() {
+        test_input("#u8(", vec![Token::SharpU8Open]);
+    }
 
     #[test]
     fn test_string_simple() {
-        ["\"\"", "\"a\"", "\"abc\"", "\"\\\"\"", "\"\\\\\"", "\"\\a\"", "\"\\b\"", "\"\\t\"", "\"\\n\"", "\"\\r\"", "\"\\v\"", "\"\\f\""]
+        [
+            "\"\"", "\"a\"", "\"abc\"", "\"\\\"\"", "\"\\\\\"", "\"\\a\"", "\"\\b\"", "\"\\t\"",
+            "\"\\n\"", "\"\\r\"", "\"\\v\"", "\"\\f\"",
+        ]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
+        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len() - 1]))]));
     }
 
     #[test]
     fn test_string_mnemonic() {
-        ["\"\\b\"", "\"\\t\"", "\"\\n\"", "\"\\r\"", "\"\\a\"", "\"\\B\"", "\"\\T\"", "\"\\N\"", "\"\\R\"", "\"\\A\"",]
+        [
+            "\"\\b\"", "\"\\t\"", "\"\\n\"", "\"\\r\"", "\"\\a\"", "\"\\B\"", "\"\\T\"", "\"\\N\"",
+            "\"\\R\"", "\"\\A\"",
+        ]
         .iter()
         .for_each(|s| {
-            println!("{}", s); test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]);
+            println!("{}", s);
+            test_input(s, vec![Token::String(String::from(&s[1..s.len() - 1]))]);
         });
     }
 
     #[test]
     fn test_string_escaped_double_quote() {
         ["\"\\\"\""]
-        .iter()
-        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
+            .iter()
+            .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len() - 1]))]));
     }
 
     #[test]
     fn test_string_escaped_backslash() {
         ["\"\\\\\""]
-        .iter()
-        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
+            .iter()
+            .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len() - 1]))]));
     }
 
     #[test]
     fn test_string_multiline() {
         ["\"this is a multiline   \\   \nstring\""]
-        .iter()
-        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
+            .iter()
+            .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len() - 1]))]));
     }
 
     #[test]
     fn test_string_hex_escape() {
-        ["\"\\x41;\"",]
-        .iter()
-        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
+        ["\"\\x41;\""]
+            .iter()
+            .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len() - 1]))]));
     }
-
 }
