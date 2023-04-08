@@ -13,34 +13,61 @@ use logos::{Logos, Lexer};
 
 // Note: We prioritize over identifier since r7rs specification accepts +i and -i as numbers as well as peculiar identifiers (explicit sign followed by initial)
 
-pub fn string_to_bool(s: &str) -> bool{
-    match s.to_lowercase().as_str() {
-        "#t" | "#true" => true,
-        _ => false,
+pub fn lexeme_to_bool(lex: &mut Lexer<Token>) -> Option<bool> {
+
+    match lex.slice().to_lowercase().as_str() {
+        "#t" | "#true" => Some(true),
+        "#f" | "#false" => Some(false),
+        _ => None,
     }
 }
 
-fn boolean(lex: &mut Lexer<Token>) -> bool {
-    match lex.slice() {
-        "#t" | "#true" | "#T" | "#TRUE" | "#True" => true,
-        _ => false,
+pub fn lexeme_to_char(lex: &mut Lexer<Token>) -> Option<char> {
+    let s = lex.slice();
+
+    if s.len() == 3 {
+        return Some(s[2..].chars().next().unwrap());
+    } else {
+        match &s[2..] {
+            "alarm" => Some('\u{0007}'),
+            "backspace" => Some('\u{0008}'),
+            "delete" => Some('\u{007F}'),
+            "escape" => Some('\u{001B}'),
+            "newline" => Some('\u{000A}'),
+            "null" => Some('\u{0000}'),
+            "return" => Some('\u{000D}'),
+            "space" => Some('\u{0020}'),
+            "tab" => Some('\u{0009}'),
+            _ => {
+                match &s[0..3] {
+                    "#\\x" => {
+                        let hex = &s[3..];
+                        let hex = u32::from_str_radix(hex, 16).unwrap();
+                        let c = std::char::from_u32(hex).unwrap();
+                        Some(c)
+                    }
+                    _ => {
+                        None
+                    },
+                }
+            }
+        }
     }
 }
 
-fn identifier(lex: &mut Lexer<Token>) -> String {
-    let s: String = lex.slice().to_string();
-
-    s
+fn identifier(lex: &mut Lexer<Token>) -> Option<String> {
+    Some(lex.slice().to_string())
 }
 
 #[derive(Logos, Debug, PartialEq)]
 pub enum Token {
     #[regex(r"(#(([tT][rR][uU][eE])|([fF][aA][lL][sS][eE])|([tT]|[fF])))",
-                boolean)]
+        lexeme_to_bool)]
     Boolean(bool),
 
-    #[regex(r"((#\\x([0-9a-fA-F]+))|(#\\(alarm|backspace|delete|escape|newline|null|return|space|tab))|(#\\.))")]
-    Character,
+    #[regex(r"((#\\x([0-9a-fA-F]+))|(#\\(alarm|backspace|delete|escape|newline|null|return|space|tab))|(#\\.))",
+        lexeme_to_char,)]
+    Character(char),
 
     #[regex(r",")]
     Comma,
