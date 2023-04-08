@@ -72,6 +72,13 @@ fn lexeme_to_number (lex: &mut Lexer<Token>) -> Option<Number> {
     Some(lex.slice().to_string())
 }
 
+fn lexeme_to_string(lex: &mut Lexer<Token>) -> Option<String> {
+    let s = lex.slice();
+
+    let s:String = String::from(&s[1..s.len() - 1]);
+    Some(s)
+}
+
 #[derive(Logos, Debug, PartialEq)]
 pub enum Token {
     #[regex(r"(#(([tT][rR][uU][eE])|([fF][aA][lL][sS][eE])|([tT]|[fF])))",
@@ -127,6 +134,7 @@ pub enum Token {
     #[regex(r"#u8\(")]
     SharpU8Open,
 
-    #[regex(r#""([^"\\]|(\\[aA]|\\[bB]|\\[tT]|\\[nN]|\\[rR])|\\"|\\|\\( |\t)*(\r\n|\r|\n)( |\t)*|(\\x([0-9a-fA-F]+);))*""#)]
-    String,
+        #[regex(r#""([^"\\]|(\\[aA]|\\[bB]|\\[tT]|\\[nN]|\\[rR])|\\"|\\|\\( |\t)*(\r\n|\r|\n)( |\t)*|(\\x([0-9a-fA-F]+);))*""#,
+        lexeme_to_string,)]
+    String(String),
 }

@@ -113,7 +113,7 @@ mod tests {
         .iter()
         .for_each(|s| test_input(s, vec![Token::Number(String::from(*s))]));
     }
-    
+
     #[test]
     fn test_paren_open() { test_input("(", vec![Token::ParenOpen]); }
 
@@ -130,7 +130,7 @@ mod tests {
     fn test_string_simple() {
         ["\"\"", "\"a\"", "\"abc\"", "\"\\\"\"", "\"\\\\\"", "\"\\a\"", "\"\\b\"", "\"\\t\"", "\"\\n\"", "\"\\r\"", "\"\\v\"", "\"\\f\""]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::String]));
+        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
     }
 
     #[test]
@@ -138,7 +138,7 @@ mod tests {
         ["\"\\b\"", "\"\\t\"", "\"\\n\"", "\"\\r\"", "\"\\a\"", "\"\\B\"", "\"\\T\"", "\"\\N\"", "\"\\R\"", "\"\\A\"",]
         .iter()
         .for_each(|s| {
-            println!("{}", s); test_input(s, vec![Token::String]);
+            println!("{}", s); test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]);
         });
     }
 
@@ -146,28 +146,28 @@ mod tests {
     fn test_string_escaped_double_quote() {
         ["\"\\\"\""]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::String]));
+        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
     }
 
     #[test]
     fn test_string_escaped_backslash() {
         ["\"\\\\\""]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::String]));
+        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
     }
 
     #[test]
     fn test_string_multiline() {
         ["\"this is a multiline   \\   \nstring\""]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::String]));
+        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
     }
 
     #[test]
     fn test_string_hex_escape() {
         ["\"\\x41;\"",]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::String]));
+        .for_each(|s| test_input(s, vec![Token::String(String::from(&s[1..s.len()-1]))]));
     }
 
 }
