@@ -6,7 +6,7 @@ use std::fmt;
 enum Sign {
     Minus,
     Plus,
-    None
+    None,
 }
 
 impl Randomizable for Sign {
@@ -29,7 +29,6 @@ impl fmt::Display for Sign {
         }
     }
 }
-
 
 #[derive(Debug)]
 enum ExplicitSign {
@@ -142,7 +141,7 @@ impl fmt::Display for Radix {
 }
 
 #[derive(Debug)]
-enum Exactness {   
+enum Exactness {
     Inexact,
     Exact,
     None,
@@ -168,7 +167,6 @@ impl fmt::Display for Exactness {
         }
     }
 }
-
 
 #[derive(Debug)]
 struct Prefix {
@@ -221,9 +219,15 @@ impl Randomizable for Decimal {
         match rand::random::<u8>() % 3 {
             0 => Decimal::A(Uinteger::random(), Suffix::random()),
             1 => Decimal::B(Uinteger::random(), Suffix::random()),
-            2 => Decimal::C(Uinteger::random(), 
-            if rand::random() { Some(Uinteger::random()) } else { None },
-            Suffix::random()),
+            2 => Decimal::C(
+                Uinteger::random(),
+                if rand::random() {
+                    Some(Uinteger::random())
+                } else {
+                    None
+                },
+                Suffix::random(),
+            ),
             _ => unreachable!(),
         }
     }
@@ -234,19 +238,16 @@ impl fmt::Display for Decimal {
         match self {
             Decimal::A(uinteger, suffix) => write!(f, "{}{}", uinteger, suffix),
             Decimal::B(uinteger, suffix) => write!(f, "{}.{}", uinteger, suffix),
-            Decimal::C(uinteger1, uinteger2, suffix) => {
-                match uinteger2 {
-                    Some(uinteger2) => write!(f, "{}.{}{}", uinteger1, uinteger2, suffix),
-                    None => write!(f, "{}.{}", uinteger1, suffix)
-                }
-                
+            Decimal::C(uinteger1, uinteger2, suffix) => match uinteger2 {
+                Some(uinteger2) => write!(f, "{}.{}{}", uinteger1, uinteger2, suffix),
+                None => write!(f, "{}.{}", uinteger1, suffix),
             },
         }
     }
 }
 
 #[derive(Debug)]
-enum Ureal { 
+enum Ureal {
     Singleton(Radix, Uinteger),
     Pair(Radix, Uinteger, Uinteger),
     Decimal(Decimal),
@@ -266,13 +267,20 @@ impl Randomizable for Ureal {
 impl fmt::Display for Ureal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Ureal::Singleton(radix, uinteger) => write!(f, "{}", uinteger_to_string(radix, uinteger)),
+            Ureal::Singleton(radix, uinteger) => {
+                write!(f, "{}", uinteger_to_string(radix, uinteger))
+            }
             Ureal::Pair(radix, uinteger1, uinteger2) => {
-                write!(f, "{}/{}", uinteger_to_string(radix, uinteger1), uinteger_to_string(radix, uinteger2))
-            },
+                write!(
+                    f,
+                    "{}/{}",
+                    uinteger_to_string(radix, uinteger1),
+                    uinteger_to_string(radix, uinteger2)
+                )
+            }
             Ureal::Decimal(decimal) => {
                 write!(f, "{}", decimal)
-            },
+            }
         }
     }
 }
@@ -313,10 +321,10 @@ impl fmt::Display for Real {
         match self {
             Real::SignUreal(sign, ureal) => {
                 write!(f, "{}{}", sign, ureal)
-            },
+            }
             Real::Infnan(infnan) => {
                 write!(f, "{}", infnan)
-            },
+            }
         }
     }
 }
@@ -362,17 +370,24 @@ impl Complex {
             Radix::Decimal | Radix::None => Radix::Decimal,
             _ => radix,
         };
-        
+
         match rand::random::<u8>() % 7 {
             0 => Complex::Singleton(Real::random_with_radix(radix)),
-            1 => Complex::At(Real::random_with_radix(radix), Real::random_with_radix(radix)),
-            2 => Complex::RealImag(Real::random_with_radix(radix), ExplicitSign::random(), Ureal::random_with_radix(radix)),
+            1 => Complex::At(
+                Real::random_with_radix(radix),
+                Real::random_with_radix(radix),
+            ),
+            2 => Complex::RealImag(
+                Real::random_with_radix(radix),
+                ExplicitSign::random(),
+                Ureal::random_with_radix(radix),
+            ),
             3 => Complex::RealI(Real::random_with_radix(radix), ExplicitSign::random()),
             4 => Complex::Imag(ExplicitSign::random(), Ureal::random_with_radix(radix)),
             5 => Complex::InfnanI(Infnan::random()),
             6 => Complex::I(ExplicitSign::random()),
             _ => unreachable!(),
-        }        
+        }
     }
 }
 
@@ -386,7 +401,7 @@ impl fmt::Display for Complex {
             Complex::Imag(sign, ureal) => write!(f, "{}{}i", sign, ureal),
             Complex::InfnanI(infnan) => write!(f, "{}i", infnan),
             Complex::I(sign) => write!(f, "{}i", sign),
-        }        
+        }
     }
 }
 
@@ -400,7 +415,7 @@ impl Randomizable for Number {
     fn random() -> Self {
         let prefix = Prefix::random();
         let radix = prefix.radix;
-        
+
         Number {
             prefix: prefix,
             complex: Complex::random_with_radix(radix),
