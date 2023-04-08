@@ -111,8 +111,9 @@ mod tests {
         "#o#e23-45i", "#xabc-i", "#d#e+i", "-inf.0", "+NAN.0", "#b-nan.0i",
         "+i", "-i", "1.234e567"]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::Number]));
+        .for_each(|s| test_input(s, vec![Token::Number(String::from(*s))]));
     }
+    
     #[test]
     fn test_paren_open() { test_input("(", vec![Token::ParenOpen]); }
 
