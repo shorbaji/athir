@@ -16,7 +16,7 @@ mod tests {
     fn boolean() {
         ["#t", "#true", "#T", "#TRUE", "#True", "#f", "#false", "#F", "#FALSE", "#False"]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::Boolean]));
+        .for_each(|s| test_input(s, vec![Token::Boolean(string_to_bool(s))]));
     }
 
     #[test]
@@ -55,7 +55,7 @@ mod tests {
         "g@", "|h|", "+", "+j", "--", "+@",
         "+.k", "+..", ".lmn"]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::Identifier]));
+        .for_each(|s| test_input(s, vec![Token::Identifier(s.to_string())]));
     }
 
     #[test]
