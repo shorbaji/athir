@@ -2,7 +2,7 @@
 //! 
 //! This module implements the lexer for Athir
 //! 
-//! It currently uses the [logos](https://docs.rs/logos/0.13.0/logos/) crate.
+//! It currently uses the [logos](https://crates.io/crates/logos) crate.
 //! It is based on section 7.1.1 the [R7RS](https://small.r7rs.org/attachment/r7rs.pdf) specification
 //! 
 //! Known issues:

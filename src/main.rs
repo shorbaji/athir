@@ -6,9 +6,9 @@
 //! - a universal distributed VM
 //!
 //! Modules are:
-//! - a lexical analyzer (./lexer/mod.rs)
-//! - tools including a lexeme generator (./tools/lexeme_gen/mod.rs) and a regex generator (./tools/regex_gen.rs)
-// 
+//! - a lexical analyzer
+//! - a repl
+//! - tools including a lexeme generator and a regex generator
 
 mod lexer;
 mod repl;
