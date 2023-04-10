@@ -84,11 +84,11 @@ mod regex_generator {
             inline_hex_escape, mnemonic_escape
         );
 
-        let identifiera = format!("({}{}*)", initial, subsequent);
-        let identifierb = format!("({}{}*{})", vertical_line, symbol_element, vertical_line);
-        let identifierc = format!("({})", peculiar);
+        let regular_identifier = format!("({}{}*)", initial, subsequent);
+        let vertical_line_identifier = format!("({}{}*{})", vertical_line, symbol_element, vertical_line);
+        let peculiar_identifier = format!("({})", peculiar);
 
-        let identifier = format!("(({})|({})|({}))", identifiera, identifierc, identifierb);
+        let identifier = format!("(({})|({})|({}))", regular_identifier, peculiar_identifier, vertical_line_identifier);
 
         let character_name = "(alarm|backspace|delete|escape|newline|null|return|space|tab)";
         let character = format!(
@@ -154,7 +154,10 @@ mod regex_generator {
 
         println!("boolean:\n{}\n", boolean);
         println!("character:\n{}\n", character);
-        println!("identifier:\n{}\n", identifier);
+        // println!("identifier:\n{}\n", identifier);
+        println!("regular_identifier:\n{}\n", regular_identifier);
+        println!("vertical_line_identifier:\n{}\n", vertical_line_identifier);
+        println!("peculiar_identifier:\n{}\n", peculiar_identifier);
         // println!("intertoken space:\n{}\n", intertoken_space);
         println!("whitespace:\n{}\n", whitespace);
         println!("comment:\n{}\n", comment);
