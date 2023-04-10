@@ -120,8 +120,8 @@ mod regex_generator {
 
         let comment = format!("(;[^{}]*)", line_ending);
         let directive = r"(#!fold-case)|(#!no-fold-case)";
-        let atmosphere = format!("({}|{}|{})", whitespace, comment, directive); // need to add comments
-        let intertoken_space = format!("({}*)", atmosphere);
+        // let atmosphere = format!("({}|{}|{})", whitespace, comment, directive); // need to add comments
+        // let intertoken_space = format!("({}*)", atmosphere);
 
         let boolean_letter_t = "[tT]";
         let boolean_letter_r = "[rR]";
@@ -155,7 +155,10 @@ mod regex_generator {
         println!("boolean:\n{}\n", boolean);
         println!("character:\n{}\n", character);
         println!("identifier:\n{}\n", identifier);
-        println!("intertoken space:\n{}\n", intertoken_space);
+        // println!("intertoken space:\n{}\n", intertoken_space);
+        println!("whitespace:\n{}\n", whitespace);
+        println!("comment:\n{}\n", comment);
+        println!("directive:\n{}\n", directive);
         println!("number:\n{}\n", number);
         println!("string:\n{}\n", string);
     }
