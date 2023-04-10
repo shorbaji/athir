@@ -106,8 +106,6 @@ pub enum Lexeme {
     #[regex(r"\.")]
     Dot,
 
-    Eof,
-
     #[error]
     Error,
 
@@ -176,13 +174,19 @@ impl Iterator for DelimitedLexer<'_> {
         match lexeme {
             Boolean | Character | Directive | Identifier | Number => {
                 let lexeme = self.inner.next()?;
-                let next = self.inner.peek()?;
+                let next = self.inner.peek();
 
                 match next {
-                    Error | Eof | Whitespace | ParenClose | ParenOpen | String | Comment | VerticalLineIdentifier=> {
-                        Some(lexeme)
-                    },
-                    _ => Some(Error),
+                    None => Some(lexeme),
+                    Some(next) => match next {
+                        Error| Whitespace | ParenClose | ParenOpen | String | Comment | VerticalLineIdentifier=> {
+                            Some(lexeme)
+                        },
+                        _ => {
+                            self.inner.next();
+                            Some(Error)
+                        }
+                    }
                 }
             },
             VerticalLineIdentifier => {

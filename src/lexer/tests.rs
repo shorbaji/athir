@@ -6,7 +6,7 @@ mod tests {
     where
         T: IntoIterator<Item = Lexeme>,
     {
-        let mut lex = Lexeme::lexer(input);
+        let mut lex = Lexeme::delimited_lexer(input);
 
         for token in expected {
             assert_eq!(lex.next(), Some(token));
