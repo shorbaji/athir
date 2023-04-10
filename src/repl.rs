@@ -13,7 +13,7 @@
         loop {
             for line in std::io::stdin().lines() {
                 let line = line.unwrap();
-                let lex = Token::lexer(&line);
+                let lex = Lexeme::delimited_lexer(&line);
                 for token in lex {
                     println!("token: {:?}", token);
                 }
