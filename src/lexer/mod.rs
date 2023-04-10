@@ -1,15 +1,21 @@
 //! Lexical analyzer
 //! 
-//! This module implements the lexer for Athir
+//! This module implements the lexical analyzer for Athir
 //! 
 //! It currently uses the [logos](https://crates.io/crates/logos) crate.
 //! It is based on section 7.1.1 the [R7RS](https://small.r7rs.org/attachment/r7rs.pdf) specification
 //! 
+//! Example usage:
+//! 
+//! let lex = Lexeme::delimited_lexer(&line);
+//! for token in lex {
+//!     println!("token: {:?}", token);
+//! }
+//! 
 //! Known issues:
-//! - Multiline strings include the line ending \ and the next line
 //! - Though curly and square braces are reserved for future use we do not ascribe any meaning to them
 //! - Only simple comments support (no nested comments or comments with datum)
-//! - Value attached to Number is a String
+//! - No values attached to lexemes
 
 #![warn(missing_docs)]
 
@@ -18,71 +24,75 @@ mod tests;
 use logos::{Lexer, Logos};
 use std::iter::Peekable;
 
-pub fn lexeme_to_bool(lex: &mut Lexer<Lexeme>) -> Option<bool> {
-    match lex.slice().to_lowercase().as_str() {
-        "#t" | "#true" => Some(true),
-        "#f" | "#false" => Some(false),
-        _ => None,
-    }
-}
+mod values {
+    //! This module contains a set of functions to extract values from lexemes
+    //! These are not currently used
 
-pub fn lexeme_to_char(lex: &mut Lexer<Lexeme>) -> Option<char> {
-    let s = lex.slice();
-
-    if s.len() == 3 {
-        return Some(s[2..].chars().next().unwrap());
-    } else {
-        match &s[0..3] {
-            "#\\x" => {
-                let hex = &s[3..];
-                let hex = u32::from_str_radix(hex, 16).unwrap();
-                let c = std::char::from_u32(hex).unwrap();
-                Some(c)
-            }
-            _ => match &s[2..] {
-                "alarm" => Some('\u{0007}'),
-                "backspace" => Some('\u{0008}'),
-                "delete" => Some('\u{007F}'),
-                "escape" => Some('\u{001B}'),
-                "newline" => Some('\u{000A}'),
-                "null" => Some('\u{0000}'),
-                "return" => Some('\u{000D}'),
-                "space" => Some('\u{0020}'),
-                "tab" => Some('\u{0009}'),
-                _ => None,
-            },
+    pub fn lexeme_to_bool(lex: &mut Lexer<Lexeme>) -> Option<bool> {
+        match lex.slice().to_lowercase().as_str() {
+            "#t" | "#true" => Some(true),
+            "#f" | "#false" => Some(false),
+            _ => None,
         }
     }
+    
+    pub fn lexeme_to_char(lex: &mut Lexer<Lexeme>) -> Option<char> {
+        let s = lex.slice();
+    
+        if s.len() == 3 {
+            return Some(s[2..].chars().next().unwrap());
+        } else {
+            match &s[0..3] {
+                "#\\x" => {
+                    let hex = &s[3..];
+                    let hex = u32::from_str_radix(hex, 16).unwrap();
+                    let c = std::char::from_u32(hex).unwrap();
+                    Some(c)
+                }
+                _ => match &s[2..] {
+                    "alarm" => Some('\u{0007}'),
+                    "backspace" => Some('\u{0008}'),
+                    "delete" => Some('\u{007F}'),
+                    "escape" => Some('\u{001B}'),
+                    "newline" => Some('\u{000A}'),
+                    "null" => Some('\u{0000}'),
+                    "return" => Some('\u{000D}'),
+                    "space" => Some('\u{0020}'),
+                    "tab" => Some('\u{0009}'),
+                    _ => None,
+                },
+            }
+        }
+    }
+    
+    fn lexeme_to_identifier(lex: &mut Lexer<Lexeme>) -> Option<String> {
+        Some(lex.slice().to_string())
+    }
+    
+    // enum NumericValue {
+    //     Integer(i64),
+    //     Float(f64),
+    // }
+    
+    // struct Number {
+    //     exactness: Option<char>,
+    //     numerator: NumericValue,
+    //     denominator: Option<NumericValue>,
+    // }
+    
+    type Number = String;
+    
+    fn lexeme_to_number(lex: &mut Lexer<Lexeme>) -> Option<Number> {
+        Some(lex.slice().to_string())
+    }
+    
+    fn lexeme_to_string(lex: &mut Lexer<Lexeme>) -> Option<String> {
+        let s = lex.slice();
+    
+        let s: String = String::from(&s[1..s.len() - 1]);
+        Some(s)
+    }    
 }
-
-fn lexeme_to_identifier(lex: &mut Lexer<Lexeme>) -> Option<String> {
-    Some(lex.slice().to_string())
-}
-
-// enum NumericValue {
-//     Integer(i64),
-//     Float(f64),
-// }
-
-// struct Number {
-//     exactness: Option<char>,
-//     numerator: NumericValue,
-//     denominator: Option<NumericValue>,
-// }
-
-type Number = String;
-
-fn lexeme_to_number(lex: &mut Lexer<Lexeme>) -> Option<Number> {
-    Some(lex.slice().to_string())
-}
-
-fn lexeme_to_string(lex: &mut Lexer<Lexeme>) -> Option<String> {
-    let s = lex.slice();
-
-    let s: String = String::from(&s[1..s.len() - 1]);
-    Some(s)
-}
-
 /// Tokens base on R7RS
 // from R7RS <token> -> <identifier>| <boolean> | <number>
 ///     | <character> | <string> 
@@ -154,6 +164,11 @@ pub enum Lexeme {
 
 impl Lexeme {
     pub fn delimited_lexer(input: &str) -> DelimitedLexer {
+    //! This function is used to create a lexer that the following tokens are 
+    //! terminated by a delimiter:
+    //! boolean, character, directive, dot, identifier (without vertical lines), number 
+    //! 
+    //! This is required since Rust regex implementation does not support lookaheads.
         DelimitedLexer::new(Lexeme::lexer(input))
     }
 }
@@ -161,7 +176,6 @@ impl Lexeme {
 pub struct DelimitedLexer<'a> {
     inner: Peekable<Lexer<'a, Lexeme>>,
 }
-
 
 impl Iterator for DelimitedLexer<'_> {
     type Item = Lexeme;
@@ -172,7 +186,7 @@ impl Iterator for DelimitedLexer<'_> {
         let lexeme = self.inner.peek()?;
 
         match lexeme {
-            Boolean | Character | Directive | Identifier | Number => {
+            Boolean | Character | Dot | Directive | Identifier | Number => {
                 let lexeme = self.inner.next()?;
                 let next = self.inner.peek();
 
