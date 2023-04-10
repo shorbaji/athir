@@ -26,7 +26,7 @@ mod tests {
             ("#False", false),
         ]
         .iter()
-        .for_each(|(s, b)| test_input(s, vec![Lexeme::Boolean(*b)]));
+        .for_each(|(s, b)| test_input(s, vec![Lexeme::Boolean]));
     }
 
     #[test]
@@ -48,14 +48,14 @@ mod tests {
         ]
         .iter()
         .for_each(|(s, c)| {
-            test_input(s, vec![Lexeme::Character(*c)]);
+            test_input(s, vec![Lexeme::Character]);
         });
     }
     #[test]
     fn test_char_simple() {
         [("#\\a", 'a'), ("#\\\\", '\\'), ("#\\\"", '\"')]
             .iter()
-            .for_each(|(s, c)| test_input(s, vec![Lexeme::Character(*c)]));
+            .for_each(|(s, c)| test_input(s, vec![Lexeme::Character]));
     }
 
     #[test]
@@ -72,14 +72,14 @@ mod tests {
             ("#\\tab", '\u{0009}'),
         ]
         .iter()
-        .for_each(|(s, c)| test_input(s, vec![Lexeme::Character(*c)]));
+        .for_each(|(s, c)| test_input(s, vec![Lexeme::Character]));
     }
 
     #[test]
     fn test_char_hex() {
         [("#\\x41", 'A'), ("#\\x6a", 'j'), ("#\\x263a", '☺')]
             .iter()
-            .for_each(|(s, c)| test_input(s, vec![Lexeme::Character(*c)]));
+            .for_each(|(s, c)| test_input(s, vec![Lexeme::Character]));
     }
 
     #[test]
@@ -104,7 +104,7 @@ mod tests {
             ".lmn",
         ]
         .iter()
-        .for_each(|s| test_input(s, vec![Lexeme::Identifier(s.to_string())]));
+        .for_each(|s| test_input(s, vec![Lexeme::Identifier]));
     }
 
     #[test]
@@ -127,7 +127,7 @@ mod tests {
             "1.234e567",
         ]
         .iter()
-        .for_each(|s| test_input(s, vec![Lexeme::Number(String::from(*s))]));
+        .for_each(|s| test_input(s, vec![Lexeme::Number]));
     }
 
     #[test]
@@ -157,7 +157,7 @@ mod tests {
             "\"\\n\"", "\"\\r\"", "\"\\v\"", "\"\\f\"",
         ]
         .iter()
-        .for_each(|s| test_input(s, vec![Lexeme::String(String::from(&s[1..s.len() - 1]))]));
+        .for_each(|s| test_input(s, vec![Lexeme::String]));
     }
 
     #[test]
@@ -169,7 +169,7 @@ mod tests {
         .iter()
         .for_each(|s| {
             println!("{}", s);
-            test_input(s, vec![Lexeme::String(String::from(&s[1..s.len() - 1]))]);
+            test_input(s, vec![Lexeme::String]);
         });
     }
 
@@ -177,27 +177,27 @@ mod tests {
     fn test_string_escaped_double_quote() {
         ["\"\\\"\""]
             .iter()
-            .for_each(|s| test_input(s, vec![Lexeme::String(String::from(&s[1..s.len() - 1]))]));
+            .for_each(|s| test_input(s, vec![Lexeme::String]));
     }
 
     #[test]
     fn test_string_escaped_backslash() {
         ["\"\\\\\""]
             .iter()
-            .for_each(|s| test_input(s, vec![Lexeme::String(String::from(&s[1..s.len() - 1]))]));
+            .for_each(|s| test_input(s, vec![Lexeme::String]));
     }
 
     #[test]
     fn test_string_multiline() {
         ["\"this is a multiline   \\   \nstring\""]
             .iter()
-            .for_each(|s| test_input(s, vec![Lexeme::String(String::from(&s[1..s.len() - 1]))]));
+            .for_each(|s| test_input(s, vec![Lexeme::String]));
     }
 
     #[test]
     fn test_string_hex_escape() {
         ["\"\\x41;\""]
             .iter()
-            .for_each(|s| test_input(s, vec![Lexeme::String(String::from(&s[1..s.len() - 1]))]));
+            .for_each(|s| test_input(s, vec![Lexeme::String]));
     }
 }
