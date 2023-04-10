@@ -22,11 +22,13 @@
 #[cfg(test)]
 mod tests;
 use logos::{Lexer, Logos};
-use std::iter::Peekable;
+use std::{iter::Peekable};
 
 mod values {
     //! This module contains a set of functions to extract values from lexemes
     //! These are not currently used
+    use logos::Lexer;
+    use crate::lexer::Lexeme;
 
     pub fn lexeme_to_bool(lex: &mut Lexer<Lexeme>) -> Option<bool> {
         match lex.slice().to_lowercase().as_str() {
@@ -173,19 +175,33 @@ impl Lexeme {
     }
 }
 
+/// This struct encapsulates a peekable Logos Lexer
 pub struct DelimitedLexer<'a> {
     inner: Peekable<Lexer<'a, Lexeme>>,
+}
+
+impl<'a> DelimitedLexer<'a> {
+    fn new(lexer: Lexer<'a, Lexeme>) -> Self {
+        Self {
+            inner: lexer.peekable(),
+        }
+    }
 }
 
 impl Iterator for DelimitedLexer<'_> {
     type Item = Lexeme;
 
     fn next(&mut self) -> Option<Self::Item> {
+        //! This function returns the next token in the lexer.
+        //! 
+        //! Boolean, character, directive, dot, identifier (without vertical lines), number must
+        //! be terminated by a delimiter.
+        //! 
         use Lexeme::*;
 
-        let lexeme = self.inner.peek()?;
-
-        match lexeme {
+        match self.inner.peek()? {
+            // If the next lexeme is a boolean, character, directive, dot, identifier (without vertical lines), number
+            // then we need to check if the lexeme after it starts with a delimiter.
             Boolean | Character | Dot | Directive | Identifier | Number => {
                 let lexeme = self.inner.next()?;
                 let next = self.inner.peek();
@@ -212,10 +228,3 @@ impl Iterator for DelimitedLexer<'_> {
     }
 }
 
-impl<'a> DelimitedLexer<'a> {
-    fn new(lexer: Lexer<'a, Lexeme>) -> Self {
-        Self {
-            inner: lexer.peekable(),
-        }
-    }
-}

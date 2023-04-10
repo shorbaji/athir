@@ -88,7 +88,7 @@ mod regex_generator {
         let vertical_line_identifier = format!("({}{}*{})", vertical_line, symbol_element, vertical_line);
         let peculiar_identifier = format!("({})", peculiar);
 
-        let identifier = format!("(({})|({})|({}))", regular_identifier, peculiar_identifier, vertical_line_identifier);
+        // let identifier = format!("(({})|({})|({}))", regular_identifier, peculiar_identifier, vertical_line_identifier);
 
         let character_name = "(alarm|backspace|delete|escape|newline|null|return|space|tab)";
         let character = format!(

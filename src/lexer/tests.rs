@@ -1,6 +1,5 @@
 mod tests {
     use crate::lexer::Lexeme;
-    use logos::Logos;
 
     fn test_input<T>(input: &str, expected: T)
     where
