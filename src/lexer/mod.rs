@@ -17,7 +17,7 @@
 mod tests;
 use logos::{Lexer, Logos};
 
-pub fn lexeme_to_bool(lex: &mut Lexer<Token>) -> Option<bool> {
+pub fn lexeme_to_bool(lex: &mut Lexer<Lexeme>) -> Option<bool> {
     match lex.slice().to_lowercase().as_str() {
         "#t" | "#true" => Some(true),
         "#f" | "#false" => Some(false),
@@ -25,7 +25,7 @@ pub fn lexeme_to_bool(lex: &mut Lexer<Token>) -> Option<bool> {
     }
 }
 
-pub fn lexeme_to_char(lex: &mut Lexer<Token>) -> Option<char> {
+pub fn lexeme_to_char(lex: &mut Lexer<Lexeme>) -> Option<char> {
     let s = lex.slice();
 
     if s.len() == 3 {
@@ -54,7 +54,7 @@ pub fn lexeme_to_char(lex: &mut Lexer<Token>) -> Option<char> {
     }
 }
 
-fn lexeme_to_identifier(lex: &mut Lexer<Token>) -> Option<String> {
+fn lexeme_to_identifier(lex: &mut Lexer<Lexeme>) -> Option<String> {
     Some(lex.slice().to_string())
 }
 
@@ -71,11 +71,11 @@ fn lexeme_to_identifier(lex: &mut Lexer<Token>) -> Option<String> {
 
 type Number = String;
 
-fn lexeme_to_number(lex: &mut Lexer<Token>) -> Option<Number> {
+fn lexeme_to_number(lex: &mut Lexer<Lexeme>) -> Option<Number> {
     Some(lex.slice().to_string())
 }
 
-fn lexeme_to_string(lex: &mut Lexer<Token>) -> Option<String> {
+fn lexeme_to_string(lex: &mut Lexer<Lexeme>) -> Option<String> {
     let s = lex.slice();
 
     let s: String = String::from(&s[1..s.len() - 1]);
@@ -89,7 +89,7 @@ fn lexeme_to_string(lex: &mut Lexer<Token>) -> Option<String> {
 /// 
 
 #[derive(Logos, Debug, PartialEq)]
-pub enum Token {
+pub enum Lexeme {
     #[regex(r"(#(([tT][rR][uU][eE])|([fF][aA][lL][sS][eE])|([tT]|[fF])))", lexeme_to_bool)]
     Boolean(bool),
 
