@@ -10,6 +10,7 @@
 //! - a repl
 //! - tools including a lexeme generator and a regex generator
 
+mod parser;
 mod lexer;
 mod repl;
 mod tools;
