@@ -130,7 +130,7 @@ mod tests {
             "1.234e567",
         ]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::Number]));
+        .for_each(|s| test_input(s, vec![Token::Number(s.to_string())]));
     }
 
     #[test]

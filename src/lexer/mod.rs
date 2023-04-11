@@ -19,19 +19,20 @@
 
 #[cfg(test)]
 mod tests;
-pub mod token;
+mod token;
 mod number;
 
 use std::{iter::Peekable};
 use logos::{Lexer as LogosLexer, Logos};
-use token::Token;
+
+pub use token::Token;
 
 #[derive(Debug, Clone)]
 /// This struct implements the lexical analyzer for Athir
 /// This is currently based on the [Logos](https://docs.rs/logos/0.13.0/logos/) crate 
 /// Rust regexes, on which Logos is based, do not support lookahead
 /// So we have to do some extra work to ensure tokens are terminated by a delimiter
-    pub struct Lexer<'a> {
+pub struct Lexer<'a> {
     inner: Peekable<LogosLexer<'a, Token>>,
 }
 
@@ -62,7 +63,7 @@ impl Iterator for Lexer<'_> {
             | Token::Dot
             | Token::Directive 
             | Token::Identifier(_)
-            | Token::Number => {
+            | Token::Number(_) => {
                 let lexeme = self.inner.next()?;
                 let next = self.inner.peek();
 

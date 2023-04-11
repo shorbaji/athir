@@ -1,20 +1,27 @@
 
 use crate::lexer::Lexer;
-use crate::lexer::token::Token;
+use crate::lexer::Token;
 use logos::Logos;
 use std::iter::Peekable;
 
 #[derive(Debug)]
-enum Kind {
-    Expression,
+enum Expression {
     Literal,
     Identifier,
+    Compound,
+}
+
+#[derive(Debug)]
+enum Kind {
+    Expression(Expression),
+    Literal(Token),
+    Identifier(Token),
 }
 
 #[derive(Debug)]
 struct Node {
     kind: Kind,
-    children: Vec<Node>,
+    children: Vec<Box<Node>>,
 }
 
 #[derive(Debug)]
@@ -60,26 +67,46 @@ impl<'a> Parser<'a> {
                     .ok_or("Error at end of input")
                     ?;
 
-        match token {
+        let mut children: Vec<Box<Node>> = Vec::new();
+
+        let (variant, children) = match token {
             Token::Boolean(_)
             | Token::Character(_)
             | Token::String(_)
-            | Token::Number => self.literal(),
-            Token::Identifier(_) => self.identifier(),
-            _ => Err("Unexpected token"),
-        }
+            | Token::Number(_) => { (Expression::Literal, vec!(self.literal()?)) }
+            Token::Identifier(_) => { (Expression::Identifier, vec!(self.identifier()?)) }
+            Token::ParenOpen => {
+                self.lexer.next();
+                println!("PEEK: {:?}", self.peek());
+                while let Some(token) = self.peek() {
+                    if token == &Token::ParenClose {
+                        self.lexer.next();
+                        break;
+                    } else {
+                        children.push(self.expr()?);
+                    }
+                }
+                (Expression::Compound, children)
+            }
+            _ => return Err("Unexpected token"),
+        };
+
+        Ok(Box::new(Node {
+            kind: Kind::Expression(variant),
+            children: children,
+        }))
     }
 
     fn identifier(&mut self) -> Result<Box<Node>, ParseError> {
         Ok(Box::new(Node {
-            kind: Kind::Identifier,
+            kind: Kind::Identifier(self.lexer.next().unwrap()),
             children: vec![],
         }))
     }
 
     fn literal(&mut self) -> Result<Box<Node>, ParseError> {
         Ok(Box::new(Node {
-            kind: Kind::Literal,
+            kind: Kind::Literal(self.lexer.next().unwrap()),
             children: vec![],
         }))
     }
