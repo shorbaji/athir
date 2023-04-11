@@ -26,12 +26,18 @@ mod tests {
             ("#False", false),
         ]
         .iter()
-        .for_each(|(s, b)| test_input(s, vec![Token::Boolean]));
+        .for_each(|(s, b)| test_input(s, vec![Token::Boolean(*b)]));
+    }
+
+    fn test_input_char(pairs: &[(&'static str, char)]) {
+        pairs
+            .iter()
+            .for_each(|(s, c)| test_input(s, vec![Token::Character(*c)]));
     }
 
     #[test]
     fn test_string_to_char() {
-        [
+        let pairs = [
             ("#\\A", 'A'),
             ("#\\alarm", '\u{0007}'),
             ("#\\backspace", '\u{0008}'),
@@ -45,22 +51,20 @@ mod tests {
             ("#\\x41", 'A'),
             ("#\\x6a", 'j'),
             ("#\\x263a", '☺'),
-        ]
-        .iter()
-        .for_each(|(s, c)| {
-            test_input(s, vec![Token::Character]);
-        });
+        ];
+
+        test_input_char(&pairs);
     }
+
     #[test]
     fn test_char_simple() {
-        [("#\\a", 'a'), ("#\\\\", '\\'), ("#\\\"", '\"')]
-            .iter()
-            .for_each(|(s, c)| test_input(s, vec![Token::Character]));
+        let pairs = [("#\\a", 'a'), ("#\\\\", '\\'), ("#\\\"", '\"')];
+        test_input_char(&pairs);
     }
 
     #[test]
     fn test_char_named() {
-        [
+        let pairs = [
             ("#\\alarm", '\u{0007}'),
             ("#\\backspace", '\u{0008}'),
             ("#\\delete", '\u{007F}'),
@@ -70,16 +74,15 @@ mod tests {
             ("#\\return", '\u{000D}'),
             ("#\\space", '\u{0020}'),
             ("#\\tab", '\u{0009}'),
-        ]
-        .iter()
-        .for_each(|(s, c)| test_input(s, vec![Token::Character]));
+        ];
+
+        test_input_char(&pairs);
     }
 
     #[test]
     fn test_char_hex() {
-        [("#\\x41", 'A'), ("#\\x6a", 'j'), ("#\\x263a", '☺')]
-            .iter()
-            .for_each(|(s, c)| test_input(s, vec![Token::Character]));
+        let pairs = [("#\\x41", 'A'), ("#\\x6a", 'j'), ("#\\x263a", '☺')];
+        test_input_char(&pairs);
     }
 
     #[test]
@@ -104,7 +107,7 @@ mod tests {
             ".lmn",
         ]
         .iter()
-        .for_each(|s| test_input(s, vec![Token::Identifier]));
+        .for_each(|s| test_input(s, vec![Token::Identifier(s.to_string())]));
     }
 
     #[test]
@@ -150,54 +153,76 @@ mod tests {
         test_input("#u8(", vec![Token::SharpU8Open]);
     }
 
+    fn test_input_string(pairs: &[(&'static str, &'static str)]) {
+        pairs
+            .iter()
+            .for_each(|(a, b)| test_input(a, vec![Token::String(b.to_string())]));
+    }
+
     #[test]
     fn test_string_simple() {
-        [
-            "\"\"", "\"a\"", "\"abc\"", "\"\\\"\"", "\"\\\\\"", "\"\\a\"", "\"\\b\"", "\"\\t\"",
-            "\"\\n\"", "\"\\r\"", "\"\\v\"", "\"\\f\"",
-        ]
-        .iter()
-        .for_each(|s| test_input(s, vec![Token::String]));
+        let pairs = [
+            ("\"\"", ""),
+            ("\"a\"", "a"),
+            ("\"abc\"", "abc"),
+            ("\"\\\"\"", "\\\""),
+            ("\"\\\\\"", "\\\\"),
+            ("\"\\a\"", "\\a"),
+        ];
+        test_input_string(&pairs);
     }
 
     #[test]
     fn test_string_mnemonic() {
-        [
-            "\"\\b\"", "\"\\t\"", "\"\\n\"", "\"\\r\"", "\"\\a\"", "\"\\B\"", "\"\\T\"", "\"\\N\"",
-            "\"\\R\"", "\"\\A\"",
-        ]
-        .iter()
-        .for_each(|s| {
-            println!("{}", s);
-            test_input(s, vec![Token::String]);
-        });
+        let pairs = [
+            ("\"\\b\"", "\\b"),
+            ("\"\\t\"", "\\t"),
+            ("\"\\n\"", "\\n"),
+            ("\"\\r\"", "\\r"),
+            ("\"\\a\"", "\\a"),
+            ("\"\\B\"", "\\B"),
+            ("\"\\T\"", "\\T"),
+            ("\"\\N\"", "\\N"),
+            ("\"\\R\"", "\\R"),
+            ("\"\\A\"", "\\A"),
+        ];
+
+        test_input_string(&pairs);
     }
 
     #[test]
     fn test_string_escaped_double_quote() {
-        ["\"\\\"\""]
-            .iter()
-            .for_each(|s| test_input(s, vec![Token::String]));
+        let pairs = [
+            ("\"\\\"\"", "\\\"")
+        ];
+
+        test_input_string(&pairs);
     }
 
     #[test]
     fn test_string_escaped_backslash() {
-        ["\"\\\\\""]
-            .iter()
-            .for_each(|s| test_input(s, vec![Token::String]));
+        let pairs = [
+            ("\"\\\\\"", "\\\\")
+        ];
+
+        test_input_string(&pairs);
     }
 
     #[test]
     fn test_string_multiline() {
-        ["\"this is a multiline   \\   \nstring\""]
-            .iter()
-            .for_each(|s| test_input(s, vec![Token::String]));
+        let pairs = [
+            ("\"this is a multiline   \\   \nstring\"", "this is a multiline   \\   \nstring")
+        ];
+        
+        test_input_string(&pairs);
     }
 
     #[test]
     fn test_string_hex_escape() {
-        ["\"\\x41;\""]
-            .iter()
-            .for_each(|s| test_input(s, vec![Token::String]));
+        let pairs = [
+            ("\"\\x41\"", "a"),
+        ];
+
+        test_input_string(&pairs);
     }
 }

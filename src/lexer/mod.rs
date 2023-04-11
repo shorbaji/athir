@@ -53,34 +53,45 @@ impl Iterator for Lexer<'_> {
         //! Boolean, character, directive, dot, identifier (without vertical lines), number must
         //! be terminated by a delimiter.
         //! 
-        use Token::*;
 
         match self.inner.peek()? {
             // If the next lexeme is a boolean, character, directive, dot, identifier (without vertical lines), number
             // then we need to check if the lexeme after it starts with a delimiter.
-            Boolean | Character | Dot | Directive | Identifier | Number => {
+            Token::Boolean(_)
+            | Token::Character(_)
+            | Token::Dot
+            | Token::Directive 
+            | Token::Identifier(_)
+            | Token::Number => {
                 let lexeme = self.inner.next()?;
                 let next = self.inner.peek();
 
                 match next {
                     None => Some(lexeme),
                     Some(next) => match next {
-                        Error| Whitespace | ParenClose | ParenOpen | String | Comment | VerticalLineIdentifier=> {
+                        Token::Error
+                        | Token::Whitespace
+                        | Token::ParenClose
+                        | Token::ParenOpen
+                        | Token::String(_)
+                        | Token::Comment
+                        | Token::VerticalLineIdentifier(_)=> {
                             Some(lexeme)
                         },
                         _ => {
                             self.inner.next();
-                            Some(Error)
+                            Some(Token::Error)
                         }
                     }
                 }
             },
-            VerticalLineIdentifier => {
+            Token::VerticalLineIdentifier(id) => {
+                let token = Token::Identifier(id.clone());
                 self.inner.next();
-                Some(Identifier)
+                Some(token)
             },
-            Whitespace => {
-                while let Some(Whitespace) = self.inner.peek() {
+            Token::Whitespace => {
+                while let Some(Token::Whitespace) = self.inner.peek() {
                     self.inner.next();
                 }
                 self.inner.next()
