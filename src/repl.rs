@@ -13,9 +13,7 @@
             for line in std::io::stdin().lines() {
                 let line = line.unwrap();
 
-                for token in Parser::new(&line).parse() {
-                    println!("token: {:?}", token);
-                }
+                println!("{:?}", Parser::new(&line).parse());
                 print!("> ");
                 std::io::stdout().flush().unwrap();
             }
