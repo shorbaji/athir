@@ -19,6 +19,7 @@ enum Kind {
     Literal,
     Identifier,
     Formals,
+    DefFormals
 }
 
 #[derive(Debug)]
@@ -63,7 +64,9 @@ impl<'a> Parser<'a> {
     fn leaf(&mut self, kind: Kind) -> Result<Box<Node>, ParseError> {
         Ok(Box::new(Node::Leaf(kind, self.lexer.next().unwrap())))
     }
-    
+}
+
+impl<'a> Parser<'a> {
     fn keyword(&mut self, keyword: &str) -> Result<(), ParseError> {
         let token = self.peek().ok_or("Error at end of input")?;
         
@@ -77,6 +80,29 @@ impl<'a> Parser<'a> {
         
     }
     
+    fn paren_open(&mut self) -> Result<(), ParseError> {
+        match self.peek().ok_or("Error at end of input")? {
+            Token::ParenOpen => {
+                self.lexer.next(); // consume ParenOpen
+                Ok(())
+            },
+            _ => Err("syntax error: expected ParenOpen"),
+        }
+    }
+    
+    fn paren_close(&mut self) -> Result<(), ParseError> {
+        match self.peek().ok_or("Error at end of input")? {
+            Token::ParenClose => {
+                self.lexer.next(); // consume ParenClose
+                Ok(())
+            },
+            _ => Err("syntax error: expected ParenClose"),
+        }
+    }
+}
+
+impl<'a> Parser<'a> {
+
     fn expr(&mut self) -> Result<Box<Node>, ParseError> {
         self.literal()
         .or_else(|_| self.identifier())
@@ -84,19 +110,23 @@ impl<'a> Parser<'a> {
         .and_then(|node| self.node(Kind::Expression, vec![node]))
     }
     
-    fn identifier(&mut self) -> Result<Box<Node>, ParseError> {
-        let token = self.peek().ok_or("Error at end of input")?;
-        
-        match token {
+    fn expr_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
+        Ok(from_fn(|| self.expr().ok()).collect())
+    }
+    
+    fn identifier(&mut self) -> Result<Box<Node>, ParseError> {        
+        match self.peek().ok_or("Error at end of input")? {
             Token::Identifier(_) => self.leaf(Kind::Identifier),
             _ => Err("Unexpected token. Expected identifier"),
         }        
     }
+
+    fn identifier_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
+        Ok(from_fn(|| self.identifier().ok()).collect())
+    }
     
-    fn literal(&mut self) -> Result<Box<Node>, ParseError> {
-        let token = self.peek().ok_or("Error at end of input")?;
-        
-        match token {
+    fn literal(&mut self) -> Result<Box<Node>, ParseError> {        
+        match self.peek().ok_or("Error at end of input")? {
             Token::Boolean(_)
             | Token::Character(_)
             | Token::String(_)
@@ -106,36 +136,27 @@ impl<'a> Parser<'a> {
     }
     
     fn compound_expr(&mut self) -> Result<Box<Node>, ParseError> {
-        let token = self.peek().ok_or("Error at end of input")?;
-
-        match token {
-            Token::ParenOpen => {
-                self.lexer.next(); // consume open parenthesis
-                self.definition()
-                    .or_else(|_| self.iff())
-                    .or_else(|_| self.lambda())
-                    .or_else(|_| self.set())
-                    .or_else(|_| self.procedure_call())
-                    .or(Err("Unexpected token."))
-            }
-            _ => Err("Unexpected token. Expected compound expression"),
-        }        
+        self.paren_open().and_then(|_| 
+            self.definition()
+            .or_else(|_| self.iff())
+            .or_else(|_| self.lambda())
+            .or_else(|_| self.set())
+            .or_else(|_| self.procedure_call())
+            .or(Err("Unexpected token.")))
     }
     
     fn definition(&mut self) -> Result<Box<Node>, ParseError> {
         self.keyword("define").and_then(|_| 
-            self.variable_definition().or_else(|_| self.function_definition())
+            self.variable_definition().or_else(|_|
+                self.function_definition())
         )
     }
         
     fn variable_definition(&mut self) -> Result<Box<Node>, ParseError> {
-        self.identifier().and_then(|id| {
-            self.expr().and_then(|expr| {
-                self.paren_close().and_then(|_| {
-                    self.node(Kind::VariableDefinition, vec![id, expr])
-                })
-            })
-        })            
+        self.identifier().and_then(|id| 
+            self.expr().and_then(|expr| 
+                self.paren_close().and_then(|_| 
+                    self.node(Kind::VariableDefinition, vec![id, expr]))))
     }
         
     fn function_definition(&mut self) -> Result<Box<Node>, ParseError> {
@@ -147,59 +168,35 @@ impl<'a> Parser<'a> {
                             self.paren_close().and_then(|_| 
                                 self.node(Kind::FunctionDefinition, vec![id, formals, body])))))))
     } 
-    
-    fn def_formals(&mut self) -> Result<Box<Node>, ParseError> {
-        Ok(from_fn(|| self.identifier().ok()).collect::<Vec<Box<Node>>>())
-            .and_then(|ids| self.node(Kind::Formals, ids))
-    }
-    
-    fn lambda(&mut self) -> Result<Box<Node>, ParseError> {
-        let token = self.peek().ok_or("Error at end of input")?;
 
+    fn def_formals(&mut self) -> Result<Box<Node>, ParseError> {
+        self.identifier_list().and_then(|ids| self.node(Kind::DefFormals, ids))
+    }
+
+    fn lambda(&mut self) -> Result<Box<Node>, ParseError> {
         self.keyword("lambda").and_then(|_| 
-            self.paren_open().and_then(|_|
-                self.formals().and_then(|formals| 
-                    self.paren_close().and_then(|_|
-                        self.body().and_then(|body| 
-                            self.paren_close().and_then(|_| 
-                                self.node(Kind::Lambda, vec![formals, body])))))))
+            self.formals().and_then(|formals|
+                self.body().and_then(|body| 
+                    self.paren_close().and_then(|_| 
+                        self.node(Kind::Lambda, vec![formals, body])))))
     }
 
     fn formals(&mut self) -> Result<Box<Node>, ParseError> {
-        self.identifier_list().and_then(|ids|self.node(Kind::Formals, ids))
-    }
+        self.identifier().and_then(|id|
+            self.node(Kind::Formals, vec![id]))
+            .or_else(|_|
+                self.paren_open().and_then(|_|
+                    self.identifier_list().and_then(|ids|
+                        self.paren_close().and_then(|_|
+                            self.node(Kind::Formals, ids)))))
+     }
 
     fn body(&mut self) -> Result<Box<Node>, ParseError> {
         let mut children: Vec<Box<Node>> = Vec::new();
-        Ok(from_fn(|| self.expr().ok()).collect::<Vec<Box<Node>>>())
+        Ok(from_fn(|| self.expr().ok()).collect())
             .and_then(|exprs| self.node(Kind::Body, exprs))        
     }
-    
-    
-    fn identifier_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
-        Ok(from_fn(|| self.identifier().ok()).collect::<Vec<Box<Node>>>())
-    }
-    
-    fn paren_open(&mut self) -> Result<(), ParseError> {
-        match self.peek() {
-            Some(Token::ParenOpen) => {
-                self.lexer.next(); // consume ParenOpen
-                Ok(())
-            },
-            _ => Err("syntax error: expected ParenOpen"),
-        }
-    }
-    
-    fn paren_close(&mut self) -> Result<(), ParseError> {
-        match self.peek() {
-            Some(Token::ParenClose) => {
-                self.lexer.next(); // consume ParenClose
-                Ok(())
-            },
-            _ => Err("syntax error: expected ParenClose"),
-        }
-    }
-    
+
     fn set(&mut self) -> Result<Box<Node>, ParseError> {
         self.keyword("set!").and_then(|_|
             self.identifier().and_then(|id| 
@@ -224,11 +221,21 @@ impl<'a> Parser<'a> {
                 })))}        
 
     fn procedure_call(&mut self) -> Result<Box<Node>, ParseError> {
-        self.identifier().and_then(|operator| 
-            self.identifier_list().and_then(|operands|
+        self.operator().and_then(|operator| 
+            self.operands().and_then(|operands|
                 self.paren_close().and_then(|_| {
-                    let operands = self.node(Kind::Operands, operands)?;
                     self.node(Kind::ProcedureCall, vec![operator, operands])    
                 })))
     }
+
+    fn operator(&mut self) -> Result<Box<Node>, ParseError> {
+        self.expr().and_then(|expr|
+            self.node(Kind::Operator, vec![expr]))
+    }
+
+    fn operands(&mut self) -> Result<Box<Node>, ParseError> {
+        self.expr_list().and_then(|exprs|
+            self.node(Kind::Operands, exprs))
+    }
+
 }
