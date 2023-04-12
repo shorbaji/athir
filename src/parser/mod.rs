@@ -2,40 +2,44 @@
 use crate::lexer::Lexer;
 use crate::lexer::Token;
 use std::iter::Peekable;
-
-#[derive(Debug)]
-enum ExpressionKind {
-    ProcedureCall,
-    Definition,
-}
+use std::iter::from_fn;
 
 #[derive(Debug)]
 enum Kind {
-    Expression(ExpressionKind),
-    Literal(Token),
-    Identifier(Token),
+    Expression,
+    ProcedureCall,
+    Operands,
+    Operator,
+    VariableDefinition,
+    FunctionDefinition,
+    Conditional,
+    Lambda,
+    Body,
+    Assignment,
+    Literal,
+    Identifier,
+    Formals,
 }
 
 #[derive(Debug)]
-struct Node {
-    kind: Kind,
-    children: Vec<Box<Node>>,
+enum Node {
+    Inner(Kind, Vec<Box<Node>>),
+    Leaf(Kind, Token),
 }
+
+// impl Node {
+//     fn inner(kind: Kind, children: Vec<Box<Node>>) -> Self {
+//         Self::Inner(kind, children)
+//     }
+    
+//     fn leaf(kind: Kind, token: Token) -> Self {
+//         Self::Leaf(kind, token)
+//     }
+// }
 
 #[derive(Debug)]
 pub struct ParseTree {
-    root: Box<Node>,
-}
-
-impl ParseTree {
-    fn new(nt: Kind) -> Self {
-        Self {
-            root: Box::new(Node {
-                kind: nt,
-                children: Vec::new(),
-            }),
-        }
-    }
+    root: Box<Node>
 }
 
 type ParseError = &'static str;
@@ -46,126 +50,185 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(input: &'a str) -> Self {
-        Self {
-            lexer: Lexer::new(input).peekable(),
+    pub fn new(input: &'a str) -> Self { Self { lexer: Lexer::new(input).peekable() } }
+    
+    pub fn parse(&mut self) -> Result<ParseTree, ParseError> { Ok(ParseTree { root: self.expr()? }) }
+    
+    fn peek(&mut self) -> Option<&Token> { self.lexer.peek() }
+    
+    fn node(&mut self, kind: Kind, children: Vec<Box<Node>>) -> Result<Box<Node>, ParseError> {
+        Ok(Box::new(Node::Inner(kind, children)))
+    }
+    
+    fn leaf(&mut self, kind: Kind) -> Result<Box<Node>, ParseError> {
+        Ok(Box::new(Node::Leaf(kind, self.lexer.next().unwrap())))
+    }
+    
+    fn keyword(&mut self, keyword: &str) -> Result<(), ParseError> {
+        let token = self.peek().ok_or("Error at end of input")?;
+        
+        match token {
+            Token::Identifier(s) if keyword == s => {
+                self.lexer.next(); // consume keyword
+                Ok(())
+            },
+            _ => Err("Unexpected token. Expected keyword"),
         }
+        
     }
-
-    fn peek(&mut self) -> Option<&Token> {
-        self.lexer.peek()
-    }
-
-    pub fn parse(&mut self) -> Result<ParseTree, ParseError> { 
-        Ok(ParseTree { root: self.expr()? })
-    }
-
+    
     fn expr(&mut self) -> Result<Box<Node>, ParseError> {
-        let token = self.peek()
-                    .ok_or("Error at end of input")
-                    ?;
-
-        let mut children: Vec<Box<Node>> = Vec::new();
-
+        self.literal()
+        .or_else(|_| self.identifier())
+        .or_else(|_| self.compound_expr())
+        .and_then(|node| self.node(Kind::Expression, vec![node]))
+    }
+    
+    fn identifier(&mut self) -> Result<Box<Node>, ParseError> {
+        let token = self.peek().ok_or("Error at end of input")?;
+        
+        match token {
+            Token::Identifier(_) => self.leaf(Kind::Identifier),
+            _ => Err("Unexpected token. Expected identifier"),
+        }        
+    }
+    
+    fn literal(&mut self) -> Result<Box<Node>, ParseError> {
+        let token = self.peek().ok_or("Error at end of input")?;
+        
         match token {
             Token::Boolean(_)
             | Token::Character(_)
             | Token::String(_)
-            | Token::Number(_) => self.literal(), 
-            Token::Identifier(_) => self.identifier(),
-            Token::ParenOpen => self.compound_expr(),
-            _ => return Err("Unexpected token"),
+            | Token::Number(_) => self.leaf(Kind::Literal),
+            _ => return Err("Unexpected token. Expected literal"),
         }
     }
-
-    fn identifier(&mut self) -> Result<Box<Node>, ParseError> {
-        Ok(Box::new(Node {
-            kind: Kind::Identifier(self.lexer.next().unwrap()),
-            children: vec![],
-        }))
-    }
-
-    fn literal(&mut self) -> Result<Box<Node>, ParseError> {
-        Ok(Box::new(Node {
-            kind: Kind::Literal(self.lexer.next().unwrap()),
-            children: vec![],
-        }))
-    }
-
+    
     fn compound_expr(&mut self) -> Result<Box<Node>, ParseError> {
-        let mut children: Vec<Box<Node>> = Vec::new();
+        let token = self.peek().ok_or("Error at end of input")?;
 
-        let _parenopen = self.lexer.next(); // consume ParenOpen
-
-        let next = self.peek().ok_or("Error at end of input")?;
-
-        match next {
-            Token::Identifier(s) if matches!(s.as_str(), "define") => self.definition(),
-            Token::Identifier(s) if matches!(s.as_str(), "lambda") => {
-                Err("don't know how to parse these yet")
-            },
-            Token::Identifier(s) if matches!(s.as_str(), "if") => {
-                Err("don't know how to parse these yet")
-            },
-            Token::Identifier(s) if matches!(s.as_str(), "set!") => {
-                Err("don't know how to parse these yet")
-            },
-            Token::Identifier(s) if matches!(s.as_str(), "quote") => {
-                Err("don't know how to parse these yet")
-            },
-            _ => {
-                while let Some(token) = self.peek() {
-                    if token == &Token::ParenClose {
-                        self.lexer.next(); // consume ParenClose
-                        break;
-                    } else {
-                        children.push(self.expr()?);
-                    }
-                }
-
-                Ok(Box::new(Node {
-                    kind: Kind::Expression(ExpressionKind::ProcedureCall),
-                    children: children,
-                }))
+        match token {
+            Token::ParenOpen => {
+                self.lexer.next(); // consume open parenthesis
+                self.definition()
+                    .or_else(|_| self.iff())
+                    .or_else(|_| self.lambda())
+                    .or_else(|_| self.set())
+                    .or_else(|_| self.procedure_call())
+                    .or(Err("Unexpected token."))
             }
-        }
+            _ => Err("Unexpected token. Expected compound expression"),
+        }        
     }
-
+    
     fn definition(&mut self) -> Result<Box<Node>, ParseError> {
-        let _keyword = self.lexer.next(); // consume define keyword
-
-        let next = self.peek().ok_or("Error at end of input")?;
-
-        match next {
-            Token::Identifier(s) => self.variable_definition(),
-            Token::ParenOpen => self.function_definition(),
-            _ => Err("syntax error: malformed define"),
-        }
+        self.keyword("define").and_then(|_| 
+            self.variable_definition().or_else(|_| self.function_definition())
+        )
     }
-
+        
     fn variable_definition(&mut self) -> Result<Box<Node>, ParseError> {
-        let identifier = self.identifier()?; // consume identifier
+        self.identifier().and_then(|id| {
+            self.expr().and_then(|expr| {
+                self.paren_close().and_then(|_| {
+                    self.node(Kind::VariableDefinition, vec![id, expr])
+                })
+            })
+        })            
+    }
+        
+    fn function_definition(&mut self) -> Result<Box<Node>, ParseError> {
+        self.paren_open().and_then(|_| 
+            self.identifier().and_then(|id| 
+                self.def_formals().and_then(|formals| 
+                    self.paren_close().and_then(|_| 
+                        self.body().and_then(|body| 
+                            self.paren_close().and_then(|_| 
+                                self.node(Kind::FunctionDefinition, vec![id, formals, body])))))))
+    } 
+    
+    fn def_formals(&mut self) -> Result<Box<Node>, ParseError> {
+        Ok(from_fn(|| self.identifier().ok()).collect::<Vec<Box<Node>>>())
+            .and_then(|ids| self.node(Kind::Formals, ids))
+    }
+    
+    fn lambda(&mut self) -> Result<Box<Node>, ParseError> {
+        let token = self.peek().ok_or("Error at end of input")?;
 
-        let expr = self.expr()
-                    .or(Err("syntax error: malformed define : expected expr"))?;
+        self.keyword("lambda").and_then(|_| 
+            self.paren_open().and_then(|_|
+                self.formals().and_then(|formals| 
+                    self.paren_close().and_then(|_|
+                        self.body().and_then(|body| 
+                            self.paren_close().and_then(|_| 
+                                self.node(Kind::Lambda, vec![formals, body])))))))
+    }
 
-        let next = self.peek().ok_or("Error at end of input")?;
+    fn formals(&mut self) -> Result<Box<Node>, ParseError> {
+        self.identifier_list().and_then(|ids|self.node(Kind::Formals, ids))
+    }
 
-        match next {
-            Token::ParenClose => {
-                self.lexer.next(); // consume ParenClose
-                Ok(Box::new(Node {
-                    kind: Kind::Expression(ExpressionKind::Definition),
-                    children: vec!(identifier, expr),
-                }))
+    fn body(&mut self) -> Result<Box<Node>, ParseError> {
+        let mut children: Vec<Box<Node>> = Vec::new();
+        Ok(from_fn(|| self.expr().ok()).collect::<Vec<Box<Node>>>())
+            .and_then(|exprs| self.node(Kind::Body, exprs))        
+    }
+    
+    
+    fn identifier_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
+        Ok(from_fn(|| self.identifier().ok()).collect::<Vec<Box<Node>>>())
+    }
+    
+    fn paren_open(&mut self) -> Result<(), ParseError> {
+        match self.peek() {
+            Some(Token::ParenOpen) => {
+                self.lexer.next(); // consume ParenOpen
+                Ok(())
             },
-            _ => Err("syntax error: malformed define : expected close parenthesis after expresssion"),
+            _ => Err("syntax error: expected ParenOpen"),
         }
     }
-
-    fn function_definition(&mut self) -> Result<Box<Node>, ParseError> {
-        let _parenopen = self.lexer.next(); // consume ParenOpen
-        Err("don't know how to define functions yet")
+    
+    fn paren_close(&mut self) -> Result<(), ParseError> {
+        match self.peek() {
+            Some(Token::ParenClose) => {
+                self.lexer.next(); // consume ParenClose
+                Ok(())
+            },
+            _ => Err("syntax error: expected ParenClose"),
+        }
     }
+    
+    fn set(&mut self) -> Result<Box<Node>, ParseError> {
+        self.keyword("set!").and_then(|_|
+            self.identifier().and_then(|id| 
+                self.expr().and_then(|expr| 
+                    self.paren_close().and_then(|_| 
+                        self.node(Kind::Assignment, vec![id, expr])))))        
+    }
+    
+    fn iff(&mut self) -> Result<Box<Node>, ParseError> {
+        self.keyword("if").and_then(|_| 
+            self.expr().and_then(|test| 
+                self.expr().and_then(|consequent| {
+                    match self.peek().ok_or("Error at end of input")? {
+                        Token::ParenClose => {
+                            self.lexer.next(); // consume ParenClose
+                            return self.node(Kind::Conditional, vec![test, consequent])
+                        },
+                        _ => self.expr().and_then(|alternative| 
+                                self.paren_close().and_then(|_| 
+                                    self.node(Kind::Conditional, vec![test, consequent, alternative]))),    
+                    }
+                })))}        
 
+    fn procedure_call(&mut self) -> Result<Box<Node>, ParseError> {
+        self.identifier().and_then(|operator| 
+            self.identifier_list().and_then(|operands|
+                self.paren_close().and_then(|_| {
+                    let operands = self.node(Kind::Operands, operands)?;
+                    self.node(Kind::ProcedureCall, vec![operator, operands])    
+                })))
+    }
 }
