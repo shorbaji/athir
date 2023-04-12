@@ -9,4 +9,4 @@
 //     denominator: Option<Value>,
 // }
 
-pub type Number = String; 
+pub type Number = String;

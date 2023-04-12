@@ -13,7 +13,6 @@
 mod parser;
 mod lexer;
 mod repl;
-mod tools;
 
 fn main() -> std::io::Result<()> {
     //! Main entry point
