@@ -78,3 +78,25 @@ fn test_quotation() {
     assert!(Parser::new("(quote x)").parse().is_ok());
 }
 
+#[test]
+fn test_macro_block() {
+    assert!(Parser::new("(let-syntax
+                            ((cl (syntax-rules ::: ()
+                                ((cl)
+                                (error \"no matching clause\"))
+                                ((cl ((p :::) . body) . rest)
+                                (if (= len (length ’(p :::)))
+                                    (apply (lambda (p :::)
+                                            . body)
+                                            args)
+                                    (cl . rest)))
+                                ((cl ((p ::: . tail) . body)
+                                    . rest)
+                                (if (>= len (length ’(p :::)))
+                                    (apply
+                                    (lambda (p ::: . tail)
+                                        . body)
+                                    args)
+                                    (cl . rest))))))
+                            (cl (params body0 ...) ...))").parse().is_ok());
+}

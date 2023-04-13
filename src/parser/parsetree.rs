@@ -16,7 +16,6 @@ pub enum Kind {
     Assignment,
     Literal,
     Identifier,
-    IdentifierList,
     Formals,
     DefFormals,
     Quotation,
@@ -29,19 +28,26 @@ pub enum Kind {
     MacroBlock,
     LetRecSyntax,
     LetSyntax,
-    TransformationSpecList,
-    TransformationSpec,
-    TransformationSpecOptionalIdentifier,
-    TransformationSpecIdentifierList,
+    SyntaxSpecList,
+    SyntaxSpec,
+    TransformerSpec,
+    TransformerSpecIdentifierList,
     SyntaxRule,
     SyntaxRuleList,
     SyntaxRuleUnderscore,
     Pattern,
     PatternIdentifier,
     PatternDatum,
+    PatternWithParen,
+    PatternPreEllipse,
+    PatternPostEllipse,
+    PatternSharp,
+    PatternParen,
     Template,
     TemplateElement,
     TemplateDatum,
+    TemplateSharp,
+    TemplateWithParen,
     Ellipsis,
     Underscore,
 }
@@ -50,6 +56,15 @@ pub enum Kind {
 pub enum Node {
     Inner(Kind, Vec<Box<Node>>),
     Leaf(Kind, Token),
+}
+
+impl Node {
+    pub fn add_child(&mut self, child: Box<Node>) {
+        match self {
+            Node::Inner(_, children) => children.push(child),
+            Node::Leaf(_, _) => panic!("Cannot add child to leaf node"),
+        }
+    }
 }
 
 #[derive(Debug)]

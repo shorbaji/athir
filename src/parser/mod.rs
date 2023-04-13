@@ -2,27 +2,29 @@
 //!
 //! TODO:
 //! [P0]
-//! - datum list with dotted tail
-//! - begin
-//! - define-values
-//! - define-record-type
+//! - transformers tests and troubleshooting
+//! - define-syntax
+//! - quasiquotation
+//! - bytevector
+//! - vector
+//! - read to consume parsetree and return expressions
 //! 
 //! [P1]
-//! - code for handling zero-or-one -q zero-or-more - one-or-more
-//! - transformers
-//! - define-syntax
+//! - parsetree captures source
+//! - node captures source
 //! 
 //! [P2]
 //! - includer
 //! - define-library
 //! - derived-expression
-//! 
+//! - define-values
+//! - define-record-type
+//! - begin
 //! Known issues:
 //! - The parser is not yet complete.
 //! - No support for # label in datum.
 //! - Transformer spec implementation is incomplete.
 //! - internal definitions in body not implemented yet
-//! 
 //! 
 
 #[cfg(test)]
@@ -323,6 +325,7 @@ impl<'a> Parser<'a> {
     ///
 
     fn macro_block(&mut self) -> Result<Box<Node>, ParseError> {
+        // we look for the keywords let-syntax or letrec-syntax
         let node = match self.peek().ok_or("error at end of input")? {
             Token::Identifier(id) => 
                 match id.as_str() {
@@ -338,73 +341,83 @@ impl<'a> Parser<'a> {
 
     fn let_syntax(&mut self) -> Result<Box<Node>, ParseError> {
         self.keyword("let-syntax").and_then(|_| 
-            self.macro_block_suffix().and_then(|(transformation_specs, body)|
-                self.node(Kind::LetSyntax, vec![transformation_specs, body])))
+            self.macro_block_suffix().and_then(|(transformer_specs, body)|
+                self.node(Kind::LetSyntax, vec![transformer_specs, body])))
     }
 
     fn letrec_syntax(&mut self) -> Result<Box<Node>, ParseError> {
-        println!("letrec_syntax {:?}", self.peek());
         self.keyword("letrec-syntax").and_then(|_| 
-            self.macro_block_suffix().and_then(|(transformation_specs, body)|
-                self.node(Kind::LetSyntax, vec![transformation_specs, body])))
+            self.macro_block_suffix().and_then(|(transformer_specs, body)|
+                self.node(Kind::LetSyntax, vec![transformer_specs, body])))
     }
 
     fn macro_block_suffix(&mut self) -> Result<(Box<Node>, Box<Node>), ParseError> {
-        self.transformation_specs().and_then(|transformation_specs|
-            self.body().and_then(|body|
+        // ( <syntax spec>* ) <body> )
+
+        self.paren_open().and_then(|_|
+            self.syntax_specs().and_then(|syntax_specs|
                 self.paren_close().and_then(|_|
-                Ok((transformation_specs, body)))))
+                    self.body().and_then(|body|
+                        self.paren_close().and_then(|_|
+                            Ok((syntax_specs, body)))))))
+    }
+
+    fn syntax_specs(&mut self) -> Result<Box<Node>, ParseError> {
+        // <syntax spec>*
+        Ok(from_fn(|| self.syntax_spec().ok()).collect::<Vec<Box<Node>>>())
+            .and_then(|specs| self.node(Kind::SyntaxSpecList, specs))
+    }
+
+    fn syntax_spec(&mut self) -> Result<Box<Node>, ParseError> {
+        // ( <keyword> <transformer spec> )
+        self.paren_open().and_then(|_|
+            self.identifier().and_then(|keyword| 
+                self.transformer_spec().and_then(|transformer_spec|
+                    self.paren_close().and_then(|_|
+                        self.node(Kind::SyntaxSpec, vec![keyword, transformer_spec])))))
     }
 
     ///
     /// Transformer (R7RS section 7.1.5) 
     /// [INCOMPLETE]
     /// 
-    fn transformation_specs(&mut self) -> Result<Box<Node>, ParseError> {
-        self.paren_open().and_then(|_|
-            self.transformation_spec_list().and_then(|transformation_specs|
-                self.paren_close().and_then(|_|
-                    self.node(Kind::TransformationSpecList, transformation_specs))))
-    }
-
-    fn transformation_spec_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
-        Ok(from_fn(|| self.transformation_spec().ok()).collect())
-    }
-
-    fn transformation_spec(&mut self) -> Result<Box<Node>, ParseError> {
+    
+    fn transformer_spec(&mut self) -> Result<Box<Node>, ParseError> {
         self.paren_open().and_then(|_|
             self.keyword("syntax_rules").and_then(|_| 
-                self.transformation_spec_optional_identifer().and_then(|id|
-                    self.transformation_spec_suffix().and_then(|(ids, syntax_rules)|
-                        self.paren_close().and_then(|_|
-                            self.node(Kind::TransformationSpec, vec![id, ids, syntax_rules]))))))
+                match self.peek().ok_or("error at end of input")? {
+                    Token::Identifier(_) => self.identifier().and_then(|id|
+                        self.transformer_spec_suffix().and_then(|(transformer_spec_identifier_list, syntax_rule_list)|
+                            self.node(Kind::TransformerSpec, vec![id, transformer_spec_identifier_list, syntax_rule_list]))),
+                    Token::ParenOpen => self.transformer_spec_suffix().and_then(|(transformer_spec_identifier_list, syntax_rule_list)|
+                        self.node(Kind::TransformerSpec, vec![transformer_spec_identifier_list, syntax_rule_list])),
+                    _ => Err("Unexpected token in transformer spec Expected identifier or ("),
+                }))
     }
 
-    fn transformation_spec_suffix(&mut self) -> Result<(Box<Node>, Box<Node>), ParseError> {
+    fn transformer_spec_suffix(&mut self) -> Result<(Box<Node>, Box<Node>), ParseError> {
+        // ( <identifier>* ) <syntax rule>* )
         self.paren_open().and_then(|_|
-            self.transformation_spec_identifier_list().and_then(|transformation_spec_identifier_list|
+            self.transformer_spec_identifier_list().and_then(|transformer_spec_identifier_list|
                 self.syntax_rule_list().and_then(|syntax_rule_list|
                     self.paren_close().and_then(|_| 
-                        Ok((transformation_spec_identifier_list, syntax_rule_list))))))
+                        Ok((transformer_spec_identifier_list, syntax_rule_list))))))
     }
 
-    fn transformation_spec_optional_identifer(&mut self) -> Result<Box<Node>, ParseError> {
-        self.identifier().and_then(|id|
-            self.node(Kind::TransformationSpecOptionalIdentifier, vec![id]))
-            .or_else(|_| self.node(Kind::TransformationSpecOptionalIdentifier, vec!()))
-    }
-
-    fn transformation_spec_identifier_list(&mut self) -> Result<Box<Node>, ParseError> {
+    fn transformer_spec_identifier_list(&mut self) -> Result<Box<Node>, ParseError> {
+        // <identifier>*
         Ok(from_fn(|| self.identifier().ok()).collect::<Vec<Box<Node>>>())
-            .and_then(|ids| self.node(Kind::TransformationSpecIdentifierList, ids))
+            .and_then(|ids| self.node(Kind::TransformerSpecIdentifierList, ids))
     }
 
     fn syntax_rule_list(&mut self) -> Result<Box<Node>, ParseError> {
+        // <syntax rule>*
         Ok(from_fn(|| self.syntax_rule().ok()).collect::<Vec<Box<Node>>>())
             .and_then(|syntax_rules| self.node(Kind::SyntaxRuleList, syntax_rules))
     }
 
     fn syntax_rule(&mut self) -> Result<Box<Node>, ParseError> {
+        // ( <pattern> <template> )
         self.paren_open().and_then(|_|
             self.pattern().and_then(|pattern|
                 self.template().and_then(|template|
@@ -413,9 +426,25 @@ impl<'a> Parser<'a> {
     }
 
     fn pattern(&mut self) -> Result<Box<Node>, ParseError> {
-        self.pattern_identifier()
-        .or_else(|_| self.underscore())
-        .and_then(|pattern| self.node(Kind::Pattern, vec![pattern]))
+        match self.peek().ok_or("Unexpected end of input")? {
+            Token::Identifier(id) => {
+                match id.as_str() {
+                    "_" => self.underscore(),
+                    _ => self.pattern_identifier(),
+                }
+            },
+            Token::Boolean(_)
+            | Token::Character(_)
+            | Token::String(_)
+            | Token::Number(_) => self.pattern_datum(),
+            Token::ParenOpen => self.pattern_with_paren(),
+            Token::SharpOpen => self.pattern_with_sharp_paren(),
+            _ => self.pattern_datum(),
+        }
+    }
+
+    fn pattern_datum(&mut self) -> Result<Box<Node>, ParseError> {
+        self.leaf(Kind::PatternDatum)
     }
 
     fn pattern_identifier(&mut self) -> Result<Box<Node>, ParseError> {
@@ -432,8 +461,172 @@ impl<'a> Parser<'a> {
             self.node(Kind::SyntaxRuleUnderscore, vec!()))
     }
 
+
+    fn pattern_with_paren(&mut self) -> Result<Box<Node>, ParseError> {
+        self.paren_open().and_then(|_|
+            self.pattern_with_paren_a().and_then(|pattern_list|
+                self.paren_close().and_then(|_|
+                    self.node(Kind::PatternWithParen, vec![pattern_list]))))
+    }
+
+
+    fn pattern_with_paren_a(&mut self) -> Result<Box<Node>, ParseError> {
+        // | <pattern>*
+        // | <pattern>+ . <pattern>
+        // | <pattern>* <pattern> <ellipsis> <pattern>*
+        // | <pattern>* <pattern> <ellipsis> <pattern>* . <pattern>
+
+        match self.peek().ok_or("Unexpected end of input")? {
+            
+            Token::ParenClose => self.node(Kind::PatternParen, vec!()), // empty
+
+            _ => {
+                let mut pre_ellipse_patterns = self.pattern_pre_ellipse()?;
+
+                match self.peek().ok_or("Unexpected end of input")? {
+                    // <pattern>*            
+                    Token::ParenClose => self.node(Kind::PatternParen, vec!(pre_ellipse_patterns)),
+
+                    // | <pattern>+ . <pattern>
+                    Token::Dot => 
+                        self.dot().and_then(|_|
+                            self.pattern().and_then(|pattern| {
+                                pre_ellipse_patterns.add_child(pattern);
+                                self.node(Kind::PatternParen, vec!(pre_ellipse_patterns))
+                            }
+                            )
+                        ),
+                    Token::Identifier(id) if  id.as_str() == "..." => 
+                        self.identifier().and_then(|ellipsis| {
+                            let mut post_ellipse_patterns = self.pattern_post_ellipse()?;
+                            match self.peek().ok_or("Unexpected end of input")? {
+                                // | <pattern>* <pattern> <ellipsis> <pattern>*
+                                Token::ParenClose => self.node(Kind::PatternParen, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
+                                // | <pattern>* <pattern> <ellipsis> <pattern>* . pattern
+                                Token::Dot => 
+                                    self.dot().and_then(|_|
+                                        self.pattern().and_then(|pattern| {
+                                            post_ellipse_patterns.add_child(pattern);
+                                            self.node(Kind::PatternParen, vec!(pre_ellipse_patterns, post_ellipse_patterns))
+                                        })
+                                    ),
+                                _ => Err("Unexpected token"),
+                            }
+                        }),
+                    _ => Err("invalid token"),
+                }
+
+
+            }
+        }
+    }
+
+    fn pattern_pre_ellipse(&mut self) -> Result<Box<Node>, ParseError> {
+        // <pattern>*
+        Ok(from_fn(|| self.pattern().ok()).collect()).and_then(|patterns|
+            self.node(Kind::PatternPreEllipse, patterns))
+    }
+
+    fn pattern_post_ellipse(&mut self) -> Result<Box<Node>, ParseError> {
+        // <pattern>*
+        Ok(from_fn(|| self.pattern().ok()).collect()).and_then(|patterns|
+            self.node(Kind::PatternPostEllipse, patterns))
+    }
+    
+    fn pattern_with_sharp_paren(&mut self) -> Result<Box<Node>, ParseError> {
+        //  #( <pattern>* )
+        // | #( <pattern>* <pattern> <ellipsis> <pattern>* )
+
+        self.sharpopen().and_then(|_|
+            self.pattern_with_sharp_paren_a().and_then(|pattern_list|
+                self.paren_close().and_then(|_|
+                    self.node(Kind::PatternSharp, vec![pattern_list]))))
+
+    }
+
+    fn pattern_with_sharp_paren_a(&mut self) -> Result<Box<Node>, ParseError> {
+        match self.peek().ok_or("Unexpected end of input")? {
+            Token::ParenClose => self.node(Kind::PatternSharp, vec!()),
+            _ => {
+                let mut pre_ellipse_patterns = self.pattern_pre_ellipse()?;
+                match self.peek().ok_or("Unexpected end of input")? {
+                    Token::ParenClose => self.node(Kind::PatternSharp, vec!(pre_ellipse_patterns)),
+                    Token::Identifier(id) if  id.as_str() == "..." =>
+                        self.identifier().and_then(|ellipsis| {
+                            let mut post_ellipse_patterns = self.pattern_post_ellipse()?;
+                            match self.peek().ok_or("Unexpected end of input")? {
+                                Token::ParenClose => self.node(Kind::PatternSharp, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
+                                _ => Err("Unexpected token"),
+                            }
+                    }),
+                    _ => Err("invalid token"),
+                }
+            }
+        }
+    }
+
     fn template(&mut self) -> Result<Box<Node>, ParseError> {
-        self.pattern_identifier()
+        match self.peek().ok_or("Unexpected end of input")? {
+            Token::Identifier(_) => self.pattern_identifier(),
+            Token::ParenOpen => self.template_with_paren(),
+            Token::SharpOpen => self.template_with_sharp_paren(),
+            Token::Boolean(_)
+            | Token::Character(_)
+            | Token::String(_)
+            | Token::Number(_) => self.template_datum(),
+            _ => Err("Unexpected token in template"),
+        }
+    }
+
+    fn template_with_paren(&mut self) -> Result<Box<Node>, ParseError> {
+        self.paren_open().and_then(|_|
+            self.template_with_paren_a().and_then(|template|
+                self.paren_close().and_then(|_|
+                    self.node(Kind::TemplateWithParen, template))))
+    }
+
+    fn template_with_paren_a(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
+        match self.peek().ok_or("Error at end of input")? {
+            Token::ParenClose => Ok(vec!()), // empty list
+            _ => self.template_element().and_then(|first| // non-empty list so get first template_element
+                                        self.template_element_sequence().and_then(|template_element_sequence| // get rest of template_element sequence
+                                                match self.peek().ok_or("Error at end of input")? {
+                                                    Token::ParenClose => Ok(once(first).chain(template_element_sequence).collect()),
+                                                    Token::Dot => self.dot().and_then(|_|
+                                                                    self.template_element().and_then(|last|
+                                                                        Ok(once(first)
+                                                                            .chain(template_element_sequence)
+                                                                            .chain(once(last))
+                                                                            .collect()))),
+                                                    _ => Err("Unexpected token. Expected close paren or dot"),
+                                                })),
+        }   
+    }
+
+    fn template_element(&mut self) -> Result<Box<Node>, ParseError> {
+        let template = self.template()?;
+
+        match self.peek().ok_or("Unexpected end of input")? {
+            Token::Identifier(id) if id.as_str() == "..." => { self.lexer.next(); }
+            _ => {}
+        };
+
+        self.node(Kind::TemplateElement, vec![template])
+    }
+
+    fn template_with_sharp_paren(&mut self) -> Result<Box<Node>, ParseError> {
+        self.sharpopen().and_then(|_|
+            self.template_element_sequence().and_then(|template_list|
+                self.paren_close().and_then(|_|
+                    self.node(Kind::TemplateSharp, template_list))))
+    }
+
+    fn template_element_sequence(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
+        Ok(from_fn(|| self.template_element().ok()).collect())
+    }
+
+    fn template_datum(&mut self) -> Result<Box<Node>, ParseError> {
+        self.leaf(Kind::TemplateDatum)
     }
 
     ///
@@ -481,27 +674,26 @@ impl<'a> Parser<'a> {
     fn datum_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
         match self.peek().ok_or("Error at end of input")? {
             Token::ParenClose => Ok(vec!()), // empty list
-            _ => self.datum().and_then(|first| // non-empty list so get first datum
-                                        self.datum_sequence().and_then(|datum_sequence| // get rest of datum sequence
-                                                match self.peek().ok_or("Error at end of input")? {
-                                                    Token::ParenClose => Ok(once(first).chain(datum_sequence).collect()),
-                                                    Token::Dot => self.dot().and_then(|_|
-                                                                    self.datum().and_then(|last|
-                                                                        Ok(once(first)
-                                                                            .chain(datum_sequence)
-                                                                            .chain(once(last))
-                                                                            .collect()))),
-                                                    _ => Err("Unexpected token. Expected close paren or dot"),
-                                                })),
-            _ => Err("Unexpected token. Expected datum or close paren"),
-
+            _ => self.datum()
+                    .and_then(|first| // non-empty list so get first datum
+                        self.datum_sequence().and_then(|datum_sequence| // get rest of datum sequence
+                            match self.peek().ok_or("Error at end of input")? {
+                                Token::ParenClose => Ok(once(first).chain(datum_sequence).collect()),
+                                Token::Dot => self.dot().and_then(|_|
+                                                self.datum().and_then(|last|
+                                                    Ok(once(first)
+                                                        .chain(datum_sequence)
+                                                        .chain(once(last))
+                                                        .collect()))),
+                                _ => Err("Unexpected token. Expected close paren or dot"),
+                            })),
        }
     }
 
     fn datum_sequence(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
         Ok(from_fn(|| self.datum().ok()).collect())
     }
-    
+
     //
     // Helpers
     //
