@@ -2,14 +2,12 @@
 //!
 //! TODO:
 //! [P0]
-//! - formals with a dot
-//! - def formals with a dot
 //! - begin
 //! - define-values
 //! - define-record-type
 //! 
 //! [P1]
-//! - code for handling zero-or-one - zero-or-more - one-or-more
+//! - code for handling zero-or-one -q zero-or-more - one-or-more
 //! - transformers
 //! - define-syntax
 //! 
@@ -30,6 +28,7 @@
 mod tests;
 mod parsetree;
 
+use std::iter::once;
 use std::iter::{from_fn, Peekable};
 
 use crate::lexer::Lexer;
@@ -43,6 +42,10 @@ type ParseError = &'static str;
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
 }
+
+trait Captures<'c> {}
+impl <'a, T: ?Sized> Captures<'a> for T {}
+
 
 impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
@@ -229,15 +232,16 @@ impl<'a> Parser<'a> {
                         self.node(Kind::Lambda, vec![formals, body])))))
     }
 
-    fn formals(&mut self) -> Result<Box<Node>, ParseError> {
-        self.identifier().and_then(|id|
-            self.node(Kind::Formals, vec![id]))
-            .or_else(|_|
-                self.paren_open().and_then(|_|
-                    self.identifier_list().and_then(|ids|
-                        self.paren_close().and_then(|_|
-                            self.node(Kind::Formals, ids)))))
-     }
+    fn formals(&mut self) -> Result<Box<Node>, ParseError> {   
+        match self.peek().ok_or("Error at end of input")? {
+            Token::Identifier(_) => self.identifier().and_then(|id| self.node(Kind::Formals, vec![id])),
+            Token::ParenOpen => self.paren_open()
+                                    .and_then(|_| self.identifier_list()
+                                    .and_then(|ids| self.paren_close()
+                                    .and_then(|_| self.node(Kind::Formals, ids)))),
+            _ => Err("Unexpected token. Expected identifier or open paren"),
+        }
+    }
 
     fn body(&mut self) -> Result<Box<Node>, ParseError> {
         self.body_definitions().and_then(|defs|
@@ -509,6 +513,16 @@ impl<'a> Parser<'a> {
         
     }
     
+    fn dot(&mut self) -> Result<(), ParseError> {
+        match self.peek().ok_or("Error at end of input")? {
+            Token::Dot => {
+                self.lexer.next(); // consume Dot
+                Ok(())
+            },
+            _ => Err("syntax error: expected Dot"),
+        }
+    }
+
     fn quote(&mut self) -> Result<(), ParseError> {
         match self.peek().ok_or("Error at end of input")? {
             Token::Quote => {
@@ -591,9 +605,28 @@ impl<'a> Parser<'a> {
     }
 
     fn identifier_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
+        match self.peek().ok_or("Error at end of input")? {
+            Token::ParenClose => Ok(vec!()), // empty list
+            Token::Identifier(_) => self.identifier().and_then(|first| // non-empty list so get first identifier
+                                        self.identifier_sequence().and_then(|identifier_sequence| // get rest of identifier sequence
+                                                match self.peek().ok_or("Error at end of input")? {
+                                                    Token::ParenClose => Ok(once(first).chain(identifier_sequence).collect()),
+                                                    Token::Dot => self.dot().and_then(|_|
+                                                                    self.identifier().and_then(|last|
+                                                                        Ok(once(first)
+                                                                            .chain(identifier_sequence)
+                                                                            .chain(once(last))
+                                                                            .collect()))),
+                                                    _ => Err("Unexpected token. Expected close paren or dot"),
+                                                })),
+            _ => Err("Unexpected token. Expected identifier or close paren"),
+        }   
+    }
+    
+    fn identifier_sequence(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
         Ok(from_fn(|| self.identifier().ok()).collect())
     }
-        
+
     fn boolean(&mut self) -> Result<Box<Node>, ParseError> {
         match self.peek().ok_or("Error at end of input")? {
             Token::Boolean(_) => self.leaf(Kind::Literal),
