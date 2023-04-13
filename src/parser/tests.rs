@@ -69,6 +69,8 @@ fn test_function_definition() {
 #[test]
 fn test_abbreviated_quotation() {
     assert!(Parser::new("'x").parse().is_ok());
+    assert!(Parser::new("'(1 2 3)").parse().is_ok());
+    assert!(Parser::new("'(x y . z)").parse().is_ok());
 }
 
 #[test]

@@ -2,6 +2,7 @@
 //!
 //! TODO:
 //! [P0]
+//! - datum list with dotted tail
 //! - begin
 //! - define-values
 //! - define-record-type
@@ -478,10 +479,29 @@ impl<'a> Parser<'a> {
     }
 
     fn datum_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
-        Ok(from_fn(|| self.datum().ok()).collect())
+        match self.peek().ok_or("Error at end of input")? {
+            Token::ParenClose => Ok(vec!()), // empty list
+            _ => self.datum().and_then(|first| // non-empty list so get first datum
+                                        self.datum_sequence().and_then(|datum_sequence| // get rest of datum sequence
+                                                match self.peek().ok_or("Error at end of input")? {
+                                                    Token::ParenClose => Ok(once(first).chain(datum_sequence).collect()),
+                                                    Token::Dot => self.dot().and_then(|_|
+                                                                    self.datum().and_then(|last|
+                                                                        Ok(once(first)
+                                                                            .chain(datum_sequence)
+                                                                            .chain(once(last))
+                                                                            .collect()))),
+                                                    _ => Err("Unexpected token. Expected close paren or dot"),
+                                                })),
+            _ => Err("Unexpected token. Expected datum or close paren"),
+
+       }
     }
 
-
+    fn datum_sequence(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
+        Ok(from_fn(|| self.datum().ok()).collect())
+    }
+    
     //
     // Helpers
     //
