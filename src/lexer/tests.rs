@@ -104,7 +104,7 @@ mod tests {
     fn test_identifier() {
         [
             "a", "cc", "c0", "d+", "e-", "f.", "g@", "|h|", "+", "+j", "--", "+@", "+.k", "+..",
-            ".lmn",
+            ".lmn", "..."
         ]
         .iter()
         .for_each(|s| test_input(s, vec![Token::Identifier(s.to_string())]));

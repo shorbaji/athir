@@ -2,6 +2,8 @@ use crate::lexer::Token;
 
 #[derive(Debug)]
 pub enum Kind {
+    Begin,
+    BeginDef,
     Expression,
     ProcedureCall,
     Operands,
@@ -21,20 +23,20 @@ pub enum Kind {
     Quotation,
     Datum,
     List,
-    Vector,
     Symbol,
     Abbreviation,
     AbbreviationPrefix,
     MacroBlock,
     LetRecSyntax,
     LetSyntax,
+    SyntaxDefinition,
     SyntaxSpecList,
     SyntaxSpec,
     TransformerSpec,
     TransformerSpecIdentifierList,
     SyntaxRule,
     SyntaxRuleList,
-    SyntaxRuleUnderscore,
+    PatternUnderscore,
     Pattern,
     PatternIdentifier,
     PatternDatum,
@@ -45,11 +47,12 @@ pub enum Kind {
     PatternParen,
     Template,
     TemplateElement,
+    TemplateElementEllipsis,
     TemplateDatum,
     TemplateSharp,
     TemplateWithParen,
-    Ellipsis,
-    Underscore,
+    Vector,
+    Bytevector,
 }
 
 #[derive(Debug)]
@@ -63,6 +66,18 @@ impl Node {
         match self {
             Node::Inner(_, children) => children.push(child),
             Node::Leaf(_, _) => panic!("Cannot add child to leaf node"),
+        }
+    }
+
+    pub fn is_definition(&self) -> bool {
+        match self {
+            Node::Inner(Kind::Expression, nodes) => 
+                match *nodes[0] {
+                    Node::Inner(Kind::VariableDefinition, _) 
+                    | Node::Inner(Kind::FunctionDefinition, _) => true,
+                    _ => false,
+                },
+            _ => false,
         }
     }
 }

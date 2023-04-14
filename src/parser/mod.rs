@@ -2,16 +2,15 @@
 //!
 //! TODO:
 //! [P0]
-//! - transformers tests and troubleshooting
-//! - define-syntax
-//! - quasiquotation
-//! - bytevector
-//! - vector
+//! - troubleshoot test_string_hex_escape
 //! - read to consume parsetree and return expressions
 //! 
 //! [P1]
-//! - parsetree captures source
-//! - node captures source
+//! - parsetree captures source code
+//! - node captures source code
+//! - body must start with definitions after non-definition expressions
+//!   (currently expr includes both begin defines and non-begin defines)
+//! - quasiquotation
 //! 
 //! [P2]
 //! - includer
@@ -19,12 +18,7 @@
 //! - derived-expression
 //! - define-values
 //! - define-record-type
-//! - begin
-//! Known issues:
-//! - The parser is not yet complete.
 //! - No support for # label in datum.
-//! - Transformer spec implementation is incomplete.
-//! - internal definitions in body not implemented yet
 //! 
 
 #[cfg(test)]
@@ -45,10 +39,6 @@ type ParseError = &'static str;
 pub struct Parser<'a> {
     lexer: Peekable<Lexer<'a>>,
 }
-
-trait Captures<'c> {}
-impl <'a, T: ?Sized> Captures<'a> for T {}
-
 
 impl<'a> Parser<'a> {
     pub fn new(input: &'a str) -> Self {
@@ -106,9 +96,11 @@ impl<'a> Parser<'a> {
             Token::Boolean(_)
             | Token::Character(_)
             | Token::String(_)
-            | Token::Number(_) 
-            | Token::Vector
-            | Token::ByteVector => self.leaf(Kind::Literal),
+            | Token::Number(_) => self.leaf(Kind::Literal),
+            Token::SharpOpen => self.vector()
+                                    .and_then(|vector| self.node(Kind::Vector, vec![vector])),
+            Token::SharpU8Open => self.bytevector()
+                                    .and_then(|bytevector| self.node(Kind::Bytevector, vec![bytevector])),
             Token::Quote => self.abbreviated_quotation(),
             Token::Identifier(_) => self.leaf(Kind::Identifier),
             Token::ParenOpen => self.compound_expr(),
@@ -139,10 +131,12 @@ impl<'a> Parser<'a> {
                 Token::Identifier(id) => 
                     match id.as_str() {
                         "define" => self.definition(),
+                        "define-syntax" => self.syntax_definition(),
                         "if" => self.conditional_if(),
                         "lambda" => self.lambda(),
                         "quote" => self.quotation(),
                         "set!" => self.assignment(),
+                        "begin" => self.begin(),
                         "let-syntax" | "letrec-syntax" => self.macro_block(),
                         _ => self.procedure_call(),
                     },
@@ -193,6 +187,13 @@ impl<'a> Parser<'a> {
         self.identifier_list().and_then(|ids| self.node(Kind::DefFormals, ids))
     }
 
+    fn syntax_definition(&mut self) -> Result<Box<Node>, ParseError> {
+        self.keyword("define-syntax").and_then(|_| 
+            self.identifier().and_then(|id| 
+                self.transformer_spec().and_then(|expr| 
+                    self.paren_close().and_then(|_| 
+                        self.node(Kind::SyntaxDefinition, vec![id, expr])))))
+    }
     ///
     /// Conditionals
     /// 
@@ -319,6 +320,29 @@ impl<'a> Parser<'a> {
     }
 
     ///
+    /// Begin
+    /// 
+    /// 
+    ///
+
+    fn begin(&mut self) -> Result<Box<Node>, ParseError> {
+        // we look for the keyword begin 
+        // we then look for definitions. if that is all then we return a BeginDef
+        // but if there is an expression then we return a Begin
+        self.keyword("begin").and_then(|_| 
+            self.expr_list().and_then(|exprs| 
+                self.paren_close().and_then(|_| {
+                    if exprs.iter().all(|node| node.is_definition()) {
+                        return self.node(Kind::BeginDef, exprs)
+                    } else {
+                        self.node(Kind::Begin, exprs)
+                    }
+                })
+            )
+        )       
+    }
+
+    ///
     /// Macro blocks
     /// 
     /// 
@@ -348,12 +372,11 @@ impl<'a> Parser<'a> {
     fn letrec_syntax(&mut self) -> Result<Box<Node>, ParseError> {
         self.keyword("letrec-syntax").and_then(|_| 
             self.macro_block_suffix().and_then(|(transformer_specs, body)|
-                self.node(Kind::LetSyntax, vec![transformer_specs, body])))
+                self.node(Kind::LetRecSyntax, vec![transformer_specs, body])))
     }
 
     fn macro_block_suffix(&mut self) -> Result<(Box<Node>, Box<Node>), ParseError> {
         // ( <syntax spec>* ) <body> )
-
         self.paren_open().and_then(|_|
             self.syntax_specs().and_then(|syntax_specs|
                 self.paren_close().and_then(|_|
@@ -363,6 +386,7 @@ impl<'a> Parser<'a> {
     }
 
     fn syntax_specs(&mut self) -> Result<Box<Node>, ParseError> {
+        
         // <syntax spec>*
         Ok(from_fn(|| self.syntax_spec().ok()).collect::<Vec<Box<Node>>>())
             .and_then(|specs| self.node(Kind::SyntaxSpecList, specs))
@@ -383,8 +407,9 @@ impl<'a> Parser<'a> {
     /// 
     
     fn transformer_spec(&mut self) -> Result<Box<Node>, ParseError> {
+        
         self.paren_open().and_then(|_|
-            self.keyword("syntax_rules").and_then(|_| 
+            self.keyword("syntax-rules").and_then(|_| 
                 match self.peek().ok_or("error at end of input")? {
                     Token::Identifier(_) => self.identifier().and_then(|id|
                         self.transformer_spec_suffix().and_then(|(transformer_spec_identifier_list, syntax_rule_list)|
@@ -399,9 +424,10 @@ impl<'a> Parser<'a> {
         // ( <identifier>* ) <syntax rule>* )
         self.paren_open().and_then(|_|
             self.transformer_spec_identifier_list().and_then(|transformer_spec_identifier_list|
-                self.syntax_rule_list().and_then(|syntax_rule_list|
-                    self.paren_close().and_then(|_| 
-                        Ok((transformer_spec_identifier_list, syntax_rule_list))))))
+                self.paren_close().and_then(|_|
+                    self.syntax_rule_list().and_then(|syntax_rule_list|
+                        self.paren_close().and_then(|_| 
+                            Ok((transformer_spec_identifier_list, syntax_rule_list)))))))
     }
 
     fn transformer_spec_identifier_list(&mut self) -> Result<Box<Node>, ParseError> {
@@ -429,7 +455,7 @@ impl<'a> Parser<'a> {
         match self.peek().ok_or("Unexpected end of input")? {
             Token::Identifier(id) => {
                 match id.as_str() {
-                    "_" => self.underscore(),
+                    "_" => self.pattern_underscore(),
                     _ => self.pattern_identifier(),
                 }
             },
@@ -439,8 +465,8 @@ impl<'a> Parser<'a> {
             | Token::Number(_) => self.pattern_datum(),
             Token::ParenOpen => self.pattern_with_paren(),
             Token::SharpOpen => self.pattern_with_sharp_paren(),
-            _ => self.pattern_datum(),
-        }
+            _ => Err("Unexpected token in pattern"),
+        }.and_then(|pattern| self.node(Kind::Pattern, vec!(pattern)))
     }
 
     fn pattern_datum(&mut self) -> Result<Box<Node>, ParseError> {
@@ -451,14 +477,14 @@ impl<'a> Parser<'a> {
         let token = self.peek().ok_or("Unexpected end of input")?;
 
         match token {
-            Token::Identifier(s) if *s == "...".to_string() => Err("... is not a valid pattern identifier"),
+            Token::Identifier(s) if s.as_str() == "..." => Err("... is not a valid pattern identifier"),
             _ => self.identifier().and_then(|id| self.node(Kind::PatternIdentifier, vec![id])),
         }
     }
 
-    fn underscore(&mut self) -> Result<Box<Node>, ParseError> {
+    fn pattern_underscore(&mut self) -> Result<Box<Node>, ParseError> {
         self.keyword("_").and_then(|_| 
-            self.node(Kind::SyntaxRuleUnderscore, vec!()))
+            self.node(Kind::PatternUnderscore, vec!()))
     }
 
 
@@ -497,7 +523,7 @@ impl<'a> Parser<'a> {
                             )
                         ),
                     Token::Identifier(id) if  id.as_str() == "..." => 
-                        self.identifier().and_then(|ellipsis| {
+                        self.identifier().and_then(|_ellipsis| {
                             let mut post_ellipse_patterns = self.pattern_post_ellipse()?;
                             match self.peek().ok_or("Unexpected end of input")? {
                                 // | <pattern>* <pattern> <ellipsis> <pattern>*
@@ -548,12 +574,12 @@ impl<'a> Parser<'a> {
         match self.peek().ok_or("Unexpected end of input")? {
             Token::ParenClose => self.node(Kind::PatternSharp, vec!()),
             _ => {
-                let mut pre_ellipse_patterns = self.pattern_pre_ellipse()?;
+                let pre_ellipse_patterns = self.pattern_pre_ellipse()?;
                 match self.peek().ok_or("Unexpected end of input")? {
                     Token::ParenClose => self.node(Kind::PatternSharp, vec!(pre_ellipse_patterns)),
                     Token::Identifier(id) if  id.as_str() == "..." =>
-                        self.identifier().and_then(|ellipsis| {
-                            let mut post_ellipse_patterns = self.pattern_post_ellipse()?;
+                        self.identifier().and_then(|_ellipsis| {
+                            let post_ellipse_patterns = self.pattern_post_ellipse()?;
                             match self.peek().ok_or("Unexpected end of input")? {
                                 Token::ParenClose => self.node(Kind::PatternSharp, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
                                 _ => Err("Unexpected token"),
@@ -567,7 +593,7 @@ impl<'a> Parser<'a> {
 
     fn template(&mut self) -> Result<Box<Node>, ParseError> {
         match self.peek().ok_or("Unexpected end of input")? {
-            Token::Identifier(_) => self.pattern_identifier(),
+            Token::Identifier(_) => self.template_identifier(),
             Token::ParenOpen => self.template_with_paren(),
             Token::SharpOpen => self.template_with_sharp_paren(),
             Token::Boolean(_)
@@ -576,6 +602,11 @@ impl<'a> Parser<'a> {
             | Token::Number(_) => self.template_datum(),
             _ => Err("Unexpected token in template"),
         }
+    }
+
+    fn template_identifier(&mut self) -> Result<Box<Node>, ParseError> {
+        self.pattern_identifier().and_then(|id|
+            self.node(Kind::Template, vec![id]))
     }
 
     fn template_with_paren(&mut self) -> Result<Box<Node>, ParseError> {
@@ -605,13 +636,14 @@ impl<'a> Parser<'a> {
 
     fn template_element(&mut self) -> Result<Box<Node>, ParseError> {
         let template = self.template()?;
-
+        
         match self.peek().ok_or("Unexpected end of input")? {
-            Token::Identifier(id) if id.as_str() == "..." => { self.lexer.next(); }
-            _ => {}
-        };
-
-        self.node(Kind::TemplateElement, vec![template])
+            Token::Identifier(id) if id.as_str() == "..." => { 
+                self.lexer.next();
+                self.node(Kind::TemplateElementEllipsis, vec![template])
+            }
+            _ => self.node(Kind::TemplateElement, vec![template])
+        }
     }
 
     fn template_with_sharp_paren(&mut self) -> Result<Box<Node>, ParseError> {
@@ -805,6 +837,16 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn sharpu8open(&mut self) -> Result<(), ParseError> {
+        match self.peek().ok_or("Error at end of input")? {
+            Token::SharpU8Open => {
+                self.lexer.next(); // consume SharpU8Open
+                Ok(())
+            },
+            _ => Err("syntax error: expected SharpU8Open"),
+        }
+    }
+
     fn expr_list(&mut self) -> Result<Vec<Box<Node>>, ParseError> {
         Ok(from_fn(|| self.expr().ok()).collect())
     }
@@ -869,10 +911,15 @@ impl<'a> Parser<'a> {
 
     fn vector(&mut self) -> Result<Box<Node>, ParseError> {
         self.sharpopen().and_then(|_| 
-            self.paren_open().and_then(|_|
-                self.datum_list().and_then(|data| 
-                    self.paren_close().and_then(|_| 
-                        self.node(Kind::Vector, data)))))
+            self.datum_list().and_then(|data| 
+                self.paren_close().and_then(|_| 
+                    self.node(Kind::Vector, data))))
     }
 
+    fn bytevector(&mut self) -> Result<Box<Node>, ParseError> {
+        self.sharpu8open().and_then(|_| 
+            self.datum_list().and_then(|data| 
+                self.paren_close().and_then(|_| 
+                    self.node(Kind::Bytevector, data))))
+    }
 }

@@ -13,8 +13,6 @@ pub enum Token {
     #[regex(r"(#(([tT][rR][uU][eE])|([fF][aA][lL][sS][eE])|([tT]|[fF])))",
             to_bool)]
     Boolean(bool),
-
-    ByteVector,
     
     #[regex(r"((#\\x([0-9a-fA-F]+))|(#\\(alarm|backspace|delete|escape|newline|null|return|space|tab))|(#\\.))",
             to_char)]
@@ -75,8 +73,6 @@ pub enum Token {
     #[regex(r#""([^"\\]|(\\[aA]|\\[bB]|\\[tT]|\\[nN]|\\[rR])|\\"|\\|\\( |\t)*(\r\n|\r|\n)( |\t)*|(\\x([0-9a-fA-F]+);))*""#,
         to_string)]
     String(String),
-
-    Vector,
 
     #[regex(r"(( |\t)|(\r\n|\r|\n))")]
     Whitespace,
