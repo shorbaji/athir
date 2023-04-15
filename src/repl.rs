@@ -8,6 +8,7 @@ use std::io::Write;
 
 use crate::read::Reader;
 use crate::eval::eval;
+use crate::error::{Error, ErrorKind::*};
 
 pub fn repl() {
     print!("> ");
@@ -15,12 +16,14 @@ pub fn repl() {
     loop {
         for line in std::io::stdin().lines() {
             let line = line.unwrap();
-            let tree = Reader::new(&line).read().unwrap();
-            let object = eval(&tree);
-
-            println!("{:?}", object);
-            print!("> ");
-            std::io::stdout().flush().unwrap();
+            Reader::new(&line).read().and_then(|tree|
+                eval(&tree).and_then(|object| {
+                    println!("object: {:?}", object);
+                    print!("> ");
+                    std::io::stdout().flush().unwrap();
+                    Ok(object)
+                })
+            ).or(Err(Error::new(EvalError)));
         }
     }
 }
