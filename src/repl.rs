@@ -16,7 +16,7 @@ pub fn repl() {
         for line in std::io::stdin().lines() {
             let line = line.unwrap();
             let tree = Reader::new(&line).read().unwrap();
-            let object = eval(&tree.root);
+            let object = eval(&tree);
 
             println!("{:?}", object);
             print!("> ");
