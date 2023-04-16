@@ -1,5 +1,5 @@
 /// Tokens base on R7RS
-// from R7RS <token> -> <identifier>| <boolean> | <number>
+/// from R7RS <token> -> <identifier>| <boolean> | <number>
 ///     | <character> | <string> 
 ///     | ( | ) | #( | #u8( | ' | ` | , | ,@ | .
 /// 
@@ -76,6 +76,7 @@ pub enum Token {
 
     #[regex(r"(( |\t)|(\r\n|\r|\n))")]
     Whitespace,
+
 }
 
 fn to_bool(lex: &mut Lexer<Token>) -> Option<bool> {

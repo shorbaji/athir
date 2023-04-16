@@ -1,7 +1,7 @@
 
 use std::ops::Deref;
 
-use crate::read::parser::{Node, Kind::*};
+use crate::read::parser::{Node, NodeKind::*};
 use crate::read::lexer::Token;
 use crate::error::{Error, ErrorKind::*};
 
@@ -11,8 +11,6 @@ pub enum Object {
     Character(char),
     String(String),
     Number(String),
-    // Symbol(String),
-    // Pair(Box<Object>, Box<Object>),
     Null,
 }
 
@@ -26,13 +24,6 @@ pub fn eval(node: &Box<Node>) -> Result<Object, Error> {
         ProcedureCall => eval_procedure_call(node),
         Quotation => eval_quotation(node),
         VariableDefinition | FunctionDefinition | SyntaxDefinition => eval_definition(node),
-        Program => node
-                    .children()
-                    .unwrap()
-                    .into_iter()
-                    .fold(
-                        Ok(Object::Null), 
-                        |_, child| eval(child)),
         _ => Ok(Object::Null),
     }
 }

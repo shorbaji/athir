@@ -6,24 +6,24 @@
 
 use std::io::Write;
 
-use crate::read::Reader;
+use crate::read::parser::Parser;
+use crate::read::lexer::Source;
+
 use crate::eval::eval;
-use crate::error::{Error, ErrorKind::*};
 
 pub fn repl() {
     print!("> ");
     std::io::stdout().flush().unwrap();
-    loop {
-        for line in std::io::stdin().lines() {
-            let line = line.unwrap();
-            Reader::new(&line).read().and_then(|tree|
-                eval(&tree).and_then(|object| {
-                    println!("object: {:?}", object);
-                    print!("> ");
-                    std::io::stdout().flush().unwrap();
-                    Ok(object)
-                })
-            ).or(Err(Error::new(EvalError)));
+
+    let source = Source::new(std::io::stdin().lines().map(|line| line.unwrap()));
+    let parser = Parser::new(source);
+
+    for expr in parser {
+        match expr {
+            Ok(expr) => println!("{:?}", eval(&expr)),
+            Err(err) => println!("{}", err),
         }
+        print!("> ");
+        std::io::stdout().flush().unwrap();
     }
 }

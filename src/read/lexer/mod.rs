@@ -4,9 +4,11 @@
 //! 
 //! # Example
 //! 
-//! use athir::lexer::Lexer;
+//! use athir::lexer::{Lexer, Source};
 //!  
-//! let lex = Lexer::new(&line);
+//! let source = Source::new(std::io::stdin().lines().map(|line| line.unwrap()));
+//!
+//! let lex = Lexer::new(source);
 //! for token in lex {
 //!     println!("token: {:?}", token);
 //! }
@@ -19,86 +21,55 @@
 
 #[cfg(test)]
 mod tests;
-mod token;
+
+mod delimited;
 mod number;
+mod source;
+mod token;
 
-use std::{iter::Peekable};
-use logos::{Lexer as LogosLexer, Logos};
-
+use std::iter::Peekable;
+use delimited::DelimitedLexer;
 pub use token::Token;
+pub use source::Source;
 
-#[derive(Debug, Clone)]
-/// This struct implements the lexical analyzer for Athir
-/// This is currently based on the [Logos](https://docs.rs/logos/0.13.0/logos/) crate 
-/// Rust regexes, on which Logos is based, do not support lookahead
-/// So we have to do some extra work to ensure tokens are terminated by a delimiter
-pub struct Lexer<'a> {
-    inner: Peekable<LogosLexer<'a, Token>>,
+pub struct Lexer<T> {
+    inner: Peekable<std::vec::IntoIter<Token>>,
+    source: T,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Self {
-        //! This function returns a new lexer for the given input.
+impl<T> Lexer<T> where T: Iterator<Item=String>{
+    pub fn new(source: T) -> Self {
         Self {
-            inner: Token::lexer(input).peekable(),
+            inner: vec!().into_iter().peekable(),
+            source,
         }
+    }
+
+    fn refresh(&mut self) -> Option<Peekable<std::vec::IntoIter<Token>>> {
+        self.source.next().map(|line| {
+            DelimitedLexer::new(line.as_str()).collect::<Vec<Token>>().into_iter().peekable()
+        })
+    }
+
+    pub fn peek(&mut self) -> Option<&Token> {
+        if let None = self.inner.peek() {
+            self.inner = self.refresh()?;
+        }
+        self.inner.peek()
     }
 }
 
-impl Iterator for Lexer<'_> {
+impl<T> Iterator for Lexer<T> 
+    where T: Iterator<Item=String> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        //! This function returns the next token in the lexer.
-        //! 
-        //! Boolean, character, directive, dot, identifier (without vertical lines), number must
-        //! be terminated by a delimiter.
-        //! 
-
-        match self.inner.peek()? {
-            // If the next lexeme is a boolean, character, directive, dot, identifier (without vertical lines), number
-            // then we need to check if the lexeme after it starts with a delimiter.
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::Dot
-            | Token::Directive 
-            | Token::Identifier(_)
-            | Token::Number(_) => {
-                let lexeme = self.inner.next()?;
-                let next = self.inner.peek();
-
-                match next {
-                    None => Some(lexeme),
-                    Some(next) => match next {
-                        Token::Error
-                        | Token::Whitespace
-                        | Token::ParenClose
-                        | Token::ParenOpen
-                        | Token::String(_)
-                        | Token::Comment
-                        | Token::VerticalLineIdentifier(_)=> {
-                            Some(lexeme)
-                        },
-                        _ => {
-                            self.inner.next();
-                            Some(Token::Error)
-                        }
-                    }
-                }
-            },
-            Token::VerticalLineIdentifier(id) => {
-                let token = Token::Identifier(id.clone());
-                self.inner.next();
-                Some(token)
-            },
-            Token::Whitespace => {
-                while let Some(Token::Whitespace) = self.inner.peek() {
-                    self.inner.next();
-                }
+        match self.inner.next() {
+            Some(token) => Some(token),
+            None => {
+                self.refresh();
                 self.inner.next()
-            },
-            _ => self.inner.next(),    
+            }
         }
     }
 }
-

@@ -2,21 +2,20 @@
 pub mod lexer;
 pub mod parser;
 
-use parser::{Parser, Node};
-use crate::error::Error;
+// pub struct Reader<T> {
+//     parser: Parser<T>,
+// }
 
-pub struct Reader<'a> {
-    parser: Parser<'a>,
-}
+// impl<T> Reader<T> 
+// where T: Iterator<Item = Token>
+// {
+//     pub fn new(lexer: T) -> Self {
+//         Self {
+//             parser: Parser::new(lexer),
+//         }
+//     }
 
-impl<'a> Reader<'a> {
-    pub fn new(s: &'a str) -> Self {
-        Self {
-            parser: Parser::new(s),
-        }
-    }
-
-    pub fn read(&mut self) -> Result<Box<Node>, Error> {
-        self.parser.parse()
-    }
-}
+//     pub fn read(&mut self) -> Result<Box<Node>, Error> {
+//         self.parser.parse()
+//     }
+// }

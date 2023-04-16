@@ -2,17 +2,19 @@
 //!
 //! TODO:
 //! [P0]
+//! - documentation
+//! - tests
 //! - quasiquotation
-//! - support for multiline input
 //! 
 //! [P1]
+//! - Logging during debugging
 //! - parsetree captures source code
 //! - node captures source code
-//! 
-//! [P2]
 //! - includer
 //! - define-library
 //! - Support for # label in datum.
+//! 
+//! [P2]
 //! 
 //! Known issues:
 //! - string inline hex escapes not implemented
@@ -21,83 +23,46 @@
 #[cfg(test)]
 mod tests;
 
-pub mod parsetree;
+pub mod node;
 
-use std::iter::once;
-use std::iter::{from_fn, Peekable};
-
-pub use crate::read::lexer::Lexer;
-pub use crate::read::lexer::Token;
-pub use crate::read::parser::parsetree::{Kind, Node};
+use std::iter::{once, from_fn};
+use crate::read::lexer::{Lexer, Token};
 use crate::error::{Error, ErrorKind};
-
-/// Implements recursive descent parser and uses peekable lexer iterator 
-/// to implement LL(1) lookahead
-pub struct Parser<'a> {
-    lexer: Peekable<Lexer<'a>>,
-}
+pub use node::{NodeKind, Node};
 
 type ParseResult = std::result::Result<Box<Node>, Error>;
 
-impl<'a> Parser<'a> {
-    pub fn new(input: &'a str) -> Self {
+/// Implements recursive descent parser 
+/// Uses a peekable Lexer (to implement LL(1) lookahead)
+/// Lexer is associated with a source iterator of strings
+/// 
+pub struct Parser <T: Iterator<Item=String>> {
+    lexer: Lexer<T>,
+}
+
+impl<T> Iterator for Parser<T> where T: Iterator<Item = String> {
+    type Item = Result<Box<Node>, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.peek() {
+            Ok(_) => Some(self.read()),
+            Err(_) => None,
+        }
+    }
+}
+
+impl<T> Parser<T> where T: Iterator<Item = String> {
+    pub fn new(source: T) -> Self {
         Self { 
-            lexer: Lexer::new(input).peekable() 
+            lexer: Lexer::new(source),
         }
     }
     
-    pub fn parse(&mut self) -> ParseResult {
-        self.program()
-    }
-
-    fn program(&mut self) -> ParseResult {
-        self.command_or_definition().and_then(|node| 
-            Ok(from_fn(|| self.command_or_definition().ok()).collect::<Vec<Box<Node>>>()).and_then(|nodes|
-                self.node(
-                    Kind::Program,
-                    once(node).chain(nodes.into_iter()).collect::<Vec<Box<Node>>>())
-            )
-        )
-    }
-
-    fn command_or_definition(&mut self) -> ParseResult {
-        match self.lexer.peek().ok_or(Error::new(ErrorKind::EndOfInput))? {
-            Token::ParenOpen => self.paren_open().and_then(|_| {
-                match self.peek()? {
-                    Token::Identifier(id) if matches!(id.as_str(), "define" | "define-values" | "define-record-type" | "define-syntax") => self.definition(),
-                    Token::Identifier(id) if matches!(id.as_str(), "begin") => self.begin(),
-                    _ => self.compound_expr(),
-                }
-            }),
-            _ => self.atom(),
-        }
-    }
-
-    ///
-    /// Begin
-    /// 
-    /// 
-    ///
-
-    fn begin(&mut self) -> ParseResult {
-        // we look for the keyword begin 
-        // we then look for definitions. if that is all then we return a BeginDef
-        // but if there is an expression then we return a Begin
-        self.keyword("begin").and_then(|_| 
-            self.command_or_definition_list().and_then(|nodes| 
-                self.paren_close().and_then(|_| {
-                    if nodes.iter().all(|node| node.is_definition_expr()) {
-                        return self.node(Kind::BeginDef, nodes)
-                    } else {
-                        self.node(Kind::Begin, nodes)
-                    }
-                })
-            ),
-        )       
-    }
-
-    fn command_or_definition_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.command_or_definition().ok()).collect::<Vec<Box<Node>>>())
+    pub fn read(&mut self) -> ParseResult {
+        self.expr().or_else(|e| {
+            self.lexer.next(); // consume the token that caused the error
+            Err(e)
+        })
     }
 
     /// 
@@ -149,15 +114,12 @@ impl<'a> Parser<'a> {
 
     fn atom(&mut self) -> ParseResult {        
         match self.peek()? {
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::String(_)
-            | Token::Number(_) => self.leaf(Kind::Literal),
-            Token::Identifier(_) => self.leaf(Kind::Identifier),
-            Token::SharpOpen => self.vector().and_then(|vector| self.node(Kind::Vector, vec![vector])),
-            Token::SharpU8Open => self.bytevector().and_then(|bytevector| self.node(Kind::Bytevector, vec![bytevector])),
+            Token::Boolean(_) | Token::Character(_) | Token::String(_) | Token::Number(_) => self.leaf(NodeKind::Literal),
+            Token::Identifier(_) => self.leaf(NodeKind::Identifier),
+            Token::SharpOpen => self.vector().and_then(|vector| self.node(NodeKind::Vector, vec![vector])),
+            Token::SharpU8Open => self.bytevector().and_then(|bytevector| self.node(NodeKind::Bytevector, vec![bytevector])),
             Token::Quote => self.quotation_apostrophe(),
-            t @ _ => Err(Error{kind: ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "atom"}}),
+            t @ _ => Err(Error{kind: ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "atom"}}) ,
         }
     }
     
@@ -166,11 +128,12 @@ impl<'a> Parser<'a> {
     /// starting with a parenthesis we then first look for keywords
     /// if not keyword found we fall back to a procedure call
     /// 
+    
     fn compound_expr(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Identifier(id) => 
                 match id.as_str() {
-                    "if" => self.conditional_if(),
+                    "if" => self.conditional(),
                     "lambda" => self.lambda(),
                     "quote" => self.quotation(),
                     "set!" => self.assignment(),
@@ -183,6 +146,55 @@ impl<'a> Parser<'a> {
         }
     }
     
+    ///
+    /// Begin
+    /// 
+    /// 
+    ///
+
+    fn begin(&mut self) -> ParseResult {
+        // we look for the keyword begin 
+        // we then look for definitions. if that is all then we return a BeginDef
+        // but if there is an expression then we return a Begin
+        self.keyword("begin").and_then(|_| 
+            self.command_or_definition_list().and_then(|nodes| 
+                self.paren_close().and_then(|_| {
+                    if nodes.iter().all(|node| node.is_definition_expr()) {
+                        return self.node(NodeKind::BeginDef, nodes)
+                    } else {
+                        self.node(NodeKind::Begin, nodes)
+                    }
+                })
+            ),
+        )       
+    }
+
+    fn command_or_definition_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.command_or_definition().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn command_or_definition(&mut self) -> ParseResult {
+        match self.lexer.peek().ok_or(Error::new(ErrorKind::EndOfInput))? {
+            Token::ParenOpen => self.paren_open().and_then(|_| {
+                match self.peek()? {
+                    Token::Identifier(id) if matches!(
+                                                id.as_str(),
+                                                "define"
+                                                | "define-values"
+                                                | "define-record-type"
+                                                | "define-syntax"
+                                            ) => self.definition(),
+                    Token::Identifier(id) if matches!(
+                                                id.as_str(),
+                                                "begin"
+                                            ) => self.begin(),
+                    _ => self.compound_expr(),
+                }
+            }),
+            _ => self.atom(),
+        }
+    }
+
     ///
     /// Definitions
     /// 
@@ -199,9 +211,9 @@ impl<'a> Parser<'a> {
                     "define-values" => self.values_definition(),
                     "define-record-type" => self.record_type_definition(),
                     "define-syntax" => self.syntax_definition(),
-                    _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone().clone(), expected: "define, define-values, define-record-type, define-syntax"})),
+                    _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "define, define-values, define-record-type, define-syntax"})),
                 },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone().clone(), expected: "define, define-values, define-record-type, define-syntax"})),
+            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "define, define-values, define-record-type, define-syntax"})),
         }
     }
 
@@ -219,7 +231,7 @@ impl<'a> Parser<'a> {
         self.identifier().and_then(
             |id| self.expr().and_then(
                 |expr| self.paren_close().and_then(
-                    |_| self.node(Kind::VariableDefinition, vec![id, expr])
+                    |_| self.node(NodeKind::VariableDefinition, vec![id, expr])
                 )
             )
         )
@@ -232,7 +244,7 @@ impl<'a> Parser<'a> {
                     self.paren_close().and_then(|_| 
                         self.body().and_then(|body| 
                             self.paren_close().and_then(|_| 
-                                self.node(Kind::FunctionDefinition, vec![id, formals, body])
+                                self.node(NodeKind::FunctionDefinition, vec![id, formals, body])
                             )
                         )
                     )
@@ -246,16 +258,15 @@ impl<'a> Parser<'a> {
     }
 
     fn values_definition(&mut self) -> ParseResult {
-        println!("values_definition"); 
         self.keyword("define-values").and_then(|_| 
-                self.formals().and_then(|formals| 
-                    self.body().and_then(|exprs| 
-                        self.paren_close().and_then(|_| 
-                            self.node(Kind::ValuesDefinition, vec![formals, exprs])
-                        )
-                    )
+            self.formals().and_then(|formals| 
+                self.body().and_then(|exprs| 
+                    self.paren_close().and_then(|_| 
+                        self.node(NodeKind::ValuesDefinition, vec![formals, exprs])
                     )
                 )
+            )
+        )
     }
 
     fn record_type_definition(&mut self) -> ParseResult {
@@ -265,7 +276,7 @@ impl<'a> Parser<'a> {
                     self.identifier().and_then(|id2| 
                         self.field_specs().and_then(|field_specs| 
                             self.paren_close().and_then(|_| 
-                                self.node(Kind::RecordTypeDefinition, vec![id1, constructor, id2, field_specs])
+                                self.node(NodeKind::RecordTypeDefinition, vec![id1, constructor, id2, field_specs])
                             )
                         )
                     )
@@ -279,7 +290,7 @@ impl<'a> Parser<'a> {
             self.identifier().and_then(|id|
                 self.identifier_list().and_then(|field_names|
                     self.paren_close().and_then(|_|
-                        self.node(Kind::List, vec![id, field_names])
+                        self.node(NodeKind::List, vec![id, field_names])
                     )
                 )
             )
@@ -288,7 +299,7 @@ impl<'a> Parser<'a> {
 
     fn field_specs (&mut self) -> ParseResult {
         Ok(from_fn(|| self.field_spec().ok()).collect::<Vec<Box<Node>>>()).and_then(|nodes|
-            self.node(Kind::List, nodes))
+            self.node(NodeKind::List, nodes))
     }
 
     fn field_spec(&mut self) -> ParseResult {
@@ -297,13 +308,13 @@ impl<'a> Parser<'a> {
                 self.identifier().and_then(|accessor|
                     match self.peek()? {
                         Token::ParenClose => {
-                            return self.node(Kind::List, vec![field_name, accessor])
+                            return self.node(NodeKind::List, vec![field_name, accessor])
                         },
                         _ => self.identifier().and_then(|mutator|
-                            self.paren_close().and_then(|_|
-                                self.node(Kind::List, vec![field_name, accessor, mutator])
-                            )
-                        ),
+                                self.paren_close().and_then(|_|
+                                    self.node(NodeKind::List, vec![field_name, accessor, mutator])
+                                )
+                            ),
                     }
                 )
             )
@@ -315,7 +326,7 @@ impl<'a> Parser<'a> {
             self.identifier().and_then(|id| 
                 self.transformer_spec().and_then(|expr| 
                     self.paren_close().and_then(|_| 
-                        self.node(Kind::SyntaxDefinition, vec![id, expr])
+                        self.node(NodeKind::SyntaxDefinition, vec![id, expr])
                     )
                 )
             )
@@ -327,7 +338,7 @@ impl<'a> Parser<'a> {
     /// 
     /// 
     ///
-    fn conditional_if(&mut self) -> ParseResult {
+    fn conditional(&mut self) -> ParseResult {
         self.keyword("if").and_then(
             |_| self.expr().and_then(
                 |test| self.expr().and_then(
@@ -335,13 +346,13 @@ impl<'a> Parser<'a> {
                     match self.peek()? {
                         Token::ParenClose => {
                             self.lexer.next(); // consume ParenClose
-                            return self.node(Kind::Conditional, vec![test, consequent])
+                            return self.node(NodeKind::Conditional, vec![test, consequent])
                         },
                         
                         _ => self.expr().and_then(|alternative| 
                             self.paren_close()
                             .or(Err(Error::new(ErrorKind::NotImplemented)))
-                            .and_then(|_| self.node(Kind::Conditional, vec![test, consequent, alternative])
+                            .and_then(|_| self.node(NodeKind::Conditional, vec![test, consequent, alternative])
                             )
                         ),
                     }
@@ -361,7 +372,7 @@ impl<'a> Parser<'a> {
             self.formals().and_then(|formals|
                 self.body().and_then(|body| 
                     self.paren_close().and_then(|_| 
-                        self.node(Kind::Lambda, vec![formals, body])
+                        self.node(NodeKind::Lambda, vec![formals, body])
                     )
                 )
             )
@@ -400,7 +411,7 @@ impl<'a> Parser<'a> {
                         defs = false;
                     }
                 }
-                self.node(Kind::List, exprs)
+                self.node(NodeKind::List, exprs)
             }),
         }
     }
@@ -415,7 +426,7 @@ impl<'a> Parser<'a> {
         self.keyword("quote").and_then(|_| 
             self.datum().and_then(|datum|
                 self.paren_close().and_then(|_|
-                    self.node(Kind::Quotation, vec![datum])
+                    self.node(NodeKind::Quotation, vec![datum])
                 )
             )
         )
@@ -432,7 +443,7 @@ impl<'a> Parser<'a> {
             self.identifier().and_then(|id| 
                 self.expr().and_then(|expr| 
                     self.paren_close().and_then(|_| 
-                        self.node(Kind::Assignment, vec![id, expr])
+                        self.node(NodeKind::Assignment, vec![id, expr])
                     )
                 )
             )
@@ -450,7 +461,7 @@ impl<'a> Parser<'a> {
             self.expr_list().and_then(|operands|
                 self.paren_close().and_then(|_| {
                     self.node(
-                        Kind::ProcedureCall,
+                        NodeKind::ProcedureCall,
                         once(operator)
                         .chain(operands.into_iter())
                         .collect())    
@@ -477,19 +488,19 @@ impl<'a> Parser<'a> {
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "let-syntax or letrec-syntax" })),
         }?;
 
-        self.node(Kind::MacroBlock, vec![node])
+        self.node(NodeKind::MacroBlock, vec![node])
     }
 
     fn let_syntax(&mut self) -> ParseResult {
         self.keyword("let-syntax").and_then(|_| 
             self.macro_block_suffix().and_then(|(transformer_specs, body)|
-                self.node(Kind::LetSyntax, vec![transformer_specs, body])))
+                self.node(NodeKind::LetSyntax, vec![transformer_specs, body])))
     }
 
     fn letrec_syntax(&mut self) -> ParseResult {
         self.keyword("letrec-syntax").and_then(|_| 
             self.macro_block_suffix().and_then(|(transformer_specs, body)|
-                self.node(Kind::LetRecSyntax, vec![transformer_specs, body])))
+                self.node(NodeKind::LetRecSyntax, vec![transformer_specs, body])))
     }
 
     fn macro_block_suffix(&mut self) -> Result<(Box<Node>, Box<Node>), Error> {
@@ -506,7 +517,7 @@ impl<'a> Parser<'a> {
         
         // <syntax spec>*
         Ok(from_fn(|| self.syntax_spec().ok()).collect::<Vec<Box<Node>>>())
-            .and_then(|specs| self.node(Kind::SyntaxSpecList, specs))
+            .and_then(|specs| self.node(NodeKind::SyntaxSpecList, specs))
     }
 
     fn syntax_spec(&mut self) -> ParseResult {
@@ -515,7 +526,7 @@ impl<'a> Parser<'a> {
             self.identifier().and_then(|keyword| 
                 self.transformer_spec().and_then(|transformer_spec|
                     self.paren_close().and_then(|_|
-                        self.node(Kind::SyntaxSpec, vec![keyword, transformer_spec])))))
+                        self.node(NodeKind::SyntaxSpec, vec![keyword, transformer_spec])))))
     }
 
     ///
@@ -530,9 +541,9 @@ impl<'a> Parser<'a> {
                 match self.peek()? {
                     Token::Identifier(_) => self.identifier().and_then(|id|
                         self.transformer_spec_suffix().and_then(|(transformer_spec_identifier_list, syntax_rule_list)|
-                            self.node(Kind::TransformerSpec, vec![id, transformer_spec_identifier_list, syntax_rule_list]))),
+                            self.node(NodeKind::TransformerSpec, vec![id, transformer_spec_identifier_list, syntax_rule_list]))),
                     Token::ParenOpen => self.transformer_spec_suffix().and_then(|(transformer_spec_identifier_list, syntax_rule_list)|
-                        self.node(Kind::TransformerSpec, vec![transformer_spec_identifier_list, syntax_rule_list])),
+                        self.node(NodeKind::TransformerSpec, vec![transformer_spec_identifier_list, syntax_rule_list])),
                     t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier or open parenthesis" })),
                 }))
     }
@@ -544,19 +555,24 @@ impl<'a> Parser<'a> {
                 self.paren_close().and_then(|_|
                     self.syntax_rule_list().and_then(|syntax_rule_list|
                         self.paren_close().and_then(|_| 
-                            Ok((transformer_spec_identifier_list, syntax_rule_list)))))))
+                            Ok((transformer_spec_identifier_list, syntax_rule_list))
+                        )
+                    )
+                )
+            )
+        )
     }
 
     fn transformer_spec_identifier_list(&mut self) -> ParseResult {
         // <identifier>*
         Ok(from_fn(|| self.identifier().ok()).collect::<Vec<Box<Node>>>())
-            .and_then(|ids| self.node(Kind::TransformerSpecIdentifierList, ids))
+            .and_then(|ids| self.node(NodeKind::TransformerSpecIdentifierList, ids))
     }
 
     fn syntax_rule_list(&mut self) -> ParseResult {
         // <syntax rule>*
         Ok(from_fn(|| self.syntax_rule().ok()).collect::<Vec<Box<Node>>>())
-            .and_then(|syntax_rules| self.node(Kind::SyntaxRuleList, syntax_rules))
+            .and_then(|syntax_rules| self.node(NodeKind::SyntaxRuleList, syntax_rules))
     }
 
     fn syntax_rule(&mut self) -> ParseResult {
@@ -565,7 +581,11 @@ impl<'a> Parser<'a> {
             self.pattern().and_then(|pattern|
                 self.template().and_then(|template|
                     self.paren_close().and_then(|_|
-                        self.node(Kind::SyntaxRule, vec![pattern, template])))))
+                        self.node(NodeKind::SyntaxRule, vec![pattern, template])
+                    )
+                )
+            )
+        )
     }
 
     fn pattern(&mut self) -> ParseResult {
@@ -583,11 +603,13 @@ impl<'a> Parser<'a> {
             Token::ParenOpen => self.pattern_with_paren(),
             Token::SharpOpen => self.pattern_with_sharp_paren(),
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
-        }.and_then(|pattern| self.node(Kind::Pattern, vec!(pattern)))
+        }.and_then(|pattern|
+            self.node(NodeKind::Pattern, vec!(pattern))
+        )
     }
 
     fn pattern_datum(&mut self) -> ParseResult {
-        self.leaf(Kind::PatternDatum)
+        self.leaf(NodeKind::PatternDatum)
     }
 
     fn pattern_identifier(&mut self) -> ParseResult {
@@ -595,13 +617,13 @@ impl<'a> Parser<'a> {
 
         match token {
             Token::Identifier(s) if s.as_str() == "..." => Err(Error::new(ErrorKind::EllipsisNotValidPatternIdentifier)),
-            _ => self.identifier().and_then(|id| self.node(Kind::PatternIdentifier, vec![id])),
+            _ => self.identifier().and_then(|id| self.node(NodeKind::PatternIdentifier, vec![id])),
         }
     }
 
     fn pattern_underscore(&mut self) -> ParseResult {
         self.keyword("_").and_then(|_| 
-            self.node(Kind::PatternUnderscore, vec!()))
+            self.node(NodeKind::PatternUnderscore, vec!()))
     }
 
 
@@ -609,7 +631,10 @@ impl<'a> Parser<'a> {
         self.paren_open().and_then(|_|
             self.pattern_with_paren_a().and_then(|pattern_list|
                 self.paren_close().and_then(|_|
-                    self.node(Kind::PatternWithParen, vec![pattern_list]))))
+                    self.node(NodeKind::PatternWithParen, vec![pattern_list])
+                )
+            )
+        )
     }
 
 
@@ -621,21 +646,21 @@ impl<'a> Parser<'a> {
 
         match self.peek()? {
             
-            Token::ParenClose => self.node(Kind::PatternParen, vec!()), // empty
+            Token::ParenClose => self.node(NodeKind::PatternParen, vec!()), // empty
 
             _ => {
                 let mut pre_ellipse_patterns = self.pattern_pre_ellipse()?;
 
                 match self.peek()? {
                     // <pattern>*            
-                    Token::ParenClose => self.node(Kind::PatternParen, vec!(pre_ellipse_patterns)),
+                    Token::ParenClose => self.node(NodeKind::PatternParen, vec!(pre_ellipse_patterns)),
 
                     // | <pattern>+ . <pattern>
                     Token::Dot => 
                         self.dot().and_then(|_|
                             self.pattern().and_then(|pattern| {
                                 pre_ellipse_patterns.add_child(pattern);
-                                self.node(Kind::PatternParen, vec!(pre_ellipse_patterns))
+                                self.node(NodeKind::PatternParen, vec!(pre_ellipse_patterns))
                             }
                             )
                         ),
@@ -644,13 +669,13 @@ impl<'a> Parser<'a> {
                             let mut post_ellipse_patterns = self.pattern_post_ellipse()?;
                             match self.peek()? {
                                 // | <pattern>* <pattern> <ellipsis> <pattern>*
-                                Token::ParenClose => self.node(Kind::PatternParen, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
+                                Token::ParenClose => self.node(NodeKind::PatternParen, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
                                 // | <pattern>* <pattern> <ellipsis> <pattern>* . pattern
                                 Token::Dot => 
                                     self.dot().and_then(|_|
                                         self.pattern().and_then(|pattern| {
                                             post_ellipse_patterns.add_child(pattern);
-                                            self.node(Kind::PatternParen, vec!(pre_ellipse_patterns, post_ellipse_patterns))
+                                            self.node(NodeKind::PatternParen, vec!(pre_ellipse_patterns, post_ellipse_patterns))
                                         })
                                     ),
                                 t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
@@ -667,13 +692,13 @@ impl<'a> Parser<'a> {
     fn pattern_pre_ellipse(&mut self) -> ParseResult {
         // <pattern>*
         Ok(from_fn(|| self.pattern().ok()).collect()).and_then(|patterns|
-            self.node(Kind::PatternPreEllipse, patterns))
+            self.node(NodeKind::PatternPreEllipse, patterns))
     }
 
     fn pattern_post_ellipse(&mut self) -> ParseResult {
         // <pattern>*
         Ok(from_fn(|| self.pattern().ok()).collect()).and_then(|patterns|
-            self.node(Kind::PatternPostEllipse, patterns))
+            self.node(NodeKind::PatternPostEllipse, patterns))
     }
     
     fn pattern_with_sharp_paren(&mut self) -> ParseResult {
@@ -683,22 +708,22 @@ impl<'a> Parser<'a> {
         self.sharpopen().and_then(|_|
             self.pattern_with_sharp_paren_a().and_then(|pattern_list|
                 self.paren_close().and_then(|_|
-                    self.node(Kind::PatternSharp, vec![pattern_list]))))
+                    self.node(NodeKind::PatternSharp, vec![pattern_list]))))
 
     }
 
     fn pattern_with_sharp_paren_a(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::ParenClose => self.node(Kind::PatternSharp, vec!()),
+            Token::ParenClose => self.node(NodeKind::PatternSharp, vec!()),
             _ => {
                 let pre_ellipse_patterns = self.pattern_pre_ellipse()?;
                 match self.peek()? {
-                    Token::ParenClose => self.node(Kind::PatternSharp, vec!(pre_ellipse_patterns)),
+                    Token::ParenClose => self.node(NodeKind::PatternSharp, vec!(pre_ellipse_patterns)),
                     Token::Identifier(id) if  id.as_str() == "..." =>
                         self.identifier().and_then(|_ellipsis| {
                             let post_ellipse_patterns = self.pattern_post_ellipse()?;
                             match self.peek()? {
-                                Token::ParenClose => self.node(Kind::PatternSharp, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
+                                Token::ParenClose => self.node(NodeKind::PatternSharp, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
                                 t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis" })),
                             }
                     }),
@@ -723,31 +748,33 @@ impl<'a> Parser<'a> {
 
     fn template_identifier(&mut self) -> ParseResult {
         self.pattern_identifier().and_then(|id|
-            self.node(Kind::Template, vec![id]))
+            self.node(NodeKind::Template, vec![id]))
     }
 
     fn template_with_paren(&mut self) -> ParseResult {
         self.paren_open().and_then(|_|
             self.template_with_paren_a().and_then(|template|
                 self.paren_close().and_then(|_|
-                    self.node(Kind::TemplateWithParen, template))))
+                    self.node(NodeKind::TemplateWithParen, template))))
     }
 
     fn template_with_paren_a(&mut self) -> Result<Vec<Box<Node>>, Error> {
         match self.peek()? {
             Token::ParenClose => Ok(vec!()), // empty list
             _ => self.template_element().and_then(|first| // non-empty list so get first template_element
-                                        self.template_element_sequence().and_then(|template_element_sequence| // get rest of template_element sequence
-                                                match self.peek()? {
-                                                    Token::ParenClose => Ok(once(first).chain(template_element_sequence).collect()),
-                                                    Token::Dot => self.dot().and_then(|_|
-                                                                    self.template_element().and_then(|last|
-                                                                        Ok(once(first)
-                                                                            .chain(template_element_sequence)
-                                                                            .chain(once(last))
-                                                                            .collect()))),
-                                                    t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
-                                                })),
+                    self.template_element_sequence().and_then(|template_element_sequence| // get rest of template_element sequence
+                        match self.peek()? {
+                            Token::ParenClose => Ok(once(first).chain(template_element_sequence).collect()),
+                            Token::Dot => self.dot().and_then(|_|
+                                            self.template_element().and_then(|last|
+                                                Ok(once(first)
+                                                    .chain(template_element_sequence)
+                                                    .chain(once(last))
+                                                    .collect()))),
+                            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
+                        }
+                    )
+                ),
         }   
     }
 
@@ -757,9 +784,9 @@ impl<'a> Parser<'a> {
         match self.peek()? {
             Token::Identifier(id) if id.as_str() == "..." => { 
                 self.lexer.next();
-                self.node(Kind::TemplateElementEllipsis, vec![template])
+                self.node(NodeKind::TemplateElementEllipsis, vec![template])
             }
-            _ => self.node(Kind::TemplateElement, vec![template])
+            _ => self.node(NodeKind::TemplateElement, vec![template])
         }
     }
 
@@ -767,7 +794,10 @@ impl<'a> Parser<'a> {
         self.sharpopen().and_then(|_|
             self.template_element_sequence().and_then(|template_list|
                 self.paren_close().and_then(|_|
-                    self.node(Kind::TemplateSharp, template_list))))
+                    self.node(NodeKind::TemplateSharp, template_list)
+                )
+            )
+        )
     }
 
     fn template_element_sequence(&mut self) -> Result<Vec<Box<Node>>, Error> {
@@ -775,7 +805,7 @@ impl<'a> Parser<'a> {
     }
 
     fn template_datum(&mut self) -> ParseResult {
-        self.leaf(Kind::TemplateDatum)
+        self.leaf(NodeKind::TemplateDatum)
     }
 
     ///
@@ -792,12 +822,12 @@ impl<'a> Parser<'a> {
         .or_else(|_| self.abbreviation())
         .or_else(|_| self.list())
         .or_else(|_| self.vector())
-        .and_then(|node| self.node(Kind::Datum, vec![node]))
+        .and_then(|node| self.node(NodeKind::Datum, vec![node]))
     }
 
     fn symbol(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::Identifier(_) => self.leaf(Kind::Symbol),
+            Token::Identifier(_) => self.leaf(NodeKind::Symbol),
             t @ _ => return Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "symbol" })),
         }
     }
@@ -809,14 +839,19 @@ impl<'a> Parser<'a> {
         .or_else(|_| self.comma_at())
         .and_then(|prefix| 
             self.datum().and_then(|expr| 
-                self.node(Kind::List, vec!(prefix, expr))))
+                self.node(NodeKind::List, vec!(prefix, expr))
+            )
+        )
     }
 
     fn list(&mut self) -> ParseResult {
         self.paren_open().and_then(|_| 
             self.datum_list().and_then(|data| 
                 self.paren_close().and_then(|_| 
-                    self.node(Kind::List, data))))
+                    self.node(NodeKind::List, data)
+                )
+            )
+        )
     }
 
     fn datum_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
@@ -834,7 +869,9 @@ impl<'a> Parser<'a> {
                                                         .chain(once(last))
                                                         .collect()))),
                                 t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
-                            })),
+                            }
+                        )
+                    ),
        }
     }
 
@@ -853,11 +890,11 @@ impl<'a> Parser<'a> {
         self.lexer.peek().ok_or(Error::new(ErrorKind::EndOfInput))
     }
     
-    fn node(&mut self, kind: Kind, children: Vec<Box<Node>>) -> ParseResult {
+    fn node(&mut self, kind: NodeKind, children: Vec<Box<Node>>) -> ParseResult {
         Ok(Box::new(Node::Inner(kind, children)))
     }
     
-    fn leaf(&mut self, kind: Kind) -> ParseResult {
+    fn leaf(&mut self, kind: NodeKind) -> ParseResult {
         Ok(Box::new(Node::Leaf(kind, self.lexer.next().unwrap())))
     }
 
@@ -887,7 +924,7 @@ impl<'a> Parser<'a> {
     fn quote(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Quote => {
-                self.leaf(Kind::Quote)
+                self.leaf(NodeKind::Quote)
             },
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "Quote" })),
         }
@@ -896,7 +933,7 @@ impl<'a> Parser<'a> {
     fn quasiquote(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Quasiquote => {
-                self.leaf(Kind::Quasiquote)
+                self.leaf(NodeKind::Quasiquote)
             },
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "quasiquote" })),
         }
@@ -905,7 +942,7 @@ impl<'a> Parser<'a> {
     fn comma(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Comma => {
-                self.leaf(Kind::Comma)
+                self.leaf(NodeKind::Comma)
             },
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "comma" })),
         }
@@ -914,7 +951,7 @@ impl<'a> Parser<'a> {
     fn comma_at(&mut self) -> ParseResult {
         match self.peek()? {
             Token::CommaAt => {
-                self.leaf(Kind::CommaAt)
+                self.leaf(NodeKind::CommaAt)
             },
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: ",@" })),
         }
@@ -966,28 +1003,33 @@ impl<'a> Parser<'a> {
     
     fn identifier(&mut self) -> ParseResult {        
         match self.peek()? {
-            Token::Identifier(_) => self.leaf(Kind::Identifier),
+            Token::Identifier(_) => self.leaf(NodeKind::Identifier),
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier" })),
         }        
     }
 
     fn identifier_list(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::ParenClose => self.node(Kind::List, vec!()), // empty list
+            Token::ParenClose => self.node(NodeKind::List, vec!()), // empty list
             Token::Identifier(_) => self.identifier().and_then(|first| // non-empty list so get first identifier
-                                        self.identifier_sequence().and_then(|identifier_sequence| // get rest of identifier sequence
-                                                match self.peek()? {
-                                                    Token::ParenClose => self.node(Kind::List, once(first).chain(identifier_sequence).collect()),
-                                                    Token::Dot => self.dot().and_then(|_|
-                                                                    self.identifier().and_then(|last|
-                                                                        self.node(
-                                                                            Kind::List, 
-                                                                            once(first)
-                                                                            .chain(identifier_sequence)
-                                                                            .chain(once(last))
-                                                                            .collect()))),
-                                                    t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
-                                                })),
+                self.identifier_sequence().and_then(|identifier_sequence| // get rest of identifier sequence
+                    match self.peek()? {
+                        Token::ParenClose => self.node(NodeKind::List, once(first).chain(identifier_sequence).collect()),
+                        Token::Dot => self.dot().and_then(|_|
+                                        self.identifier().and_then(|last|
+                                            self.node(
+                                                NodeKind::List, 
+                                                once(first)
+                                                .chain(identifier_sequence)
+                                                .chain(once(last))
+                                                .collect()
+                                            )
+                                        )
+                                    ),
+                        t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
+                    }
+                )
+            ),
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
         }   
     }
@@ -998,28 +1040,28 @@ impl<'a> Parser<'a> {
 
     fn boolean(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::Boolean(_) => self.leaf(Kind::Literal),
+            Token::Boolean(_) => self.leaf(NodeKind::Literal),
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "boolean" })),
         }
     }
 
     fn character(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::Character(_) => self.leaf(Kind::Literal),
+            Token::Character(_) => self.leaf(NodeKind::Literal),
            t @  _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "character" })),
         }
     }
 
     fn string(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::String(_) => self.leaf(Kind::Literal),
+            Token::String(_) => self.leaf(NodeKind::Literal),
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "string" })),
         }
     }
 
     fn number(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::Number(_) => self.leaf(Kind::Literal),
+            Token::Number(_) => self.leaf(NodeKind::Literal),
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "number" })),
         }
     }
@@ -1028,21 +1070,24 @@ impl<'a> Parser<'a> {
         self.sharpopen().and_then(|_| 
             self.datum_list().and_then(|data| 
                 self.paren_close().and_then(|_| 
-                    self.node(Kind::Vector, data))))
+                    self.node(NodeKind::Vector, data))))
     }
 
     fn bytevector(&mut self) -> ParseResult {
         self.sharpu8open().and_then(|_| 
             self.datum_list().and_then(|data| 
                 self.paren_close().and_then(|_| 
-                    self.node(Kind::Bytevector, data))))
+                    self.node(NodeKind::Bytevector, data)
+                )
+            )
+        )
     }
 
     /// Implements '<datum> (i.e. single quote followed by datum)
     fn quotation_apostrophe(&mut self) -> ParseResult {
         self.quote().and_then(
             |_| self.datum().and_then(
-                |expr| self.node(Kind::Quotation, vec![expr])
+                |expr| self.node(NodeKind::Quotation, vec![expr])
             )
         )
     }
