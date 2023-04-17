@@ -29,6 +29,8 @@ pub enum NodeKind {
     Lambda,
     ProcedureCall,
     Quotation,
+    Unquotation,
+    QQTemplate,
     RecordTypeDefinition,
     VariableDefinition,
     ValuesDefinition,

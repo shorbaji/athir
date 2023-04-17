@@ -7,7 +7,10 @@ fn test_parse(goods: &[&str], bads: &[&str], kind: NodeKind) {
     .map(|s| s.to_string())
     .for_each(|s| {
         match Parser::new([s.clone()].into_iter()).read() {
-            Ok(node) => assert_eq!(node.kind(), &kind),
+            Ok(node) => {
+                println!("{} => {:?}", s, node);
+                assert_eq!(node.kind(), &kind);
+            },
             Err(err) => panic!("Error parsing {}: {}", s, err),
         }
     });
@@ -161,4 +164,17 @@ fn test_include_ci() {
     ];
     let bads = ["(include-ci)", "(include-ci 1)"];
     test_parse(&goods, &bads, NodeKind::IncluderCI);
+
+}
+
+#[test]
+fn test_quasiquotation() {
+    let goods = [
+        "`1",
+        "`(1 2 3)",
+    ];
+
+    let bads = [];
+
+    test_parse(&goods, &bads, NodeKind::Quasiquote);
 }

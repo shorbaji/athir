@@ -137,6 +137,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             Token::SharpOpen => self.vector().and_then(|vector| self.node(NodeKind::Vector, vec![vector])),
             Token::SharpU8Open => self.bytevector().and_then(|bytevector| self.node(NodeKind::ByteVector, vec![bytevector])),
             Token::Quote => self.quotation_apostrophe(),
+            Token::Quasiquote => self.quasiquotation_short(1),
             t @ _ => Err(Error{kind: ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "atom"}}) ,
         }
     }
@@ -158,6 +159,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     "include-ci" => self.include_ci(),
                     "lambda" => self.lambda(),
                     "let-syntax" | "letrec-syntax" => self.macro_block(),
+                    "quasiquote" => self.quasiquotation(1),
                     "quote" => self.quotation(),
                     "set!" => self.assignment(),
                     _ => self.procedure_call(),
@@ -166,6 +168,122 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
     
+        //
+    // Quasiquotation
+    //
+    //
+    //
+
+    fn quasiquotation_short(&mut self, depth: u32) -> ParseResult {
+        println!("QUASIQUOTATION_SHORT DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        self.quasiquote().and_then(|_|
+            self.qq_template(depth).and_then(|template|
+                self.node(NodeKind::Quasiquote, vec![template])
+            )
+        )
+    }
+
+    fn quasiquotation(&mut self, depth: u32) -> ParseResult {
+        println!("QUASIQUOTATION DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        self.keyword("quasiquote").and_then(|_| 
+            self.qq_template(depth).and_then(|template| 
+                self.paren_close().and_then(|_| 
+                    self.node(NodeKind::Quasiquote, vec![template])
+                )
+            )
+        )
+    }
+
+    fn qq_template(&mut self, depth: u32) -> ParseResult {
+        println!("QQ_TEMPLATE DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        match depth {
+            0 => self.expr(),
+            _ => match self.peek()? {
+                Token::Boolean(_)
+                | Token::Character(_)
+                | Token::String(_)
+                | Token::Number(_)
+                | Token::Identifier(_)
+                | Token::SharpU8Open => self.simple_datum(),
+                Token::SharpOpen => self.qq_template_vector(depth),
+                Token::Comma => self.qq_template_unquotation_short(depth),
+                Token::Quote => self.quote().and_then(|_| self.qq_template(depth)),
+                Token::Quasiquote => self.quasiquotation_short(depth + 1),
+                Token::ParenOpen => self.paren_open().and_then(|_|
+                    match self.peek()? {
+                        Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(depth + 1),
+                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth - 1),
+                        _ => self.qq_template_or_splice_list(depth).and_then(|list|
+                            self.paren_close().and_then(|_|
+                                self.node(NodeKind::List, list)
+                            )
+                        ),
+                    }
+                ),
+                t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
+            }    
+        }
+    }
+
+    fn qq_template_or_splice(&mut self, depth: u32) -> ParseResult {
+        println!("QQ_TEMPLATE_OR_SPLICE DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        match self.peek()? {
+            Token::CommaAt => self.qq_splice_unquotation(depth),
+            _ => self.qq_template(depth),
+        }
+    }
+
+    fn qq_template_or_splice_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
+        println!("QQ_TEMPLATE_OR_SPLICE_LIST DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        Ok(from_fn(|| self.qq_template_or_splice(depth).ok()).collect::<Vec<Box<Node>>>())
+    }
+    fn qq_splice_unquotation(&mut self, depth: u32) -> ParseResult {
+        println!("QQ_SPLICE_UNQUOTATION DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        self.comma_at().and_then(|_|
+            self.qq_template(depth - 1)
+        )
+    }
+
+    fn qq_template_unquotation_short(&mut self, depth: u32) -> ParseResult {
+        println!("QQ_TEMPLATE_UNQUOTATION_SHORT DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        self.comma().and_then(|_|
+            self.qq_template(depth - 1).and_then(|template|
+                self.paren_close().and_then(|_|
+                    self.node(NodeKind::Unquotation, vec!(template))
+                )
+            )
+        )
+    }
+
+    fn qq_template_unquotation(&mut self, depth: u32) -> ParseResult {
+        println!("QQ_TEMPLATE_UNQUOTATION DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        self.keyword("unquote").and_then(|_|
+            self.qq_template(depth - 1).and_then(|template|
+                self.paren_close().and_then(|_|
+                    self.node(NodeKind::Unquotation, vec!(template))
+                )
+            )
+        )
+    }
+
+    fn qq_template_vector(&mut self, depth: u32) -> ParseResult {
+        println!("QQ_TEMPLATE_VECTOR DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        self.sharpopen().and_then(|_|
+            self.keyword("vector").and_then(|_|
+                self.qq_template_list(depth).and_then(|list|
+                    self.paren_close().and_then(|_|
+                        self.node(NodeKind::Vector, list)
+                    )
+                )
+            )
+        )
+    }
+
+    fn qq_template_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
+        println!("QQ_TEMPLATE_LIST DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+        Ok(from_fn(|| self.qq_template(depth).ok()).collect::<Vec<Box<Node>>>())
+    }
+
     ///
     /// Begin
     /// 
@@ -834,15 +952,20 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     /// 
     /// 
     fn datum(&mut self) -> ParseResult {
-        self.boolean()
-        .or_else(|_| self.character())
-        .or_else(|_| self.string())
-        .or_else(|_| self.number())
-        .or_else(|_| self.symbol())
+        self.simple_datum()
         .or_else(|_| self.abbreviation())
         .or_else(|_| self.list())
         .or_else(|_| self.vector())
         .and_then(|node| self.node(NodeKind::Datum, vec![node]))
+    }
+
+    fn simple_datum(&mut self) -> ParseResult {
+        self.boolean()
+        .or_else(|_| self.number())
+        .or_else(|_| self.character())
+        .or_else(|_| self.string())
+        .or_else(|_| self.symbol())
+        .or_else(|_| self.bytevector())
     }
 
     fn symbol(&mut self) -> ParseResult {
