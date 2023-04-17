@@ -1,6 +1,12 @@
 //! Athir parser module
 //! Implements recursive descent parser for R7RS Scheme
 //! 
+//! TODO:
+//! 
+//! - quasiquotation
+//! - define-library
+//! - node captures source code
+//!  
 //! Example usage:
 //! ```
 //!     // we first create a Source using an iterator over String
@@ -26,12 +32,6 @@
 //! - derived expressions not implemented
 //!
 
-// TODO:
-// 
-// - quasiquotation
-// - node captures source code
-// - define-library
- 
 
 #[cfg(test)]
 mod tests;
@@ -922,7 +922,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             self.string().and_then(|path| 
                 self.string_list().and_then(|strings| 
                     self.paren_close().and_then(|_|
-                        self.node(NodeKind::Includer, once(path).chain(strings.into_iter()).collect())
+                        self.node(NodeKind::IncluderCI, once(path).chain(strings.into_iter()).collect())
                     )
                 )
             )
