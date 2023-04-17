@@ -160,5 +160,5 @@ fn test_include_ci() {
         "(include-ci \"foo.scm\")",
     ];
     let bads = ["(include-ci)", "(include-ci 1)"];
-    test_parse(&goods, &bads, NodeKind::Includer);
+    test_parse(&goods, &bads, NodeKind::IncluderCI);
 }
