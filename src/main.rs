@@ -15,12 +15,11 @@ mod read;
 mod eval;
 mod repl;
 
+/// Main entry point
+///
+/// At the moment, the main function simply prints a welcome message and calls the REPL.
+/// This will evolve into launching a server and listening for connections or setting up a remote REPL to a server
 fn main() -> std::io::Result<()> {
-    //! Main entry point
-    //!
-    //! At the moment, the main function simply prints a welcome message and calls the REPL.
-    //! This will evolve into launching a server and listening for connections or setting up a remote REPL to a server
-    //
     use repl::repl;
 
     println!("athir (c) 2023 Athir LLC");

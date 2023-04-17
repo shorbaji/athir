@@ -7,7 +7,7 @@ where
 {
     let source = vec![input.to_string()].into_iter();
     let mut lex = Lexer::new(source);
-
+    
     for token in expected {
         assert_eq!(lex.next(), Some(token));
     }

@@ -1,9 +1,6 @@
 /// Tokens base on R7RS
-/// from R7RS <token> -> <identifier>| <boolean> | <number>
-///     | <character> | <string> 
-///     | ( | ) | #( | #u8( | ' | ` | , | ,@ | .
-/// 
-
+/// Uses [Logos](https://docs.rs/logos/0.11.0/logos/) to generate a lexer 
+///
 use logos::{Lexer, Logos};
 
 use crate::read::lexer::number::Number;
@@ -79,6 +76,10 @@ pub enum Token {
 
 }
 
+//
+// Helper functions to get values from tokens
+//
+//
 fn to_bool(lex: &mut Lexer<Token>) -> Option<bool> {
     match lex.slice().to_lowercase().as_str() {
         "#t" | "#true" => Some(true),

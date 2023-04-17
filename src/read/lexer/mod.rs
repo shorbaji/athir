@@ -32,6 +32,13 @@ use delimited::DelimitedLexer;
 pub use token::Token;
 pub use source::Source;
 
+/// Lexer
+/// 
+/// This struct is the public interface to the lexical analyzer.
+/// It is an abstraction over the DelimitedLexer struct which is an abstraction over the Logos lexer.
+/// It holds a Peekable iterator over the tokens produced by the DelimitedLexer 
+/// It also holds a source which is an iterator over strings of input.
+
 pub struct Lexer<T> {
     inner: Peekable<std::vec::IntoIter<Token>>,
     source: T,
@@ -40,10 +47,20 @@ pub struct Lexer<T> {
 impl<T> Lexer<T> where T: Iterator<Item=String>{
     pub fn new(source: T) -> Self {
         Self {
-            inner: vec!().into_iter().peekable(),
+            inner: vec!().into_iter().peekable(), 
             source,
         }
     }
+
+    /// refresh
+    /// 
+    /// This function:
+    /// - gets a new string of input from the source
+    /// - lexically analyzes the string with a DelimitedLexer
+    /// - collects the tokens into a vector
+    /// - converts the vector into an iterator
+    /// - wraps the iterator in a Peekable iterator
+    /// - returns the iterator
 
     fn refresh(&mut self) -> Option<Peekable<std::vec::IntoIter<Token>>> {
         self.source.next().map(|line| {
@@ -51,6 +68,11 @@ impl<T> Lexer<T> where T: Iterator<Item=String>{
         })
     }
 
+    /// peek
+    /// 
+    /// if no more tokens are available from the current Peekable iterator
+    /// then this function calls refresh to get a new one
+    ///
     pub fn peek(&mut self) -> Option<&Token> {
         if let None = self.inner.peek() {
             self.inner = self.refresh()?;
@@ -63,13 +85,14 @@ impl<T> Iterator for Lexer<T>
     where T: Iterator<Item=String> {
     type Item = Token;
 
+    /// next
+    /// 
+    /// if no more tokens are available from the current Peekable iterator
+    /// then this function calls refresh to get a new one
     fn next(&mut self) -> Option<Self::Item> {
-        match self.inner.next() {
-            Some(token) => Some(token),
-            None => {
-                self.refresh();
-                self.inner.next()
-            }
+        if let None = self.inner.peek() {
+            self.inner = self.refresh()?;
         }
+        self.inner.next()
     }
 }

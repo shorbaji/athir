@@ -6,8 +6,8 @@
 
 use std::io::Write;
 
-use crate::read::parser::Parser;
-use crate::read::lexer::Source;
+use crate::read::Parser;
+use crate::read::Source;
 
 use crate::eval::eval;
 
@@ -15,7 +15,7 @@ pub fn repl() {
     print!("> ");
     std::io::stdout().flush().unwrap();
 
-    let source = Source::new(std::io::stdin().lines().map(|line| line.unwrap()));
+    let source = Source::new(std::io::stdin().lines().map(|l| l.unwrap()));
     let parser = Parser::new(source);
 
     for expr in parser {

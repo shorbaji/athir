@@ -1,7 +1,7 @@
 
 use std::fmt;
 
-use crate::read::lexer::Token;
+use crate::read::Token;
 
 #[derive(Debug)]
 pub enum ErrorKind {

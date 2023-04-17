@@ -1,8 +1,12 @@
-
+/// eval.rs
+///
+/// The evaluator module implements the evaluator for Athir
+/// [Currently a work in progress]
+/// 
 use std::ops::Deref;
 
-use crate::read::parser::{Node, NodeKind::*};
-use crate::read::lexer::Token;
+use crate::read::{Node, NodeKind::*};
+use crate::read::Token;
 use crate::error::{Error, ErrorKind::*};
 
 #[derive(Debug)]
