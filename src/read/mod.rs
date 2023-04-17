@@ -20,28 +20,18 @@
 //!     }
 //! ```
 //!
-//! Known issues:
-//! - R7RS string inline hex escapes not implemented
-//! - R7RS derived expressions not implemented (deferred to macro expansion)
-//! - RSRS no support for # label in datum.
+//! Deviations from R7RS:
+//! - string inline hex escapes not implemented
+//! - no support for # label in datum.
+//! - derived expressions not implemented
 //!
 
 // TODO:
 // 
-// [P0]
-// - documentation
-// - tests should include inspecting what the parser returns, not just that it parses
-// - includer
-// - define-library
 // - quasiquotation
-
-// [P1]
-// - logging during debugging
-// - parsetree captures source code
 // - node captures source code
+// - define-library
  
-// [P2]
-
 
 #[cfg(test)]
 mod tests;
@@ -145,7 +135,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             Token::Boolean(_) | Token::Character(_) | Token::String(_) | Token::Number(_) => self.leaf(NodeKind::Literal),
             Token::Identifier(_) => self.leaf(NodeKind::Identifier),
             Token::SharpOpen => self.vector().and_then(|vector| self.node(NodeKind::Vector, vec![vector])),
-            Token::SharpU8Open => self.bytevector().and_then(|bytevector| self.node(NodeKind::Bytevector, vec![bytevector])),
+            Token::SharpU8Open => self.bytevector().and_then(|bytevector| self.node(NodeKind::ByteVector, vec![bytevector])),
             Token::Quote => self.quotation_apostrophe(),
             t @ _ => Err(Error{kind: ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "atom"}}) ,
         }
@@ -161,13 +151,15 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         match self.peek()? {
             Token::Identifier(id) => 
                 match id.as_str() {
+                    "begin" => self.begin(),
+                    "define" | "define-values" | "define-record-type" | "define-syntax" => self.definition(),
                     "if" => self.conditional(),
+                    "include" => self.include(),
+                    "include-ci" => self.include_ci(),
                     "lambda" => self.lambda(),
+                    "let-syntax" | "letrec-syntax" => self.macro_block(),
                     "quote" => self.quotation(),
                     "set!" => self.assignment(),
-                    "let-syntax" | "letrec-syntax" => self.macro_block(),
-                    "define" | "define-values" | "define-record-type" | "define-syntax" => self.definition(),
-                    "begin" => self.begin(),
                     _ => self.procedure_call(),
                 },
             _ => self.procedure_call(),
@@ -908,6 +900,36 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     //
+    // Includer
+    //
+    //
+    //
+
+    fn include(&mut self) -> ParseResult {
+        self.keyword("include").and_then(|_| 
+            self.string().and_then(|path| 
+                self.string_list().and_then(|strings| 
+                    self.paren_close().and_then(|_|
+                        self.node(NodeKind::Includer, once(path).chain(strings.into_iter()).collect())
+                    )
+                )
+            )
+        )
+    }
+
+    fn include_ci(&mut self) -> ParseResult {
+        self.keyword("include-ci").and_then(|_| 
+            self.string().and_then(|path| 
+                self.string_list().and_then(|strings| 
+                    self.paren_close().and_then(|_|
+                        self.node(NodeKind::Includer, once(path).chain(strings.into_iter()).collect())
+                    )
+                )
+            )
+        )
+    }
+
+    //
     // Helpers
     //
     //
@@ -1063,7 +1085,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
     
     fn identifier_sequence(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(move || self.identifier().ok()).collect())
+        Ok(from_fn(|| self.identifier().ok()).collect())
     }
 
     fn boolean(&mut self) -> ParseResult {
@@ -1087,6 +1109,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
 
+    fn string_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.string().ok()).collect())
+    }
+
     fn number(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Number(_) => self.leaf(NodeKind::Literal),
@@ -1105,7 +1131,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.sharpu8open().and_then(|_| 
             self.datum_list().and_then(|data| 
                 self.paren_close().and_then(|_| 
-                    self.node(NodeKind::Bytevector, data)
+                    self.node(NodeKind::ByteVector, data)
                 )
             )
         )
