@@ -35,6 +35,18 @@ pub enum NodeKind {
     VariableDefinition,
     ValuesDefinition,
 
+    Library,
+    Export,
+    ExportSpec,
+    Import,
+    ImportSet,
+    CondExpand,
+    CondClause,
+    FeatureRequirementAnd,
+    FeatureRequirementOr,
+    FeatureRequirementNot,
+    LibraryDeclaration,
+    
     LetRecSyntax,
     LetSyntax,
     MacroBlock,

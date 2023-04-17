@@ -3,8 +3,7 @@
 //! 
 //! TODO:
 //! 
-//! - quasiquotation
-//! - define-library
+//! - test define-library
 //! - node captures source code
 //!  
 //! Example usage:
@@ -136,7 +135,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             Token::Identifier(_) => self.leaf(NodeKind::Identifier),
             Token::SharpOpen => self.vector().and_then(|vector| self.node(NodeKind::Vector, vec![vector])),
             Token::SharpU8Open => self.bytevector().and_then(|bytevector| self.node(NodeKind::ByteVector, vec![bytevector])),
-            Token::Quote => self.quotation_apostrophe(),
+            Token::Quote => self.quotation_short(),
             Token::Quasiquote => self.quasiquotation_short(1),
             t @ _ => Err(Error{kind: ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "atom"}}) ,
         }
@@ -154,6 +153,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 match id.as_str() {
                     "begin" => self.begin(),
                     "define" | "define-values" | "define-record-type" | "define-syntax" => self.definition(),
+                    "define-library" => self.library(),
                     "if" => self.conditional(),
                     "include" => self.include(),
                     "include-ci" => self.include_ci(),
@@ -169,118 +169,293 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
     
-        //
-    // Quasiquotation
-    //
-    //
-    //
+    ///
+    /// Library
+    /// 
+    /// 
+    ///
 
-    fn quasiquotation_short(&mut self, depth: u32) -> ParseResult {
-        println!("QUASIQUOTATION_SHORT DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        self.quasiquote().and_then(|_|
-            self.qq_template(depth).and_then(|template|
-                self.node(NodeKind::Quasiquotation(depth), vec![template])
+    fn library(&mut self) -> ParseResult {
+        self.keyword("define-library").and_then(|_| 
+            self.library_name().and_then(|name| 
+                self.library_declaration_list().and_then(|body| 
+                    self.paren_close().and_then(|_| 
+                        self.node(NodeKind::Library, once(name).chain(body).collect())
+                    )
+                )
             )
         )
+
     }
 
-    fn quasiquotation(&mut self, depth: u32) -> ParseResult {
-        println!("QUASIQUOTATION DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        self.keyword("quasiquote").and_then(|_| 
-            self.qq_template(depth).and_then(|template| 
+    fn library_name(&mut self) -> ParseResult {
+        self.paren_open().and_then(|_| self.library_name_after_open())
+    }
+
+    fn library_name_after_open(&mut self) -> ParseResult {
+        self.library_name_part().and_then(|part|
+            self.library_name_part_list().and_then(|parts|
                 self.paren_close().and_then(|_| 
-                    self.node(NodeKind::Quasiquotation(depth), vec![template])
+                    self.node(NodeKind::List, once(part).chain(parts).collect())
                 )
             )
         )
     }
 
-    fn qq_template(&mut self, depth: u32) -> ParseResult {
-        println!("QQ_TEMPLATE DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        match depth {
-            0 => self.expr(),
-            _ => match self.peek()? {
-                Token::Boolean(_)
-                | Token::Character(_)
-                | Token::String(_)
-                | Token::Number(_)
-                | Token::Identifier(_)
-                | Token::SharpU8Open => self.simple_datum(),
-                Token::SharpOpen => self.qq_template_vector(depth),
-                Token::Comma => self.qq_template_unquotation_short(depth),
-                Token::Quote => self.quote().and_then(|_| self.qq_template(depth)),
-                Token::Quasiquote => self.quasiquotation_short(depth + 1),
-                Token::ParenOpen => self.paren_open().and_then(|_|
-                    match self.peek()? {
-                        Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(depth + 1),
-                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth),
-                        _ => self.qq_template_or_splice_list(depth).and_then(|list|
-                            self.paren_close().and_then(|_|
-                                self.node(NodeKind::List, list)
-                            )
-                        ),
-                    }
-                ),
-                t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
-            }    
-        }
+    fn library_name_part_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.library_name_part().ok()).collect::<Vec<Box<Node>>>())
     }
 
-    fn qq_template_or_splice(&mut self, depth: u32) -> ParseResult {
-        println!("QQ_TEMPLATE_OR_SPLICE DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
+    fn library_name_part(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::CommaAt => self.qq_splice_unquotation(depth),
-            _ => self.qq_template(depth),
+            Token::Identifier(_) => self.identifier(),
+            Token::Number(_) => self.uinteger10(),
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or uinteger10"})),
         }
     }
 
-    fn qq_template_or_splice_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
-        println!("QQ_TEMPLATE_OR_SPLICE_LIST DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        Ok(from_fn(|| self.qq_template_or_splice(depth).ok()).collect::<Vec<Box<Node>>>())
-    }
-    fn qq_splice_unquotation(&mut self, depth: u32) -> ParseResult {
-        println!("QQ_SPLICE_UNQUOTATION DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        self.comma_at().and_then(|_|
-            self.qq_template(depth - 1)
-        )
+    fn library_declaration_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.library_declaration().ok()).collect::<Vec<Box<Node>>>())
     }
 
-    fn qq_template_unquotation_short(&mut self, depth: u32) -> ParseResult {
-        println!("QQ_TEMPLATE_UNQUOTATION_SHORT DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        self.comma().and_then(|_|
-            self.qq_template(depth - 1).and_then(|template|
-                    self.node(NodeKind::Unquotation(depth-1), vec!(template))
-            )
-        )
-    }
-
-    fn qq_template_unquotation(&mut self, depth: u32) -> ParseResult {
-        println!("QQ_TEMPLATE_UNQUOTATION DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        self.keyword("unquote").and_then(|_|
-            self.qq_template(depth - 1).and_then(|template|
-                self.paren_close().and_then(|_|
-                    self.node(NodeKind::Unquotation(depth - 1), vec!(template))
+    fn library_declaration(&mut self) -> ParseResult {
+        self.paren_open().and_then(|_|
+            self.library_declaration_inner().and_then(|node|
+                self.paren_close().and_then(|_|  
+                    self.node(NodeKind::LibraryDeclaration, vec![node])
                 )
             )
         )
     }
 
-    fn qq_template_vector(&mut self, depth: u32) -> ParseResult {
-        println!("QQ_TEMPLATE_VECTOR DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        self.sharpopen().and_then(|_|
-            self.keyword("vector").and_then(|_|
-                self.qq_template_list(depth).and_then(|list|
-                    self.paren_close().and_then(|_|
-                        self.node(NodeKind::Vector, list)
+    fn library_declaration_inner(&mut self) -> ParseResult {
+        match self.peek()? {
+            Token::Identifier(id) => 
+                match id.as_str() {
+                    "export" => self.export(),
+                    "import" => self.import(),
+                    "include" => self.include(),
+                    "include-ci" => self.include_ci(),
+                    "cond-expand" => self.cond_expand(),
+                    "begin" => self.begin(),
+                    _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
+                },
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
+            
+        }
+    }
+
+    fn export(&mut self) -> ParseResult {
+        self.keyword("export").and_then(|_| 
+            self.export_spec_list().and_then(|specs| 
+                self.node(NodeKind::Export, specs)
+            )
+        )
+    }
+
+    fn export_spec_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.export_spec().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn export_spec(&mut self) -> ParseResult {
+        match self.peek()? {
+            Token::Identifier(_) => self.identifier().and_then(|id| self.node(NodeKind::ExportSpec, vec![id])),
+            Token::ParenOpen => self.paren_open().and_then(|_|
+                                    self.keyword("rename").and_then(|_| 
+                                        self.identifier().and_then(|id1| 
+                                            self.identifier().and_then(|id2| 
+                                                self.paren_close().and_then(|_| 
+                                                    self.node(NodeKind::ExportSpec, vec![id1, id2])
+                                                )
+                                            )
+                                        )
+                                    )
+                                ),
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or export-spec-list"})),
+        }
+    }
+
+    fn import(&mut self) -> ParseResult {
+        self.keyword("import").and_then(|_| 
+            self.import_set().and_then(|set| 
+                self.import_set_list().and_then(|sets| 
+                    self.node(NodeKind::Import, once(set).chain(sets).collect())
+                )
+            )
+        )
+    }
+
+    fn import_set_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.import_set().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn import_set(&mut self) -> ParseResult {
+        self.paren_open().and_then(|_|
+            match self.peek()? {
+                Token::Identifier(id) => 
+                    match id.as_str() {
+                        "only" => self.only(),
+                        "except" => self.except(),
+                        "prefix" => self.prefix(),
+                        "rename" => self.rename(),
+                        _ => self.library_name_after_open(),
+                    }
+                _ => self.library_name_after_open(),
+            }
+        )
+    }
+
+    fn only(&mut self) -> ParseResult {
+        self.keyword("only").and_then(|_| 
+            self.import_set().and_then(|import_set| 
+                self.identifier().and_then(|id| 
+                    self.identifier_sequence().and_then(|ids| 
+                        self.paren_close().and_then(|_| 
+                            self.node(NodeKind::ImportSet, once(import_set).chain(once(id)).chain(ids).collect())
+                        )
                     )
                 )
             )
         )
     }
 
-    fn qq_template_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
-        println!("QQ_TEMPLATE_LIST DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
-        Ok(from_fn(|| self.qq_template(depth).ok()).collect::<Vec<Box<Node>>>())
+    fn except(&mut self) -> ParseResult {
+        self.keyword("except").and_then(|_| 
+            self.import_set().and_then(|import_set| 
+                self.identifier().and_then(|id| 
+                    self.identifier_sequence().and_then(|ids| 
+                        self.paren_close().and_then(|_| 
+                            self.node(NodeKind::ImportSet, once(import_set).chain(once(id)).chain(ids).collect())
+                        )
+                    )
+                )
+            )
+        )
+    }
+
+    fn prefix(&mut self) -> ParseResult {
+        self.keyword("prefix").and_then(|_| 
+            self.import_set().and_then(|import_set| 
+                self.identifier().and_then(|id| 
+                    self.paren_close().and_then(|_| 
+                        self.node(NodeKind::ImportSet, vec![import_set, id])
+                    )
+                )
+            )
+        )
+    }
+
+    fn rename(&mut self) -> ParseResult {
+        self.keyword("rename").and_then(|_| 
+            self.import_set().and_then(|import_set| 
+                self.paren_open().and_then(|_|
+                    self.identifier_pair().and_then(|pair| 
+                        self.identifier_pair_list().and_then(|pairs| 
+                            self.paren_close().and_then(|_| 
+                                self.node(NodeKind::ImportSet, once(import_set).chain(once(pair)).chain(pairs).collect())
+                            )
+                        )
+                    )
+                )
+            )
+        )
+    }
+
+    fn identifier_pair_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.identifier_pair().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn identifier_pair(&mut self) -> ParseResult {
+        self.identifier().and_then(|id1| 
+            self.identifier().and_then(|id2| 
+                self.node(NodeKind::List, vec![id1, id2])
+            )
+        )
+    }
+
+    fn cond_expand(&mut self) -> ParseResult {
+        self.keyword("cond-expand").and_then(|_| 
+            self.cond_clause().and_then(|clause| 
+                self.cond_clause_list().and_then(|clauses| 
+                    self.paren_close().and_then(|_| 
+                        self.node(NodeKind::CondExpand, once(clause).chain(clauses).collect())
+                    )
+                )
+            )
+        )
+    }
+
+    fn cond_clause_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.cond_clause().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn cond_clause(&mut self) -> ParseResult {
+        self.paren_open().and_then(|_|
+            self.feature_requirement().and_then(|requirement| 
+                self.library_declaration_list().and_then(|declarations| 
+                    self.paren_close().and_then(|_| 
+                        self.node(NodeKind::CondClause, once(requirement).chain(declarations).collect())
+                    )
+                )
+            )
+        )
+    }
+
+    fn feature_requirement(&mut self) -> ParseResult {
+        match self.peek()? {
+            Token::Identifier(_) => self.identifier(),
+            Token::ParenOpen => self.feature_requirement_with_paren(),
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or open parenthesis"})),
+        }
+    }
+
+    fn feature_requirement_with_paren(&mut self) -> ParseResult {
+        self.paren_open().and_then(|_|
+            match self.peek()? {
+                Token::Identifier(id) => 
+                    match id.as_str() {
+                        "and" => self.and(),
+                        "or" => self.or(),
+                        "not" => self.not(),
+                        _ => self.library_name_after_open(),
+                    }
+                _ => self.library_name_after_open(),
+            }
+        )
+    }
+
+    fn and(&mut self) -> ParseResult {
+        self.keyword("and").and_then(|_| 
+            self.feature_requirement_list().and_then(|requirements| 
+                self.paren_close().and_then(|_| 
+                    self.node(NodeKind::FeatureRequirementAnd, requirements)
+                )
+            )
+        )
+    }
+
+    fn or(&mut self) -> ParseResult {
+        self.keyword("or").and_then(|_| 
+            self.feature_requirement_list().and_then(|requirements| 
+                self.paren_close().and_then(|_| 
+                    self.node(NodeKind::FeatureRequirementOr, requirements)
+                )
+            )
+        )
+    }
+
+    fn not(&mut self) -> ParseResult {
+        self.keyword("not").and_then(|_| 
+            self.feature_requirement().and_then(|requirement| 
+                self.paren_close().and_then(|_| 
+                    self.node(NodeKind::FeatureRequirementNot, vec![requirement])
+                )
+            )
+        )
+    }
+
+    fn feature_requirement_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.feature_requirement().ok()).collect::<Vec<Box<Node>>>())
     }
 
     ///
@@ -1052,6 +1227,111 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     //
+    // Quasiquotation
+    //
+    //
+    //
+
+    fn quasiquotation(&mut self, depth: u32) -> ParseResult {
+        self.keyword("quasiquote").and_then(|_| 
+            self.qq_template(depth).and_then(|template| 
+                self.paren_close().and_then(|_| 
+                    self.node(NodeKind::Quasiquotation(depth), vec![template])
+                )
+            )
+        )
+    }
+
+    fn quasiquotation_short(&mut self, depth: u32) -> ParseResult {
+        self.quasiquote().and_then(|_|
+            self.qq_template(depth).and_then(|template|
+                self.node(NodeKind::Quasiquotation(depth), vec![template])
+            )
+        )
+    }
+
+    fn qq_template(&mut self, depth: u32) -> ParseResult {
+        match depth {
+            0 => self.expr(),
+            _ => match self.peek()? {
+                Token::Boolean(_)
+                | Token::Character(_)
+                | Token::String(_)
+                | Token::Number(_)
+                | Token::Identifier(_)
+                | Token::SharpU8Open => self.simple_datum(),
+                Token::SharpOpen => self.qq_template_vector(depth),
+                Token::Comma => self.qq_template_unquotation_short(depth),
+                Token::Quote => self.quote().and_then(|_| self.qq_template(depth)),
+                Token::Quasiquote => self.quasiquotation_short(depth + 1),
+                Token::ParenOpen => self.paren_open().and_then(|_|
+                    match self.peek()? {
+                        Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(depth + 1),
+                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth),
+                        _ => self.qq_template_or_splice_list(depth).and_then(|list|
+                            self.paren_close().and_then(|_|
+                                self.node(NodeKind::List, list)
+                            )
+                        ),
+                    }
+                ),
+                t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
+            }    
+        }
+    }
+
+    fn qq_template_or_splice(&mut self, depth: u32) -> ParseResult {
+        match self.peek()? {
+            Token::CommaAt => self.qq_splice_unquotation(depth),
+            _ => self.qq_template(depth),
+        }
+    }
+
+    fn qq_template_or_splice_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.qq_template_or_splice(depth).ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn qq_splice_unquotation(&mut self, depth: u32) -> ParseResult {
+        self.comma_at().and_then(|_|
+            self.qq_template(depth - 1)
+        )
+    }
+
+    fn qq_template_unquotation_short(&mut self, depth: u32) -> ParseResult {
+        self.comma().and_then(|_|
+            self.qq_template(depth - 1).and_then(|template|
+                self.node(NodeKind::Unquotation(depth-1), vec!(template))
+            )
+        )
+    }
+
+    fn qq_template_unquotation(&mut self, depth: u32) -> ParseResult {
+        self.keyword("unquote").and_then(|_|
+            self.qq_template(depth - 1).and_then(|template|
+                self.paren_close().and_then(|_|
+                    self.node(NodeKind::Unquotation(depth-1), vec!(template))
+                )
+            )
+        )
+    }
+
+    fn qq_template_vector(&mut self, depth: u32) -> ParseResult {
+        self.sharpopen().and_then(|_|
+            self.keyword("vector").and_then(|_|
+                self.qq_template_list(depth).and_then(|list|
+                    self.paren_close().and_then(|_|
+                        self.node(NodeKind::Vector, list)
+                    )
+                )
+            )
+        )
+    }
+
+    fn qq_template_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.qq_template(depth).ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    //
     // Helpers
     //
     //
@@ -1242,6 +1522,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
 
+    fn uinteger10(&mut self) -> ParseResult {
+        match self.peek()? {
+            Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => self.leaf(NodeKind::Literal),
+            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "uninteger10" })),
+        }
+    }
+
     fn vector(&mut self) -> ParseResult {
         self.sharpopen().and_then(|_| 
             self.datum_list().and_then(|data| 
@@ -1260,7 +1547,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     /// Implements '<datum> (i.e. single quote followed by datum)
-    fn quotation_apostrophe(&mut self) -> ParseResult {
+    fn quotation_short(&mut self) -> ParseResult {
         self.quote().and_then(
             |_| self.datum().and_then(
                 |expr| self.node(NodeKind::Quotation, vec![expr])
