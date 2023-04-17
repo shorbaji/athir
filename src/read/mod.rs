@@ -150,7 +150,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     
     fn compound_expr(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::Identifier(id) => 
+            token @ Token::Identifier(id) => 
                 match id.as_str() {
                     "begin" => self.begin(),
                     "define" | "define-values" | "define-record-type" | "define-syntax" => self.definition(),
@@ -162,6 +162,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     "quasiquote" => self.quasiquotation(1),
                     "quote" => self.quotation(),
                     "set!" => self.assignment(),
+                    "unquote" => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.clone() , expected: "operator or other keyword" })),
                     _ => self.procedure_call(),
                 },
             _ => self.procedure_call(),
@@ -178,7 +179,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         println!("QUASIQUOTATION_SHORT DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
         self.quasiquote().and_then(|_|
             self.qq_template(depth).and_then(|template|
-                self.node(NodeKind::Quasiquote, vec![template])
+                self.node(NodeKind::Quasiquotation(depth), vec![template])
             )
         )
     }
@@ -188,7 +189,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.keyword("quasiquote").and_then(|_| 
             self.qq_template(depth).and_then(|template| 
                 self.paren_close().and_then(|_| 
-                    self.node(NodeKind::Quasiquote, vec![template])
+                    self.node(NodeKind::Quasiquotation(depth), vec![template])
                 )
             )
         )
@@ -212,7 +213,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 Token::ParenOpen => self.paren_open().and_then(|_|
                     match self.peek()? {
                         Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(depth + 1),
-                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth - 1),
+                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth),
                         _ => self.qq_template_or_splice_list(depth).and_then(|list|
                             self.paren_close().and_then(|_|
                                 self.node(NodeKind::List, list)
@@ -248,9 +249,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         println!("QQ_TEMPLATE_UNQUOTATION_SHORT DEPTH: {:?} PEEK: {:?}", depth, self.peek()?);
         self.comma().and_then(|_|
             self.qq_template(depth - 1).and_then(|template|
-                self.paren_close().and_then(|_|
-                    self.node(NodeKind::Unquotation, vec!(template))
-                )
+                    self.node(NodeKind::Unquotation(depth-1), vec!(template))
             )
         )
     }
@@ -260,7 +259,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.keyword("unquote").and_then(|_|
             self.qq_template(depth - 1).and_then(|template|
                 self.paren_close().and_then(|_|
-                    self.node(NodeKind::Unquotation, vec!(template))
+                    self.node(NodeKind::Unquotation(depth - 1), vec!(template))
                 )
             )
         )
