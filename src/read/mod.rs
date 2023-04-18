@@ -7,11 +7,12 @@
 //! - test define-library including begin
 //! - test begin
 //! - clean-up: iterator instead of Vec if possible
-//! - clean-up: parenthesized! macro
 //! - Node captures source code
+//! - helper macros - zero or more, one or more, parenthesized
 //! 
 //! [P1]
 //! - Review code for readability
+//! - Benchmark performance
 //! - Review code for performance
 //! 
 //! [P2[]
@@ -168,6 +169,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         // we look for a keyword for a special form or else we treat as a procedure call
         // we then look for a right parenthesis
 
+        
         self.paren_open()?;
 
         let expr = match self.peek()? {
@@ -447,7 +449,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     "let-syntax" | "letrec-syntax"=> {
                         let keyword = self.identifier()?;
                         self.paren_open()?;
-                        let syntax_specs = self.syntax_specs()?;
+                        let syntax_specs = self.zero_or_more(Parser::syntax_spec)?;
                         self.paren_close()?;
                         let body = self.body()?;
                         Ok(self.node(NodeKind::MacroBlock, once(keyword).chain(syntax_specs).chain(once(body)).collect()))
@@ -456,11 +458,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 },
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "let-syntax or letrec-syntax" })),
         }?
-    }
-
-    fn syntax_specs(&mut self) -> ParseVecResult {
-        // <syntax spec>*
-        Ok(from_fn(|| self.syntax_spec().ok()).collect::<Vec<Box<Node>>>())
     }
 
     fn syntax_spec(&mut self) -> ParseResult {
@@ -567,7 +564,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             Token::ParenClose => self.node(NodeKind::List, vec!()), // empty
 
             _ => {
-                let mut pre_ellipse_patterns = self.pattern_pre_ellipse()?;
+                let mut pre_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
 
                 match self.peek()? {
                     // <pattern>*            
@@ -585,7 +582,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     ),
                     Token::Identifier(id) if  id.as_str() == "..." => 
                         self.identifier().and_then(|_ellipsis| {
-                            let mut post_ellipse_patterns = self.pattern_post_ellipse()?;
+                            let mut post_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
                             match self.peek()? {
                                 // | <pattern>* <pattern> <ellipsis> <pattern>*
                                 Token::ParenClose => {
@@ -612,16 +609,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
 
-    fn pattern_pre_ellipse(&mut self) -> ParseVecResult {
-        // <pattern>*
-        Ok(from_fn(|| self.pattern().ok()).collect())
-    }
-
-    fn pattern_post_ellipse(&mut self) -> ParseVecResult {
-        // <pattern>*
-        Ok(from_fn(|| self.pattern().ok()).collect())
-    }
-    
     fn pattern_with_sharp_paren(&mut self) -> ParseResult {
         //  #( <pattern>* )
         // | #( <pattern>* <pattern> <ellipsis> <pattern>* )
@@ -637,7 +624,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         match self.peek()? {
             Token::ParenClose => self.node(NodeKind::List, vec!()),
             _ => {
-                let pre_ellipse_patterns = self.pattern_pre_ellipse()?;
+                let pre_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
                 match self.peek()? {
                     Token::ParenClose => {
                         let patterns = self.node(NodeKind::List, pre_ellipse_patterns)?;
@@ -645,7 +632,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     },
                     Token::Identifier(id) if  id.as_str() == "..." =>
                         self.identifier().and_then(|_ellipsis| {
-                            let post_ellipse_patterns = self.pattern_post_ellipse()?;
+                            let post_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
                             match self.peek()? {
                                 Token::ParenClose => {
                                     let pre_patterns = self.node(NodeKind::List, pre_ellipse_patterns)?;
@@ -680,14 +667,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn template_with_paren(&mut self) -> ParseResult {
         self.paren_open()?;
-        let template = self.template_with_paren_a()?;
-        self.paren_close()?;
-
-        self.node(NodeKind::List, template)
-    }
-
-    fn template_with_paren_a(&mut self) -> ParseVecResult {
-        match self.peek()? {
+        let template = match self.peek()? {
             Token::ParenClose => Ok(vec!()), // empty list
             _ => self.one_or_more(Parser::template_element).and_then(|elements| // get rest of template_element sequence
                     match self.peek()? {
@@ -701,7 +681,11 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                         t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
                     }
                 ),
-        }   
+        }?;
+
+        self.paren_close()?;
+
+        self.node(NodeKind::List, template)
     }
 
     fn template_element(&mut self) -> ParseResult {
@@ -1317,14 +1301,14 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn vector(&mut self) -> ParseResult {
         self.sharpopen()?;
-        let data = self.datum_list_possible_dot()?;
+        let data = self.zero_or_more(Parser::datum)?;
         self.paren_close()?;
         self.node(NodeKind::Vector, data)
     }
 
     fn bytevector(&mut self) -> ParseResult {
         self.sharpu8open()?;
-        let data = self.datum_list_possible_dot()?;
+        let data = self.zero_or_more(Parser::datum)?;
         self.paren_close()?;
         self.node(NodeKind::ByteVector, data)
     }
