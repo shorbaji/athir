@@ -50,10 +50,10 @@ pub enum Token {
     Number(String),
 
     #[regex(r"\(")]
-    ParenOpen,
+    ParenLeft,
 
     #[regex(r"\)")]
-    ParenClose,
+    ParenRight,
 
     #[regex(r"`")]
     Quasiquote,
@@ -90,8 +90,8 @@ impl std::fmt::Display for Token {
             Token::Error => format!("error"),
             Token::Identifier(s) => format!("{}", s),
             Token::Number(n) => format!("{}", n),
-            Token::ParenOpen => format!("("),
-            Token::ParenClose => format!(")"),
+            Token::ParenLeft => format!("("),
+            Token::ParenRight => format!(")"),
             Token::Quasiquote => format!("`"),
             Token::Quote => format!("'"),
             Token::SharpOpen => format!("#("),

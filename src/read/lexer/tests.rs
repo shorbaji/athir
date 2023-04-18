@@ -135,12 +135,12 @@ fn test_number() {
 
 #[test]
 fn test_paren_open() {
-    test_input("(", vec![Token::ParenOpen]);
+    test_input("(", vec![Token::ParenLeft]);
 }
 
 #[test]
 fn test_paren_close() {
-    test_input(")", vec![Token::ParenClose]);
+    test_input(")", vec![Token::ParenRight]);
 }
 
 #[test]

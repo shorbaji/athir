@@ -2,6 +2,7 @@
 //! Implements recursive descent parser for R7RS Scheme
 //! 
 //! TODO:
+//! 
 //! - review for readability
 //! - documentation
 //! - tests
@@ -30,21 +31,22 @@
 //! - derived expressions not implemented
 //!
 
+mod error;
 mod lexer; // lexical analyzer
-mod node; // abstract syntax tree node
+mod expr; // abstract syntax tree node
 
 #[cfg(test)]
 mod tests;
 
 use std::iter::{once, from_fn};
 use lexer::{Lexer, Token};
+use error::{SyntaxError, SyntaxErrorKind};
 
 pub use lexer::Source;
-pub use node::{Literal, Keyword, Identifier, Expr};
-pub use crate::error::{Error, ErrorKind};
+pub use expr::{Literal, Keyword, Identifier, Expr};
 
-pub type ParseResult = Result<Box<Expr>, Error>;
-type ParseVecResult = Result<Vec<Box<Expr>>, Error>;
+pub type ParseResult = Result<Box<Expr>, SyntaxError>;
+type ParseVecResult = Result<Vec<Box<Expr>>, SyntaxError>;
 
 /// 
 /// Parser 
@@ -123,7 +125,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     
     fn expr(&mut self) -> ParseResult {
         let result = match self.peek()? {
-            Token::ParenOpen => self.compound_expr(),
+            Token::ParenLeft => self.compound_expr(),
             _ => self.atom(),
         };
 
@@ -152,12 +154,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 match next {
                     Some(token) => match token {
                             Token::Boolean(b) => Ok(Box::new(Expr::Literal(Literal::Boolean(b)))),
-                            _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "boolean" })),
+                            _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "boolean" })),
                         },
-                    None => Err(Error::new(ErrorKind::UnexpectedEOF)),
+                    None => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedEOF)),
                 }
             },
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "boolean" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "boolean" })),
         }
     }
 
@@ -168,12 +170,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 match next {
                     Some(token) => match token {
                             Token::Character(c) => Ok(Box::new(Expr::Literal(Literal::Character(c)))),
-                            _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "character" })),
+                            _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "character" })),
                         },
-                    None => Err(Error::new(ErrorKind::UnexpectedEOF)),
+                    None => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedEOF)),
                 }
             },
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "character" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "character" })),
         }
     }
 
@@ -185,12 +187,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 match next {
                     Some(token) => match token {
                             Token::String(s) => Ok(Box::new(Expr::Literal(Literal::String(s)))),
-                            _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "string" })),
+                            _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "string" })),
                         },
-                    None => Err(Error::new(ErrorKind::UnexpectedEOF)),
+                    None => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedEOF)),
                 }
             },
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "string" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "string" })),
         }
     }
 
@@ -201,12 +203,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 match next {
                     Some(token) => match token {
                             Token::Number(n) => Ok(Box::new(Expr::Literal(Literal::Number(n)))),
-                            _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "number" })),
+                            _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "number" })),
                         },
-                    None => Err(Error::new(ErrorKind::UnexpectedEOF)),
+                    None => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedEOF)),
                 }
             },
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "number" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "number" })),
         }
     }
 
@@ -223,7 +225,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         // we look for a keyword for a special form or else we treat as a procedure call
         // we then look for a right parenthesis
 
-        self.paren_open()?;
+        self.paren_left()?;
 
         let expr = match self.peek()? {
             token @ Token::Identifier(id) => 
@@ -242,13 +244,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     "quasiquote" => self.quasiquotation(1),
                     "quote" => self.quotation(),
                     "set!" => self.assignment(),
-                    "unquote" => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: "operator or other keyword" })),
+                    "unquote" => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: "operator or other keyword" })),
                     _ => self.procedure_call(),
                 },
             _ => self.procedure_call(),
         }?;
 
-        self.paren_close()?;
+        self.paren_right()?;
 
         Ok(expr)
     }
@@ -306,15 +308,15 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 let expr = self.expr()?;
                 Expr::list(vec!(keyword, var, expr))
             },
-            Token::ParenOpen => { // function definition
-                self.paren_open()?;
+            Token::ParenLeft => { // function definition
+                self.paren_left()?;
                 let var = self.identifier()?;
                 let formals = self.def_formals()?;
-                self.paren_close()?;
+                self.paren_right()?;
                 let body = self.body()?;
                 Expr::list(vec!(keyword, var, formals, body))
             },
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open paren"})),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open paren"})),
         }
     }
 
@@ -341,10 +343,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn constructor(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         let id = self.identifier()?;
         let field_names = self.field_names()?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(vec!(id, field_names))
     }
@@ -360,7 +362,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn field_spec(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
 
         let field_name = self.identifier()?;
         let accessor = self.identifier()?;
@@ -370,7 +372,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             vec.push(self.identifier()?);
         };
 
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(vec)
     }
@@ -395,7 +397,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         let mut vec = vec!(iff, test, consequent);
 
-        if !matches!(self.peek()?, Token::ParenClose) {
+        if !matches!(self.peek()?, Token::ParenRight) {
             vec.push(self.expr()?);
         }
 
@@ -421,13 +423,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn formals(&mut self) -> ParseResult {   
         match self.peek()? {
             Token::Identifier(_) => self.identifier(),
-            Token::ParenOpen => {
-                self.paren_open()?;
+            Token::ParenLeft => {
+                self.paren_left()?;
                 let ids = self.identifier_list_possible_dot()?;
-                self.paren_close()?;
+                self.paren_right()?;
                 Ok(ids)
             }
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open parenthesis"})),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open parenthesis"})),
         }
     }
 
@@ -442,7 +444,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         for expr in exprs.iter() {
             if expr.is_definition_expr() {
                 if defs == false {
-                    return Err(Error::new(ErrorKind::DefinitionsBeforeExpressionsinLambda));
+                    return Err(SyntaxError::new(SyntaxErrorKind::DefinitionsBeforeExpressionsinLambda));
                 }
             } else {
                 defs = false;
@@ -520,15 +522,15 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 match id.as_str() {
                     "let-syntax" | "letrec-syntax"=> {
                         let keyword = self.identifier()?;
-                        self.paren_open()?;
+                        self.paren_left()?;
                         let syntax_specs = self.syntax_specs()?;
-                        self.paren_close()?;
+                        self.paren_right()?;
                         let body = self.body()?;
                         Expr::list(vec!(keyword, syntax_specs, body))
                     }
-                     _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" })),
+                     _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" })),
                 },
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" })),
         }
     }
 
@@ -539,10 +541,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn syntax_spec(&mut self) -> ParseResult {
         // ( <keyword> <transformer spec> )
-        self.paren_open()?;
+        self.paren_left()?;
         let keyword = self.identifier()?;
         let transformer_spec = self.transformer_spec()?;
-        self.paren_close()?;
+        self.paren_right()?;
         Expr::list(vec!(keyword, transformer_spec))
     }
 
@@ -552,18 +554,18 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     /// 
     
     fn transformer_spec(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         self.keyword("syntax-rules")?;
 
         let id = self.identifier();
 
-        self.paren_open()?;
+        self.paren_left()?;
         let ids = self.transformer_spec_ids()?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         let syntax_rules = self.syntax_rules()?;
 
-        self.paren_close()?;
+        self.paren_right()?;
 
         let children = match id {
             Ok(id) => vec!(id, ids, syntax_rules),
@@ -585,10 +587,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn syntax_rule(&mut self) -> ParseResult {
         // ( <pattern> <template> )
-        self.paren_open()?;
+        self.paren_left()?;
         let pattern = self.pattern()?;
         let template = self.template()?;
-        self.paren_close()?;
+        self.paren_right()?;
         Expr::list(vec!(pattern, template))
     }
 
@@ -604,9 +606,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             | Token::Character(_)
             | Token::String(_)
             | Token::Number(_) => self.pattern_datum(),
-            Token::ParenOpen => self.pattern_with_paren(),
+            Token::ParenLeft => self.pattern_with_paren(),
             Token::SharpOpen => self.pattern_with_sharp_paren(),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
         }
     }
 
@@ -618,7 +620,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let token = self.peek()?;
 
         match token {
-            Token::Identifier(s) if s.as_str() == "..." => Err(Error::new(ErrorKind::EllipsisNotValidPatternIdentifier)),
+            Token::Identifier(s) if s.as_str() == "..." => Err(SyntaxError::new(SyntaxErrorKind::EllipsisNotValidPatternIdentifier)),
             _ => self.identifier(),
         }
     }
@@ -629,9 +631,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
 
     fn pattern_with_paren(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         let patterns = self.pattern_with_paren_a()?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Ok(patterns)
     }
@@ -645,7 +647,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         match self.peek()? {
             
-            Token::ParenClose => Expr::list(vec!()), // empty
+            Token::ParenRight => Expr::list(vec!()), // empty
 
             _ => {
 
@@ -658,21 +660,21 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 pre_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
 
                 match self.peek()? {
-                    Token::ParenClose => (), // no dot
+                    Token::ParenRight => (), // no dot
                     Token::Dot => {
                         self.dot()?;
                         let pattern = self.pattern()?;
                         pre_ellipse_patterns.push(pattern);
 
                         match self.peek()? {
-                            Token::ParenClose => (), // dot with no ellipse
+                            Token::ParenRight => (), // dot with no ellipse
                             Token::Identifier(id) if  id.as_str() == "..." =>  // dot with ellipse
                             {
                                 ellipse = true;
                                 let _ellipsis = self.identifier()?;
                                 post_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
 
-                                if !matches!(self.peek()?, Token::ParenClose) { // dot with ellipse and dot 
+                                if !matches!(self.peek()?, Token::ParenRight) { // dot with ellipse and dot 
                                     self.dot()?;
                                     let pattern = self.pattern()?;
                                     post_ellipse_patterns.push(pattern);
@@ -688,7 +690,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                         let _ellipsis = self.identifier()?;
                         post_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
 
-                        if !matches!(self.peek()?, Token::ParenClose) {
+                        if !matches!(self.peek()?, Token::ParenRight) {
                             self.dot()?;
                             let pattern = self.pattern()?;
                             post_ellipse_patterns.push(pattern);
@@ -715,7 +717,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         self.sharpopen()?;
         let patterns = self.pattern_with_sharp_paren_a()?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(vec!(patterns))
     }
@@ -727,11 +729,11 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let mut ellipse = false;
                 
         match self.peek()? {
-            Token::ParenClose => (), // empty
+            Token::ParenRight => (), // empty
             _ => {
                 pre_ellipse_patterns = self.one_or_more(Parser::pattern)?;
                 match self.peek()? {
-                    Token::ParenClose => (),
+                    Token::ParenRight => (),
                     Token::Identifier(id) if  id.as_str() == "..." => {
                         let _ellipsis = self.identifier()?;
                         ellipse = true;
@@ -755,13 +757,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn template(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Identifier(_) => self.template_identifier(),
-            Token::ParenOpen => self.template_with_paren(),
+            Token::ParenLeft => self.template_with_paren(),
             Token::SharpOpen => self.template_with_sharp_paren(),
             Token::Boolean(_)
             | Token::Character(_)
             | Token::String(_)
             | Token::Number(_) => self.template_datum(),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
         }
     }
 
@@ -770,25 +772,25 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn template_with_paren(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
 
         let template = match self.peek()? {
-            Token::ParenClose => Ok(vec!()), // empty list
+            Token::ParenRight => Ok(vec!()), // empty list
             _ => {
                 let mut elements = self.one_or_more(Parser::template_element)?;
                 match self.peek()? {
-                    Token::ParenClose => Ok(elements),
+                    Token::ParenRight => Ok(elements),
                     Token::Dot => {
                         self.dot()?;
                         elements.push(self.template_element()?);
                         Ok(elements)
                     },
-                    token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "close parenthesis or dot" })),
+                    token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "close parenthesis or dot" })),
                 }
             }
         }?;
 
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(template)        
     }
@@ -808,7 +810,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn template_with_sharp_paren(&mut self) -> ParseResult {
         self.sharpopen()?;
         let elements = self.zero_or_more(Parser::template_element)?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(elements)
     }
@@ -854,27 +856,27 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn datum_list(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         let data = self.datum_list_possible_dot()?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(data)
     }
 
     fn datum_list_possible_dot(&mut self) -> ParseVecResult {
         match self.peek()? {
-            Token::ParenClose => Ok(vec!()), // empty list
+            Token::ParenRight => Ok(vec!()), // empty list
             _ => {
                 let mut data = self.one_or_more(Parser::datum)?;
 
                 match self.peek()? {
-                    Token::ParenClose => Ok(data),
+                    Token::ParenRight => Ok(data),
                     Token::Dot => {
                         self.dot()?;
                         data.push(self.datum()?);
                         Ok(data)
                     },
-                    token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "close parenthesis or dot" })),
+                    token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "close parenthesis or dot" })),
                 }
             },
         }
@@ -938,20 +940,20 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     self.qq_template(depth)
                 },
                 Token::Quasiquote => self.quasiquotation_short(depth + 1),
-                Token::ParenOpen => {
-                    self.paren_open()?;
+                Token::ParenLeft => {
+                    self.paren_left()?;
 
                     match self.peek()? {
                         Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(depth + 1),
                         Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth),
                         _ => {
                             let list = self.qq_template_or_splice_list(depth)?;
-                            self.paren_close()?;
+                            self.paren_right()?;
                             Expr::list(list)
                         },
                     }
                 },
-                token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
+                token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
             }    
         }
     }
@@ -982,7 +984,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn qq_template_unquotation(&mut self, depth: u32) -> ParseResult {
         let keyword = self.keyword("unquote")?;
         let template = self.qq_template(depth - 1)?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(vec!(keyword, template))
     }
@@ -991,7 +993,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let keyword = self.sharpopen()?;
         self.keyword("vector")?;
         let qq_templates = self.qq_templates(depth)?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(vec!(keyword, qq_templates))
     }
@@ -1028,9 +1030,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn library_name(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         let name = self.library_name_after_open()?;
-        self.paren_close()?;
+        self.paren_right()?;
         Ok(name)
     }
 
@@ -1042,13 +1044,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         match self.peek()? {
             Token::Identifier(_) => self.identifier(),
             Token::Number(_) => self.uinteger10(),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or uinteger10"})),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or uinteger10"})),
         }
     }
 
     fn library_declaration(&mut self) -> ParseResult {
         println!("library_declaration {:?}", self.peek()?);
-        self.paren_open()?;
+        self.paren_left()?;
         println!("library_declaration paren_open {:?}", self.peek()?);
         let declaration = match self.peek()? {
             Token::Identifier(id) => 
@@ -1060,12 +1062,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     "include-ci" => self.include(),
                     "include-library-declarations" => self.include_library_declarations(),
                     "cond-expand" => self.cond_expand(),
-                    token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"})),
+                    token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"})),
                 },
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"})),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"})),
             
         }?;
-        self.paren_close()?;
+        self.paren_right()?;
         Ok(declaration)
     }
 
@@ -1087,8 +1089,8 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn export_spec(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Identifier(_) => self.export_spec_id(),
-            Token::ParenOpen => self.export_spec_rename(),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or export-spec-list"})),
+            Token::ParenLeft => self.export_spec_rename(),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or export-spec-list"})),
         }
     }
 
@@ -1097,12 +1099,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn export_spec_rename(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         self.keyword("rename")?;
 
         let id1 = self.identifier()?;
         let id2 = self.identifier()?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(vec!(id1, id2))
     }
@@ -1120,7 +1122,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn import_set(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         let import_set = match self.peek()? {
             Token::Identifier(id) => 
                 match id.as_str() {
@@ -1133,7 +1135,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             _ => self.library_name_after_open()?,
         };
 
-        self.paren_close()?;
+        self.paren_right()?;
 
         Ok(import_set)
     }
@@ -1194,14 +1196,14 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn cond_clause(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         let requirement = self.feature_requirement()?;
         let declarations = self.library_declarations()?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         let mut vec = vec!(requirement, declarations);
 
-        if matches!(self.peek()?, Token::ParenOpen) {
+        if matches!(self.peek()?, Token::ParenLeft) {
             let else_clause = self.cond_expand_else()?;
             vec.push(else_clause);
         }
@@ -1210,10 +1212,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn cond_expand_else(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         let keyword = self.keyword("else")?;
         let declarations = self.library_declarations()?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(vec!(keyword, declarations))
     }
@@ -1226,13 +1228,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn feature_requirement(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Identifier(_) => self.identifier(),
-            Token::ParenOpen => self.feature_requirement_with_paren(),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open parenthesis"})),
+            Token::ParenLeft => self.feature_requirement_with_paren(),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open parenthesis"})),
         }
     }
 
     fn feature_requirement_with_paren(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
 
         let requirement = match self.peek()? {
             Token::Identifier(id) => 
@@ -1245,7 +1247,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             _ => self.library_name_after_open(),
         };
 
-        self.paren_close()?;
+        self.paren_right()?;
 
         requirement
     }
@@ -1286,8 +1288,8 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     //
     //
 
-    fn peek(&mut self) -> Result<&Token, Error> {
-        self.lexer.peek().ok_or(Error::new(ErrorKind::EndOfInput))
+    fn peek(&mut self) -> Result<&Token, SyntaxError> {
+        self.lexer.peek().ok_or(SyntaxError::new(SyntaxErrorKind::EndOfInput))
     }
     
     fn zero_or_more(&mut self, closure: fn(&mut Self) -> ParseResult) -> ParseVecResult {
@@ -1301,7 +1303,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn keyword(&mut self, keyword: &str) -> ParseResult {
         match self.peek()? {
             Token::Identifier(s) if keyword == s => self.keyword_box_leaf_from_next(),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: "a  keyword" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: "a  keyword" })),
         }
     }
 
@@ -1309,7 +1311,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         match self.lexer.next() {
             Some(Token::Identifier(s)) => Ok(Box::new(Expr::Identifier(Identifier::Keyword(Keyword::from(s))))),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.unwrap().to_string() , expected: "a  keyword" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.unwrap().to_string() , expected: "a  keyword" })),
         }
     }
     
@@ -1319,7 +1321,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 self.lexer.next();
                 Ok(Box::new(Expr::Identifier(Identifier::Variable(s.to_string()))))
             },
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: s })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: s })),
         }   
     }
 
@@ -1335,12 +1337,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.punctuation(Token::Dot, ".")
     }
 
-    fn paren_close(&mut self) -> ParseResult {
-        self.punctuation(Token::ParenClose, ")")
+    fn paren_right(&mut self) -> ParseResult {
+        self.punctuation(Token::ParenRight, ")")
     }
     
-    fn paren_open(&mut self) -> ParseResult {
-        self.punctuation(Token::ParenOpen, "(")
+    fn paren_left(&mut self) -> ParseResult {
+        self.punctuation(Token::ParenLeft, "(")
     }
 
     fn quasiquote(&mut self) -> ParseResult {
@@ -1362,16 +1364,16 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn identifier(&mut self) -> ParseResult {        
         match self.peek()? {
             Token::Identifier(_) => Ok(Box::new(Expr::Identifier(Identifier::from(&self.lexer.next().unwrap())))),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier" })),
         }        
     }
     
     fn identifier_pair(&mut self) -> ParseResult {
-        self.paren_open()?;
+        self.paren_left()?;
         let id1 = self.identifier()?;
         let id2 = self.identifier()?;
 
-        self.paren_close()?;
+        self.paren_right()?;
 
         Expr::list(vec!(id1, id2))
     }
@@ -1379,7 +1381,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn identifier_list_possible_dot(&mut self) -> ParseResult {
         let mut ids = vec!();
         
-        if !matches!(self.peek()?, Token::ParenClose) {
+        if !matches!(self.peek()?, Token::ParenRight) {
             ids = self.one_or_more(Parser::identifier)?;
             if matches!(self.peek()?, Token::Dot) {
                 self.dot()?;
@@ -1394,26 +1396,26 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn uinteger10(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => self.number(),
-            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "uninteger10" })),
+            token @ _ => Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "uninteger10" })),
         }
     }
 
     fn vector(&mut self) -> ParseResult {
         self.sharpopen()?;
         let data = self.zero_or_more(Parser::expr)?;
-        self.paren_close()?;
-        Ok(Box::new(Expr::Literal(node::Literal::Vector(data))))
+        self.paren_right()?;
+        Ok(Box::new(Expr::Literal(expr::Literal::Vector(data))))
     }
 
     fn bytevector(&mut self) -> ParseResult {
         self.sharpu8open()?;
         let data = self.zero_or_more(Parser::number)?;
-        self.paren_close()?;
+        self.paren_right()?;
 
         if data.iter().all(|e| match &**e { Expr::Literal(Literal::Number(n)) => n.parse::<u8>().is_ok(), _ => false, }) {
                 Ok(Box::new(Expr::Literal(Literal::Bytevector(data))))
         } else {
-            Err(Error::new(ErrorKind::UnexpectedToken { unexpected: Token::Error.to_string(), expected: "bytevector with bytes" }))
+            Err(SyntaxError::new(SyntaxErrorKind::UnexpectedToken { unexpected: Token::Error.to_string(), expected: "bytevector with bytes" }))
         }
     }
 

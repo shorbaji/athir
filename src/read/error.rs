@@ -2,34 +2,33 @@
 use std::fmt;
 
 #[derive(Debug)]
-pub enum ErrorKind {
+pub enum SyntaxErrorKind {
     UnexpectedToken{unexpected: String, expected: &'static str} ,
     DefinitionsBeforeExpressionsinLambda,
     EllipsisNotValidPatternIdentifier,
     EndOfInput,
-    EvalError,
     UnexpectedEOF,
     // EmptyBodyinLambda,
     // NotImplemented,
 }
 
 #[derive(Debug)]
-pub struct Error {
-    pub kind: ErrorKind,
+pub struct SyntaxError {
+    pub kind: SyntaxErrorKind,
 }
 
-impl<'a> fmt::Display for Error {
+impl<'a> fmt::Display for SyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Error: {:?}", self.kind)
     }
 }
 
-impl Error {
-    pub fn new(kind: ErrorKind) -> Self {
+impl SyntaxError {
+    pub fn new(kind: SyntaxErrorKind) -> Self {
         Self {
             kind: kind,
         }
     }
 }
 
-impl<'a> std::error::Error for Error {}
+impl<'a> std::error::Error for SyntaxError {}

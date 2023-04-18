@@ -47,8 +47,8 @@ impl Iterator for DelimitedLexer<'_> {
                     Some(next) => match next {
                         Token::Error
                         | Token::Whitespace
-                        | Token::ParenClose
-                        | Token::ParenOpen
+                        | Token::ParenRight
+                        | Token::ParenLeft
                         | Token::String(_)
                         | Token::Comment
                         | Token::VerticalLineIdentifier(_)=> Some(token),

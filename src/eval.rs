@@ -6,7 +6,6 @@
 use std::ops::Deref;
 
 use crate::read::{Identifier, Literal, Expr};
-use crate::error::{Error, ErrorKind::*};
 
 #[derive(Debug)]
 pub enum Object {
@@ -17,7 +16,7 @@ pub enum Object {
     Null,
 }
 
-pub fn eval(node: &Box<Expr>) -> Result<Object, Error> {
+pub fn eval(node: &Box<Expr>) -> Result<Object, &'static str> {
     println!("eval: {:?}", node);
     match node.deref() {
         Expr::Identifier(identifier) => eval_identifier(identifier),
@@ -26,7 +25,7 @@ pub fn eval(node: &Box<Expr>) -> Result<Object, Error> {
     }
 }
 
-fn eval_literal(literal: &Literal) -> Result<Object, Error> {
+fn eval_literal(literal: &Literal) -> Result<Object, &'static str> {
     match literal.deref() {
         Literal::Boolean(b) => Ok(Object::Boolean(*b)),
         Literal::Character(c) => Ok(Object::Character(*c)),
@@ -34,11 +33,11 @@ fn eval_literal(literal: &Literal) -> Result<Object, Error> {
         Literal::Number(n) => Ok(Object::Number(n.clone())),
         Literal::Vector(_) => Ok(Object::Null),
         Literal::Bytevector(_) => Ok(Object::Null),
-        _ => Err(Error::new(EvalError)),
+        _ => Err("eval error"),
     }
 }
 
-fn eval_procedure_call(_node: &Box<Expr>) -> Result<Object, Error> {
+fn eval_procedure_call(_node: &Box<Expr>) -> Result<Object, &'static str> {
     // let children = node.children().unwrap();
     // let operator = eval(&children[0])?;
     // let operands = &children[1..].into_iter().map(eval);
@@ -47,7 +46,7 @@ fn eval_procedure_call(_node: &Box<Expr>) -> Result<Object, Error> {
     // println!("operands: {:?}", operands);
 
     // apply(operator, operands)
-    Err(Error::new(EvalError))
+    Err("eval error")
 }
 
 // fn apply(operator: Object, operands: impl Iterator<Item = Result<Object, Error>>) -> Result<Object, Error> {
@@ -55,30 +54,30 @@ fn eval_procedure_call(_node: &Box<Expr>) -> Result<Object, Error> {
 //     Ok(Object::Null)
 // }
 
-fn eval_definition(_node: &Box<Expr>) -> Result<Object, Error> {
+fn eval_definition(_node: &Box<Expr>) -> Result<Object, &'static str> {
     Ok(Object::Null)
 }
 
-fn eval_assignment(_node: &Box<Expr>) -> Result<Object, Error> {
+fn eval_assignment(_node: &Box<Expr>) -> Result<Object, &'static str> {
     Ok(Object::Null)
 }
 
-fn eval_begin(_node: &Box<Expr>) -> Result<Object, Error> {
+fn eval_begin(_node: &Box<Expr>) -> Result<Object, &'static str> {
     Ok(Object::Null)
 }
 
-fn eval_begin_def(_node: &Box<Expr>) -> Result<Object, Error> {
+fn eval_begin_def(_node: &Box<Expr>) -> Result<Object, &'static str> {
     Ok(Object::Null)
 }
 
-fn eval_quotation(_node: &Box<Expr>) -> Result<Object, Error> {
+fn eval_quotation(_node: &Box<Expr>) -> Result<Object, &'static str> {
     Ok(Object::Null)
 }
 
-fn eval_identifier(id: &Identifier) -> Result<Object, Error> {
+fn eval_identifier(id: &Identifier) -> Result<Object, &'static str> {
     match id {
-        Identifier::Variable(_) => Err(Error::new(EvalError)),
-        Identifier::Keyword(_) => Err(Error::new(EvalError)),
+        Identifier::Variable(_) => Err("eval error"),
+        Identifier::Keyword(_) => Err("eval error"),
     }
 }
 
