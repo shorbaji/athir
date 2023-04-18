@@ -76,6 +76,32 @@ pub enum Token {
 
 }
 
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let s = match self {
+            Token::Boolean(b) => format!("{}", b),
+            Token::Character(c) => format!("{}", c),
+            Token::Comma => format!(","),
+            Token::CommaAt => format!(",@"),
+            Token::Comment => format!(";"),
+            Token::Directive => format!("#"),
+            Token::VerticalLineIdentifier(s) => format!("|{}|", s),
+            Token::Dot => format!("."),
+            Token::Error => format!("error"),
+            Token::Identifier(s) => format!("{}", s),
+            Token::Number(n) => format!("{}", n),
+            Token::ParenOpen => format!("("),
+            Token::ParenClose => format!(")"),
+            Token::Quasiquote => format!("`"),
+            Token::Quote => format!("'"),
+            Token::SharpOpen => format!("#("),
+            Token::SharpU8Open => format!("#u8("),
+            Token::String(s) => format!("{}", s),
+            Token::Whitespace => format!(" "),
+        };
+        write!(f, "{}", s)
+    }
+}
 //
 // Helper functions to get values from tokens
 //

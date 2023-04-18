@@ -2,19 +2,10 @@
 //! Implements recursive descent parser for R7RS Scheme
 //! 
 //! TODO:
-//! 
-//! [P0]
 //! - review for readability
+//! - documentation
+//! - tests
 //! 
-//! [P1]
-//! - Node captures source code
-//! 
-//! [P2[]
-//! - clean-up helper macros - zero or more, one or more, optional, parenthesized
-//! - clean-up: error reporting
-//! - consider one-or-more and zero-or-more to return ParseResult instead of ParseVecResult - alternatively create versions of them that do
-//! - begin definition vs not and revamp is definition
-//!  
 //! Example usage:
 //! ```
 //!     // we first create a Source using an iterator over String
@@ -46,9 +37,9 @@ mod node; // abstract syntax tree node
 mod tests;
 
 use std::iter::{once, from_fn};
-use lexer::Lexer;
+use lexer::{Lexer, Token};
 
-pub use lexer::{Token, Source};
+pub use lexer::Source;
 pub use node::{Literal, Keyword, Identifier, Expr};
 pub use crate::error::{Error, ErrorKind};
 
@@ -157,46 +148,65 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn boolean(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Boolean(_) => {
-                if let Some(Token::Boolean(b)) = self.lexer.next() {
-                    Ok(Box::new(Expr::Literal(Literal::Boolean(b))))
-                } else {
-                    Err(Error::new(ErrorKind::UnexpectedToken { unexpected: Token::Error, expected: "boolean" }))
+                let next = self.lexer.next();
+                match next {
+                    Some(token) => match token {
+                            Token::Boolean(b) => Ok(Box::new(Expr::Literal(Literal::Boolean(b)))),
+                            _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "boolean" })),
+                        },
+                    None => Err(Error::new(ErrorKind::UnexpectedEOF)),
                 }
             },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "boolean" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "boolean" })),
         }
     }
 
     fn character(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::Character(_) => if let Some(Token::Character(c)) = self.lexer.next() {
-                Ok(Box::new(Expr::Literal(Literal::Character(c))))
-            } else {
-                Err(Error::new(ErrorKind::UnexpectedToken { unexpected: Token::Error, expected: "character" }))
+            Token::Character(_) => {
+                let next = self.lexer.next();
+                match next {
+                    Some(token) => match token {
+                            Token::Character(c) => Ok(Box::new(Expr::Literal(Literal::Character(c)))),
+                            _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "character" })),
+                        },
+                    None => Err(Error::new(ErrorKind::UnexpectedEOF)),
+                }
             },
-           t @  _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "character" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "character" })),
         }
     }
 
+    
     fn string(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::String(_) => if let Some(Token::String(s)) = self.lexer.next() {
-                Ok(Box::new(Expr::Literal(Literal::String(s))))
-            } else {
-                Err(Error::new(ErrorKind::UnexpectedToken { unexpected: Token::Error, expected: "string" }))
+            Token::String(_) => {
+                let next = self.lexer.next();
+                match next {
+                    Some(token) => match token {
+                            Token::String(s) => Ok(Box::new(Expr::Literal(Literal::String(s)))),
+                            _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "string" })),
+                        },
+                    None => Err(Error::new(ErrorKind::UnexpectedEOF)),
+                }
             },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "string" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "string" })),
         }
     }
 
     fn number(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::Number(_) => if let Some(Token::Number(n)) = self.lexer.next() {
-                Ok(Box::new(Expr::Literal(Literal::Number(n))))
-            } else {
-                Err(Error::new(ErrorKind::UnexpectedToken { unexpected: Token::Error, expected: "number" }))
+            Token::Number(_) => {
+                let next = self.lexer.next();
+                match next {
+                    Some(token) => match token {
+                            Token::Number(n) => Ok(Box::new(Expr::Literal(Literal::Number(n)))),
+                            _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "number" })),
+                        },
+                    None => Err(Error::new(ErrorKind::UnexpectedEOF)),
+                }
             },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "number" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "number" })),
         }
     }
 
@@ -232,7 +242,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     "quasiquote" => self.quasiquotation(1),
                     "quote" => self.quotation(),
                     "set!" => self.assignment(),
-                    "unquote" => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.clone() , expected: "operator or other keyword" })),
+                    "unquote" => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: "operator or other keyword" })),
                     _ => self.procedure_call(),
                 },
             _ => self.procedure_call(),
@@ -304,7 +314,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 let body = self.body()?;
                 Expr::list(vec!(keyword, var, formals, body))
             },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "identifier or open paren"})),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open paren"})),
         }
     }
 
@@ -417,7 +427,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 self.paren_close()?;
                 Ok(ids)
             }
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "identifier or open parenthesis"})),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open parenthesis"})),
         }
     }
 
@@ -506,7 +516,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn macro_block(&mut self) -> ParseResult {
         // we look for the keywords let-syntax or letrec-syntax
         match self.peek()? {
-            t @ Token::Identifier(id) => 
+            token @ Token::Identifier(id) => 
                 match id.as_str() {
                     "let-syntax" | "letrec-syntax"=> {
                         let keyword = self.identifier()?;
@@ -516,9 +526,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                         let body = self.body()?;
                         Expr::list(vec!(keyword, syntax_specs, body))
                     }
-                     _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "let-syntax or letrec-syntax" })),
+                     _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" })),
                 },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "let-syntax or letrec-syntax" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" })),
         }
     }
 
@@ -596,7 +606,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             | Token::Number(_) => self.pattern_datum(),
             Token::ParenOpen => self.pattern_with_paren(),
             Token::SharpOpen => self.pattern_with_sharp_paren(),
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
         }
     }
 
@@ -751,7 +761,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             | Token::Character(_)
             | Token::String(_)
             | Token::Number(_) => self.template_datum(),
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
         }
     }
 
@@ -773,7 +783,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                         elements.push(self.template_element()?);
                         Ok(elements)
                     },
-                    t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
+                    token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "close parenthesis or dot" })),
                 }
             }
         }?;
@@ -864,7 +874,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                         data.push(self.datum()?);
                         Ok(data)
                     },
-                    t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
+                    token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "close parenthesis or dot" })),
                 }
             },
         }
@@ -886,8 +896,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn paths(&mut self) -> ParseResult {
-        let paths = self.one_or_more(Parser::string)?;
-        Expr::list(paths)
+        Expr::list(self.one_or_more(Parser::string)?)
     }
 
     //
@@ -942,7 +951,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                         },
                     }
                 },
-                t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
+                token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" })),
             }    
         }
     }
@@ -1026,15 +1035,14 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn library_name_after_open(&mut self) -> ParseResult {
-        let parts = self.one_or_more(Parser::library_name_part)?;
-        Expr::list(parts)
+        Expr::list(self.one_or_more(Parser::library_name_part)?)
     }
 
     fn library_name_part(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Identifier(_) => self.identifier(),
             Token::Number(_) => self.uinteger10(),
-            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or uinteger10"})),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or uinteger10"})),
         }
     }
 
@@ -1052,9 +1060,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     "include-ci" => self.include(),
                     "include-library-declarations" => self.include_library_declarations(),
                     "cond-expand" => self.cond_expand(),
-                    _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
+                    token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"})),
                 },
-            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"})),
             
         }?;
         self.paren_close()?;
@@ -1080,7 +1088,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         match self.peek()? {
             Token::Identifier(_) => self.export_spec_id(),
             Token::ParenOpen => self.export_spec_rename(),
-            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or export-spec-list"})),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or export-spec-list"})),
         }
     }
 
@@ -1139,8 +1147,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn import_set_ids(&mut self) -> ParseResult {
-        let ids = self.one_or_more(Parser::identifier)?;
-        Expr::list(ids)
+        Expr::list(self.one_or_more(Parser::identifier)?)
     }
 
 
@@ -1170,9 +1177,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn rename_pairs(&mut self) -> ParseResult {
-        let pairs = self.one_or_more(Parser::identifier_pair)?;
-
-        Expr::list(pairs)
+        Expr::list(self.one_or_more(Parser::identifier_pair)?)
     }
 
 
@@ -1185,8 +1190,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn cond_expand_clauses(&mut self) -> ParseResult {
-        let clauses = self.one_or_more(Parser::cond_clause)?;
-        Expr::list(clauses)
+        Expr::list(self.one_or_more(Parser::cond_clause)?)
     }
 
     fn cond_clause(&mut self) -> ParseResult {
@@ -1223,7 +1227,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         match self.peek()? {
             Token::Identifier(_) => self.identifier(),
             Token::ParenOpen => self.feature_requirement_with_paren(),
-            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or open parenthesis"})),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open parenthesis"})),
         }
     }
 
@@ -1273,8 +1277,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn include_library_declaration_strings(&mut self) -> ParseResult {
-        let strings = self.one_or_more(Parser::string)?;
-        Expr::list(strings)
+        Expr::list(self.one_or_more(Parser::string)?)
     }
 
     //
@@ -1298,7 +1301,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn keyword(&mut self, keyword: &str) -> ParseResult {
         match self.peek()? {
             Token::Identifier(s) if keyword == s => self.keyword_box_leaf_from_next(),
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone() , expected: "a  keyword" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: "a  keyword" })),
         }
     }
 
@@ -1306,7 +1309,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         match self.lexer.next() {
             Some(Token::Identifier(s)) => Ok(Box::new(Expr::Identifier(Identifier::Keyword(Keyword::from(s))))),
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone().unwrap() , expected: "a  keyword" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.unwrap().to_string() , expected: "a  keyword" })),
         }
     }
     
@@ -1316,7 +1319,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 self.lexer.next();
                 Ok(Box::new(Expr::Identifier(Identifier::Variable(s.to_string()))))
             },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone() , expected: s })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string() , expected: s })),
         }   
     }
 
@@ -1359,7 +1362,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn identifier(&mut self) -> ParseResult {        
         match self.peek()? {
             Token::Identifier(_) => Ok(Box::new(Expr::Identifier(Identifier::from(&self.lexer.next().unwrap())))),
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "identifier" })),
         }        
     }
     
@@ -1385,14 +1388,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
 
         Expr::list(ids)
-
     }
     
 
     fn uinteger10(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => self.number(),
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "uninteger10" })),
+            token @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.to_string(), expected: "uninteger10" })),
         }
     }
 
@@ -1411,7 +1413,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         if data.iter().all(|e| match &**e { Expr::Literal(Literal::Number(n)) => n.parse::<u8>().is_ok(), _ => false, }) {
                 Ok(Box::new(Expr::Literal(Literal::Bytevector(data))))
         } else {
-            Err(Error::new(ErrorKind::UnexpectedToken { unexpected: Token::Error, expected: "bytevector with bytes" }))
+            Err(Error::new(ErrorKind::UnexpectedToken { unexpected: Token::Error.to_string(), expected: "bytevector with bytes" }))
         }
     }
 

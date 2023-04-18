@@ -1,15 +1,14 @@
 
 use std::fmt;
 
-use crate::read::Token;
-
 #[derive(Debug)]
 pub enum ErrorKind {
-    UnexpectedToken{unexpected: Token, expected: &'static str} ,
+    UnexpectedToken{unexpected: String, expected: &'static str} ,
     DefinitionsBeforeExpressionsinLambda,
     EllipsisNotValidPatternIdentifier,
     EndOfInput,
     EvalError,
+    UnexpectedEOF,
     // EmptyBodyinLambda,
     // NotImplemented,
 }
