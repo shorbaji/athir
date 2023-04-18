@@ -42,9 +42,9 @@ use std::iter::{once, from_fn};
 
 use lexer::{Lexer, Token};
 
-pub use lexer::Source; // public so that it can be used to specify a source for the parser, e.g. by the REPL
-pub use expr::{Literal, Keyword, Identifier, Expr}; // public so that it can be used by the evaluator
-pub use error::SyntaxError; // public so that it can be used by the caller
+pub use lexer::Source; 
+pub use expr::{Literal, Keyword, Identifier, Expr}; 
+pub use error::SyntaxError;
 
 type ParseResult = Result<Box<Expr>, SyntaxError>;
 type ParseVecResult = Result<Vec<Box<Expr>>, SyntaxError>;
@@ -867,29 +867,22 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn datum_list(&mut self) -> ParseResult {
         self.paren_left()?;
-        let data = self.datum_list_possible_dot()?;
+
+        let mut data: Vec<Box<Expr>> = vec!();
+
+        if !matches!(self.peek_or_eof()?, Token::ParenRight) {
+            data = self.one_or_more(Parser::datum)?;
+
+            if !matches!(self.peek_or_eof()?, Token::ParenRight) {
+                    self.dot()?;
+                    data.push(self.datum()?);
+            }
+        }
+
         self.paren_right()?;
 
         Expr::list(data)
-    }
 
-    fn datum_list_possible_dot(&mut self) -> ParseVecResult {
-        match self.peek_or_eof()? {
-            Token::ParenRight => Ok(vec!()), // empty list
-            _ => {
-                let mut data = self.one_or_more(Parser::datum)?;
-
-                match self.peek_or_eof()? {
-                    Token::ParenRight => Ok(data),
-                    Token::Dot => {
-                        self.dot()?;
-                        data.push(self.datum()?);
-                        Ok(data)
-                    },
-                    token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "close parenthesis or dot" }),
-                }
-            },
-        }
     }
 
     //
