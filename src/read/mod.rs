@@ -3,15 +3,19 @@
 //! 
 //! TODO:
 //! 
-//! - clean-up: parenthesized! macro
-//! - clean-up: type for Result<Vec<Box<Node>>, Error>
+//! [P0]
+//! - test define-library including begin
+//! - test begin
+//! 
+//! [P1]
+//! - Review code for readability
+//! - Review code for performance
+//! 
+//! [P2[]
 //! - clean-up: iterator instead of Vec if possible
-//! - clean-up: code for zero or more
-//! - clean-up: code for one or more
+//! - clean-up: parenthesized! macro
 //! - clean-up: code for optional
 //! - clean-up: error reporting
-//! - clean-up: node and leaf as struct functions, not methods
-//! - test define-library including begin
 //! - Node captures source code
 //!  
 //! Example usage:
@@ -52,8 +56,8 @@ pub use crate::error::{Error, ErrorKind};
 
 use lexer::Lexer;
 
-type ParseResult = std::result::Result<Box<Node>, Error>;
-
+type ParseResult = Result<Box<Node>, Error>;
+type ParseVecResult = Result<Vec<Box<Node>>, Error>;
 /// 
 /// Parser 
 /// 
@@ -207,8 +211,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         let _begin = self.keyword("begin")?;
 
-        let nodes = self.expr_list()?;
-        self.paren_close()?;
+        let nodes = self.zero_or_more(Parser::expr)?;
 
         if nodes.iter().all(|node| node.is_definition_expr()) {
             return self.node(NodeKind::Begin(true), nodes)
@@ -265,7 +268,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let id1 = self.identifier()?;
         let constructor = self.constructor()?;
         let id2 = self.identifier()?;
-        let field_specs = self.field_spec_list()?;
+        let field_specs = self.zero_or_more(Parser::field_spec)?;
         self.node(
             NodeKind::DefineRecordType,
             once(id1).chain(once(constructor)).chain(once(id2)).chain(field_specs).collect()
@@ -275,14 +278,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn constructor(&mut self) -> ParseResult {
         self.paren_open()?;
         let id = self.identifier()?;
-        let field_names = self.identifier_list()?;
+        let field_names = self.zero_or_more(Parser::identifier)?;
         self.paren_close()?;
 
         self.node(NodeKind::List, once(id).chain(field_names).collect())
-    }
-
-    fn field_spec_list (&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.field_spec().ok()).collect::<Vec<Box<Node>>>())
     }
 
     fn field_spec(&mut self) -> ParseResult {
@@ -371,7 +370,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         match self.peek()? {
             Token::ParenClose => Err(Error::new(ErrorKind::EmptyBodyinLambda)),
             _ => {
-                let exprs = self.expr_list()?;
+                let exprs = self.zero_or_more(Parser::expr)?;
                 let mut defs = true;
 
                 for expr in exprs.iter() {
@@ -430,7 +429,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn procedure_call(&mut self) -> ParseResult {
         let operator = self.expr()?;
-        let operands = self.expr_list()?;
+        let operands = self.zero_or_more(Parser::expr)?;
         self.node(NodeKind::ProcedureCall, once(operator).chain(operands).collect())
     }
 
@@ -459,7 +458,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }?
     }
 
-    fn syntax_specs(&mut self) -> Result<Vec<Box<Node>>, Error> {
+    fn syntax_specs(&mut self) -> ParseVecResult {
         // <syntax spec>*
         Ok(from_fn(|| self.syntax_spec().ok()).collect::<Vec<Box<Node>>>())
     }
@@ -486,26 +485,21 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         self.paren_open()?;
 
-        let ids = self.identifier_list()?;
+        let ids = self.zero_or_more(Parser::identifier)?;
         let ids = self.node(NodeKind::List, ids)?;
 
         self.paren_close()?;
-        let syntax_rule_list = self.syntax_rule_list()?;
-        let syntax_rule_list = self.node(NodeKind::List, syntax_rule_list)?;
+        let syntax_rules = self.zero_or_more(Parser::syntax_rule)?;
+        let syntax_rules = self.node(NodeKind::List, syntax_rules)?;
 
         self.paren_close()?;
 
         let children = match id {
-            Ok(id) => vec!(id, ids, syntax_rule_list),
-            Err(_) => vec!(ids, syntax_rule_list),
+            Ok(id) => vec!(id, ids, syntax_rules),
+            Err(_) => vec!(ids, syntax_rules),
         };
 
         self.node(NodeKind::List, children)
-    }
-
-    fn syntax_rule_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        // <syntax rule>*
-        Ok(from_fn(|| self.syntax_rule().ok()).collect::<Vec<Box<Node>>>())
     }
 
     fn syntax_rule(&mut self) -> ParseResult {
@@ -555,10 +549,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn pattern_with_paren(&mut self) -> ParseResult {
         self.paren_open()?;
-        let pattern_list = self.pattern_with_paren_a()?;
+        let patterns = self.pattern_with_paren_a()?;
         self.paren_close()?;
 
-        Ok(pattern_list)
+        Ok(patterns)
     }
 
 
@@ -618,12 +612,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
 
-    fn pattern_pre_ellipse(&mut self) -> Result<Vec<Box<Node>>, Error> {
+    fn pattern_pre_ellipse(&mut self) -> ParseVecResult {
         // <pattern>*
         Ok(from_fn(|| self.pattern().ok()).collect())
     }
 
-    fn pattern_post_ellipse(&mut self) -> Result<Vec<Box<Node>>, Error> {
+    fn pattern_post_ellipse(&mut self) -> ParseVecResult {
         // <pattern>*
         Ok(from_fn(|| self.pattern().ok()).collect())
     }
@@ -633,9 +627,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         // | #( <pattern>* <pattern> <ellipsis> <pattern>* )
 
         self.sharpopen()?;
-        let pattern_list = self.pattern_with_sharp_paren_a()?;
+        let patterns = self.pattern_with_sharp_paren_a()?;
         self.paren_close()?;
-        self.node(NodeKind::List, vec![pattern_list])
+        self.node(NodeKind::List, vec![patterns])
 
     }
 
@@ -692,22 +686,20 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.node(NodeKind::List, template)
     }
 
-    fn template_with_paren_a(&mut self) -> Result<Vec<Box<Node>>, Error> {
+    fn template_with_paren_a(&mut self) -> ParseVecResult {
         match self.peek()? {
             Token::ParenClose => Ok(vec!()), // empty list
-            _ => self.template_element().and_then(|first| // non-empty list so get first template_element
-                    self.template_element_list().and_then(|template_element_sequence| // get rest of template_element sequence
-                        match self.peek()? {
-                            Token::ParenClose => Ok(once(first).chain(template_element_sequence).collect()),
-                            Token::Dot => self.dot().and_then(|_|
-                                            self.template_element().and_then(|last|
-                                                Ok(once(first)
-                                                    .chain(template_element_sequence)
-                                                    .chain(once(last))
-                                                    .collect()))),
-                            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
-                        }
-                    )
+            _ => self.one_or_more(Parser::template_element).and_then(|elements| // get rest of template_element sequence
+                    match self.peek()? {
+                        Token::ParenClose => Ok(elements),
+                        Token::Dot => self.dot().and_then(|_|
+                                        self.template_element().and_then(|last|
+                                            Ok(elements
+                                                .into_iter()
+                                                .chain(once(last))
+                                                .collect()))),
+                        t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
+                    }
                 ),
         }   
     }
@@ -726,13 +718,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn template_with_sharp_paren(&mut self) -> ParseResult {
         self.sharpopen()?;
-        let template_list = self.template_element_list()?;
+        let elements = self.zero_or_more(Parser::template_element)?;
         self.paren_close()?;
-        self.node(NodeKind::List, template_list)
-    }
-
-    fn template_element_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.template_element().ok()).collect())
+        self.node(NodeKind::List, elements)
     }
 
     fn template_datum(&mut self) -> ParseResult {
@@ -785,28 +773,23 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.node(NodeKind::List, data)
     }
 
-    fn datum_list_possible_dot(&mut self) -> Result<Vec<Box<Node>>, Error> {
+    fn datum_list_possible_dot(&mut self) -> ParseVecResult {
         match self.peek()? {
             Token::ParenClose => Ok(vec!()), // empty list
             _ => {
-                let datum = self.datum()?;
-                let data = self.datum_list()?;
+                let data = self.one_or_more(Parser::datum)?;
 
                 match self.peek()? {
-                    Token::ParenClose => Ok(once(datum).chain(data).collect()),
+                    Token::ParenClose => Ok(data),
                     Token::Dot => {
                         self.dot()?;
                         let last = self.datum()?;
-                        Ok(once(datum).chain(data).chain(once(last)).collect())
+                        Ok(data.into_iter().chain(once(last)).collect())
                     },
                     t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
                 }
             },
         }
-    }
-
-    fn datum_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.datum().ok()).collect())
     }
 
     //
@@ -818,12 +801,11 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn include(&mut self) -> ParseResult {
         let keyword = self.leaf(NodeKind::Identifier)?;
 
-        let path = self.string()?;
-        let paths = self.string_list()?;
+        let paths = self.one_or_more(Parser::string)?;
+
         self.node(
             NodeKind::Includer,
             once(keyword)
-            .chain(once(path))
             .chain(paths.into_iter())
             .collect()
         )
@@ -890,7 +872,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
 
-    fn qq_template_or_splice_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
+    fn qq_template_or_splice_list(&mut self, depth: u32) -> ParseVecResult {
         Ok(from_fn(|| self.qq_template_or_splice(depth).ok()).collect::<Vec<Box<Node>>>())
     }
 
@@ -920,7 +902,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.node(NodeKind::Vector, list)
     }
 
-    fn qq_template_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
+    fn qq_template_list(&mut self, depth: u32) -> ParseVecResult {
         Ok(from_fn(|| self.qq_template(depth).ok()).collect::<Vec<Box<Node>>>())
     }
 
@@ -934,7 +916,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.keyword("define-library")?;
 
         let name = self.library_name()?;
-        let body = self.library_declaration_list()?;
+        let body = self.zero_or_more(Parser::library_declaration)?;
         self.node(NodeKind::DefineLibrary, once(name).chain(body).collect())
     }
 
@@ -944,10 +926,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn library_name_after_open(&mut self) -> ParseResult {
-        let part = self.library_name_part()?;
-        let parts = self.library_name_part_list()?;
+        let parts = self.one_or_more(Parser::library_name_part)?;
         self.paren_close()?;
-        self.node(NodeKind::List, once(part).chain(parts).collect())
+        self.node(NodeKind::List, parts)
     }
 
     fn library_name_part(&mut self) -> ParseResult {
@@ -956,10 +937,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             Token::Number(_) => self.uinteger10(),
             _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or uinteger10"})),
         }
-    }
-
-    fn library_name_part_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.library_name_part().ok()).collect::<Vec<Box<Node>>>())
     }
 
     fn library_declaration(&mut self) -> ParseResult {
@@ -987,18 +964,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
 
-    fn library_declaration_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.library_declaration().ok()).collect::<Vec<Box<Node>>>())
-    }
-
     fn export(&mut self) -> ParseResult {
         let export = self.keyword("export")?;
-        let specs = self.export_spec_list()?;
+        let specs = self.zero_or_more(Parser::export_spec)?;
         self.node(NodeKind::List, once(export).chain(specs.into_iter()).collect())
-    }
-
-    fn export_spec_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.export_spec().ok()).collect::<Vec<Box<Node>>>())
     }
 
     fn export_spec(&mut self) -> ParseResult {
@@ -1026,18 +995,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn import(&mut self) -> ParseResult {
         let import = self.keyword("import")?;
-        let set = self.import_set()?;
-        let sets = self.import_set_list()?;               
+        let sets = self.one_or_more(Parser::import_set)?;
         self.node(
             NodeKind::List, 
             once(import)
-            .chain(once(set))
             .chain(sets).collect()
         )
-    }
-
-    fn import_set_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.import_set().ok()).collect::<Vec<Box<Node>>>())
     }
 
     fn import_set(&mut self) -> ParseResult {
@@ -1062,13 +1025,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn only(&mut self) -> ParseResult {
         let only = self.keyword("only")?;
         let set = self.import_set()?;
-        let id = self.identifier()?;
-        let ids = self.identifier_list()?;
+        let ids = self.one_or_more(Parser::identifier)?;
+
         self.node(
             NodeKind::List,
             once(only)
             .chain(once(set))
-            .chain(once(id))
             .chain(ids)
             .collect()
         )
@@ -1077,13 +1039,11 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn except(&mut self) -> ParseResult {
         let except = self.keyword("except")?;
         let set = self.import_set()?;
-        let id = self.identifier()?;
-        let ids = self.identifier_list()?;
+        let ids = self.one_or_more(Parser::identifier)?;
         self.node(
             NodeKind::List,
             once(except)
             .chain(once(set))
-            .chain(once(id))
             .chain(ids)
             .collect()
         )
@@ -1101,22 +1061,17 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let set = self.import_set()?;
         self.paren_open()?;
 
-        let pair = self.identifier_pair()?;
-        let pairs = self.identifier_pair_list()?;
+        let pairs = self.one_or_more(Parser::identifier_pair)?;
+
 
         self.paren_close()?;
         self.node(
             NodeKind::List,
             once(rename)
             .chain(once(set))
-            .chain(once(pair))
             .chain(pairs)
             .collect()
         )
-    }
-
-    fn identifier_pair_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.identifier_pair().ok()).collect::<Vec<Box<Node>>>())
     }
 
     fn identifier_pair(&mut self) -> ParseResult {
@@ -1132,25 +1087,20 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn cond_expand(&mut self) -> ParseResult {
         let cond_expand = self.keyword("cond-expand")?;
 
-        let clause = self.cond_clause()?;
-        let clauses = self.cond_clause_list()?;
+        let clauses = self.one_or_more(Parser::cond_clause)?;
+
         self.node(
             NodeKind::List,
             once(cond_expand)
-            .chain(once(clause))
             .chain(clauses)
             .collect()
         )
     }
 
-    fn cond_clause_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.cond_clause().ok()).collect::<Vec<Box<Node>>>())
-    }
-
     fn cond_clause(&mut self) -> ParseResult {
         self.paren_open()?;
         let requirement = self.feature_requirement()?;
-        let declarations = self.library_declaration_list()?;
+        let declarations = self.zero_or_more(Parser::library_declaration)?;
         self.paren_close()?;
 
         self.node(NodeKind::List, once(requirement).chain(declarations).collect())
@@ -1186,13 +1136,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn and(&mut self) -> ParseResult {
         let and = self.keyword("and")?;
-        let requirements = self.feature_requirement_list()?;
+        let requirements = self.zero_or_more(Parser::feature_requirement)?;
         self.node(NodeKind::List, once(and).chain(requirements).collect())
     }
 
     fn or(&mut self) -> ParseResult {
         let or = self.keyword("or")?;
-        let requirements = self.feature_requirement_list()?;
+        let requirements = self.zero_or_more(Parser::feature_requirement)?;
         self.node(NodeKind::List, once(or).chain(requirements).collect())
     }
 
@@ -1202,18 +1152,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.node(NodeKind::List, vec!(not, requirement))
     }
 
-    fn feature_requirement_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.feature_requirement().ok()).collect::<Vec<Box<Node>>>())
-    }
-
     fn include_library_declarations(&mut self) -> ParseResult {
         let include_library_declarations = self.keyword("include-library-declarations")?;
-        let string = self.string()?;
-        let strings = self.string_list()?;
+        let strings = self.one_or_more(Parser::string)?;
+
         self.node(
             NodeKind::List,
             once(include_library_declarations)
-            .chain(once(string))
             .chain(strings)
             .collect()
         )
@@ -1334,10 +1279,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "#u8(" })),
         }
     }
-
-    fn expr_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.expr().ok()).collect())
-    }
     
     fn identifier(&mut self) -> ParseResult {        
         match self.peek()? {
@@ -1350,18 +1291,17 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         match self.peek()? {
             Token::ParenClose => self.node(NodeKind::List, vec!()), // empty list
             Token::Identifier(_) => {
-                let id = self.identifier()?;
-                let ids = self.identifier_list()?;
+                let ids = self.one_or_more(Parser::identifier)?;
 
                 match self.peek()? {
-                    Token::ParenClose => self.node(NodeKind::List, once(id).chain(ids).collect()),
+                    Token::ParenClose => self.node(NodeKind::List, ids),
                     Token::Dot => {
                         self.dot()?;
                         let last = self.identifier()?;
                         self.node(
                             NodeKind::List, 
-                            once(id)
-                            .chain(ids)
+                            ids
+                            .into_iter()
                             .chain(once(last))
                             .collect()
                         )
@@ -1373,10 +1313,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }   
     }
     
-    fn identifier_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.identifier().ok()).collect())
-    }
-
     fn boolean(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Boolean(_) => self.leaf(NodeKind::Literal),
@@ -1398,8 +1334,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }
     }
 
-    fn string_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.string().ok()).collect())
+    fn zero_or_more(&mut self, closure: fn(&mut Self) -> ParseResult) -> ParseVecResult {
+        Ok(from_fn(|| closure(self).ok()).collect())
+    }
+
+    fn one_or_more(&mut self, closure: fn(&mut Self) -> ParseResult) -> ParseVecResult {
+        Ok(once(closure(self)?).chain(from_fn(|| closure(self).ok())).collect())
     }
 
     fn number(&mut self) -> ParseResult {
