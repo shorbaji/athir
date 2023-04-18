@@ -6,17 +6,17 @@
 //! [P0]
 //! - test define-library including begin
 //! - test begin
+//! - clean-up: iterator instead of Vec if possible
+//! - clean-up: parenthesized! macro
+//! - Node captures source code
 //! 
 //! [P1]
 //! - Review code for readability
 //! - Review code for performance
 //! 
 //! [P2[]
-//! - clean-up: iterator instead of Vec if possible
-//! - clean-up: parenthesized! macro
 //! - clean-up: code for optional
 //! - clean-up: error reporting
-//! - Node captures source code
 //!  
 //! Example usage:
 //! ```
@@ -1169,7 +1169,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     //
     //
 
-    #[inline]
     fn peek(&mut self) -> Result<&Token, Error> {
         self.lexer.peek().ok_or(Error::new(ErrorKind::EndOfInput))
     }
@@ -1180,6 +1179,14 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     
     fn leaf(&mut self, kind: NodeKind) -> ParseResult {
         Ok(Box::new(Node::Leaf(kind, self.lexer.next().unwrap())))
+    }
+
+    fn zero_or_more(&mut self, closure: fn(&mut Self) -> ParseResult) -> ParseVecResult {
+        Ok(from_fn(|| closure(self).ok()).collect())
+    }
+
+    fn one_or_more(&mut self, closure: fn(&mut Self) -> ParseResult) -> ParseVecResult {
+        Ok(once(closure(self)?).chain(from_fn(|| closure(self).ok())).collect())
     }
 
     fn keyword(&mut self, keyword: &str) -> ParseResult {
@@ -1194,99 +1201,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         
     }
     
-    fn dot(&mut self) -> Result<(), Error> {
-        match self.peek()? {
-            Token::Dot => {
-                self.lexer.next(); // consume Dot
-                Ok(())
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "Dot" })),
-        }
-    }
-
-    fn quote(&mut self) -> ParseResult {
-        match self.peek()? {
-            Token::Quote => {
-                self.leaf(NodeKind::Quote)
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "Quote" })),
-        }
-    }
-
-    fn quasiquote(&mut self) -> ParseResult {
-        match self.peek()? {
-            Token::Quasiquote => {
-                self.leaf(NodeKind::Quasiquote)
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "quasiquote" })),
-        }
-    }
-
-    fn comma(&mut self) -> ParseResult {
-        match self.peek()? {
-            Token::Comma => {
-                self.leaf(NodeKind::Comma)
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "comma" })),
-        }
-    }
-
-    fn comma_at(&mut self) -> ParseResult {
-        match self.peek()? {
-            Token::CommaAt => {
-                self.leaf(NodeKind::CommaAt)
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: ",@" })),
-        }
-    }
-
-    fn paren_open(&mut self) -> Result<(), Error> {
-        match self.peek()? {
-            Token::ParenOpen => {
-                self.lexer.next(); // consume ParenOpen
-                Ok(())
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "(" })),
-        }
-    }
-    
-    fn paren_close(&mut self) -> Result<(), Error> {
-        match self.peek()? {
-            Token::ParenClose => {
-                self.lexer.next(); // consume ParenClose
-                Ok(())
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: ")" })),
-        }
-    }
-
-    fn sharpopen(&mut self) -> Result<(), Error> {
-        match self.peek()? {
-            Token::SharpOpen => {
-                self.lexer.next(); // consume SharpOpen
-                Ok(())
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "#(" })),
-        }
-    }
-
-    fn sharpu8open(&mut self) -> Result<(), Error> {
-        match self.peek()? {
-            Token::SharpU8Open => {
-                self.lexer.next(); // consume SharpU8Open
-                Ok(())
-            },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "#u8(" })),
-        }
-    }
-    
-    fn identifier(&mut self) -> ParseResult {        
-        match self.peek()? {
-            Token::Identifier(_) => self.leaf(NodeKind::Identifier),
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier" })),
-        }        
-    }
-
     fn identifier_list_possible_dot(&mut self) -> ParseResult {
         match self.peek()? {
             Token::ParenClose => self.node(NodeKind::List, vec!()), // empty list
@@ -1313,6 +1227,59 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }   
     }
     
+    fn punctuation(&mut self, expected: Token, s: &'static str) -> ParseResult {
+        match self.peek()? {
+            t if t == &expected => {
+                let kind = NodeKind::from(t);
+                self.leaf(kind)
+            },
+            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone() , expected: s })),
+        }   
+    }
+
+    fn comma(&mut self) -> ParseResult {
+        self.punctuation(Token::Comma, ",")
+    }
+
+    fn comma_at(&mut self) -> ParseResult {
+        self.punctuation(Token::CommaAt, ",@")
+    }
+
+    fn dot(&mut self) -> ParseResult {
+        self.punctuation(Token::Dot, ".")
+    }
+
+    fn paren_close(&mut self) -> ParseResult {
+        self.punctuation(Token::ParenClose, ")")
+    }
+    
+    fn paren_open(&mut self) -> ParseResult {
+        self.punctuation(Token::ParenOpen, "(")
+    }
+
+    fn quasiquote(&mut self) -> ParseResult {
+        self.punctuation(Token::Quasiquote, "`")
+    }
+
+    fn quote(&mut self) -> ParseResult {
+        self.punctuation(Token::Quote, "'")
+    }
+
+    fn sharpopen(&mut self) -> ParseResult {
+        self.punctuation(Token::SharpOpen, "#(")
+    }
+
+    fn sharpu8open(&mut self) -> ParseResult {
+        self.punctuation(Token::SharpU8Open, "#u8(")
+    }
+
+    fn identifier(&mut self) -> ParseResult {        
+        match self.peek()? {
+            Token::Identifier(_) => self.leaf(NodeKind::Identifier),
+            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier" })),
+        }        
+    }
+
     fn boolean(&mut self) -> ParseResult {
         match self.peek()? {
             Token::Boolean(_) => self.leaf(NodeKind::Literal),
@@ -1332,14 +1299,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             Token::String(_) => self.leaf(NodeKind::Literal),
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "string" })),
         }
-    }
-
-    fn zero_or_more(&mut self, closure: fn(&mut Self) -> ParseResult) -> ParseVecResult {
-        Ok(from_fn(|| closure(self).ok()).collect())
-    }
-
-    fn one_or_more(&mut self, closure: fn(&mut Self) -> ParseResult) -> ParseVecResult {
-        Ok(once(closure(self)?).chain(from_fn(|| closure(self).ok())).collect())
     }
 
     fn number(&mut self) -> ParseResult {
