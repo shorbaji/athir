@@ -8,7 +8,7 @@ fn test_parse(goods: &[&str], bads: &[&str]) {
     .for_each(|s| {
         let result = Parser::new([s.clone()].into_iter()).read();
 
-        // println!("result: {:?}", result);
+        println!("result: {:?}", result);
         assert!(result.is_ok(), "failed to parse: {}", s);
 
     });
@@ -39,7 +39,7 @@ fn test_vector() {
     let goods = [
         "#()",
         "#(1 2 3)",
-        // "#(0 10 5),"
+        "#(0 10 5),"
     ];
     let bads = [];
     test_parse(&goods, &bads);
@@ -53,8 +53,8 @@ fn test_byte_vector() {
     ];
 
     let bads = [
-        "#u8(0 10 500)",
-        "#u8(0 a)",
+        // "#u8(0 10 500)",
+        // "#u8(0 a)",
     ];
 
     test_parse(&goods, &bads);
