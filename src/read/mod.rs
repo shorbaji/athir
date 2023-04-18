@@ -12,9 +12,9 @@
 //! - Node captures source code
 //! 
 //! [P2[]
+//! - clean-up: simplify NodeKind - add Keyword and use List to replace expression types
 //! - clean-up helper macros - zero or more, one or more, optional, parenthesized
 //! - clean-up: iterator instead of Vec if possible
-//! - clean-up: simplify NodeKind - add Keyword and use List to replace expression types
 //! - clean-up: code for optional
 //! - clean-up: error reporting
 //!  
@@ -42,22 +42,22 @@
 //! - derived expressions not implemented
 //!
 
-mod lexer;
-mod node;
+mod lexer; // lexical analyzer
+mod node; // abstract syntax tree node
 
 #[cfg(test)]
 mod tests;
 
 use std::iter::{once, from_fn};
-
-pub use node::{NodeKind, Node};
-pub use lexer::{Token, Source};
-pub use crate::error::{Error, ErrorKind};
-
 use lexer::Lexer;
+
+pub use lexer::{Token, Source};
+pub use node::{NodeKind, Node};
+pub use crate::error::{Error, ErrorKind};
 
 type ParseResult = Result<Box<Node>, Error>;
 type ParseVecResult = Result<Vec<Box<Node>>, Error>;
+
 /// 
 /// Parser 
 /// 
@@ -168,7 +168,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         // we look for a keyword for a special form or else we treat as a procedure call
         // we then look for a right parenthesis
 
-        
         self.paren_open()?;
 
         let expr = match self.peek()? {
@@ -232,26 +231,22 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn define(&mut self) -> ParseResult {
         self.keyword("define")?;
         match self.peek()? {
-            Token::Identifier(_) => self.variable_definition(),
-            Token::ParenOpen => self.function_definition(),
+            Token::Identifier(_) => { // variable definition
+                let var = self.identifier()?;
+                let expr = self.expr()?;
+                self.node(NodeKind::Define, vec![var, expr])
+            },
+            Token::ParenOpen => { // function definition
+                self.paren_open()?;
+                let var = self.identifier()?;
+                let formals = self.def_formals()?;
+                self.paren_close()?;
+                let body = self.body()?;
+                self.node(NodeKind::Define, vec![var, formals, body])
+            },
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "identifier or open paren"})),
         }
     }
-        
-    fn variable_definition(&mut self) -> ParseResult {
-        let id = self.identifier()?;
-        let expr = self.expr()?;
-        self.node(NodeKind::Define, vec![id, expr])
-    }
-        
-    fn function_definition(&mut self) -> ParseResult {
-        self.paren_open()?;
-        let id = self.identifier()?;
-        let formals = self.def_formals()?;
-        self.paren_close()?;
-        let body = self.body()?;
-        self.node(NodeKind::DefineFunction, vec![id, formals, body])
-    } 
 
     fn def_formals(&mut self) -> ParseResult {
         self.identifier_list_possible_dot()
@@ -304,7 +299,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.paren_close()?;
 
         Ok(node)
-
     }
 
     fn define_syntax(&mut self) -> ParseResult {
@@ -371,7 +365,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         match self.peek()? {
             Token::ParenClose => Err(Error::new(ErrorKind::EmptyBodyinLambda)),
             _ => {
-                let exprs = self.zero_or_more(Parser::expr)?;
+                let exprs = self.one_or_more(Parser::expr)?;
                 let mut defs = true;
 
                 for expr in exprs.iter() {

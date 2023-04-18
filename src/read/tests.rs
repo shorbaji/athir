@@ -75,7 +75,7 @@ fn test_variable_definition() {
 fn test_function_definition() {
     let goods = ["(define (f x) x)", "(define (f) x)", "(define (f x) (set! x 1) x)", "(define (f x y) x)", "(define (f x . y) x)"];
     let bads = ["(define (f x))", "(define (f x . y z) x)"];
-    test_parse(&goods, &bads, NodeKind::DefineFunction);
+    test_parse(&goods, &bads, NodeKind::Define);
 }
 
 #[test]

@@ -29,7 +29,6 @@ pub enum NodeKind {
     Begin(bool),
     Conditional,
     Define,
-    DefineFunction,
     DefineLibrary,
     DefineRecordType,
     DefineValues,
@@ -68,7 +67,6 @@ impl Node {
         matches!(
             self.kind(),
             NodeKind::Define
-            | NodeKind::DefineFunction
             | NodeKind::DefineSyntax
             | NodeKind::Begin(true)
             | NodeKind::DefineValues

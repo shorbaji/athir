@@ -27,7 +27,7 @@ pub fn eval(node: &Box<Node>) -> Result<Object, Error> {
         Literal => eval_literal(node),
         ProcedureCall => eval_procedure_call(node),
         Quotation => eval_quotation(node),
-        Define | DefineFunction | DefineSyntax => eval_definition(node),
+        Define | DefineSyntax => eval_definition(node),
         _ => Ok(Object::Null),
     }
 }
