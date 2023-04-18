@@ -9,7 +9,6 @@ pub enum NodeKind {
     CommaAt,
     Quasiquote,
     Quote,
-
     ByteVector,
     Vector,
     Datum,
@@ -17,61 +16,25 @@ pub enum NodeKind {
 
     Literal,
     Identifier,
+
     List,
 
     Assignment,
-    Begin,
-    BeginDef,
+    Begin(bool),
     Conditional,
-    FunctionDefinition,
+    Define,
+    DefineFunction,
+    DefineLibrary,
+    DefineRecordType,
+    DefineValues,
+    DefineSyntax,
     Includer,
-    IncluderCI,
     Lambda,
     ProcedureCall,
     Quasiquotation(u32),
     Quotation,
-    Unquotation(u32),
-    RecordTypeDefinition,
-    VariableDefinition,
-    ValuesDefinition,
-
-    Library,
-    Export,
-    ExportSpec,
-    Import,
-    ImportSet,
-    CondExpand,
-    CondClause,
-    FeatureRequirementAnd,
-    FeatureRequirementOr,
-    FeatureRequirementNot,
-    LibraryDeclaration,
-    
-    LetRecSyntax,
-    LetSyntax,
+    Unquotation(u32),    
     MacroBlock,
-    Pattern,
-    PatternDatum,
-    PatternIdentifier,
-    PatternParen,
-    PatternPostEllipse,
-    PatternPreEllipse,
-    PatternSharp,
-    PatternUnderscore,
-    PatternWithParen,
-    SyntaxDefinition,
-    SyntaxRule,
-    SyntaxRuleList,
-    SyntaxSpec,
-    SyntaxSpecList,
-    Template,
-    TemplateDatum,
-    TemplateElement,
-    TemplateElementEllipsis,
-    TemplateSharp,
-    TemplateWithParen,
-    TransformerSpec,
-    TransformerSpecIdentifierList,
 }
 
 #[derive(Debug, Clone)]
@@ -81,13 +44,6 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn add_child(&mut self, child: Box<Node>) {
-        match self {
-            Node::Inner(_, children) => children.push(child),
-            Node::Leaf(_, _) => panic!("Cannot add child to leaf node"),
-        }
-    }
-
     pub fn kind(&self) -> &NodeKind {
         match self {
             Node::Inner(kind, _) => kind,
@@ -105,12 +61,12 @@ impl Node {
     pub fn is_definition_expr(&self) -> bool {
         matches!(
             self.kind(),
-            NodeKind::VariableDefinition
-            | NodeKind::FunctionDefinition
-            | NodeKind::SyntaxDefinition
-            | NodeKind::BeginDef
-            | NodeKind::ValuesDefinition
-            | NodeKind::RecordTypeDefinition
+            NodeKind::Define
+            | NodeKind::DefineFunction
+            | NodeKind::DefineSyntax
+            | NodeKind::Begin(true)
+            | NodeKind::DefineValues
+            | NodeKind::DefineRecordType
         ) 
     }
 }

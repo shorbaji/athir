@@ -68,14 +68,14 @@ fn test_assignment() {
 fn test_variable_definition() {
     let goods = ["(define x 1)", "(define x (+ 1 2))", "(define f (lambda (x) x))"];
     let bads = ["(define x)"];
-    test_parse(&goods, &bads, NodeKind::VariableDefinition);
+    test_parse(&goods, &bads, NodeKind::Define);
 }
 
 #[test]
 fn test_function_definition() {
     let goods = ["(define (f x) x)", "(define (f) x)", "(define (f x) (set! x 1) x)", "(define (f x y) x)", "(define (f x . y) x)"];
     let bads = ["(define (f x))", "(define (f x . y z) x)"];
-    test_parse(&goods, &bads, NodeKind::FunctionDefinition);
+    test_parse(&goods, &bads, NodeKind::DefineFunction);
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn test_define_values() {
         "(define-values (x y) (+ 1 2) 1 2 3)",
     ];
     let bads = [];
-    test_parse(&goods, &bads, NodeKind::ValuesDefinition);
+    test_parse(&goods, &bads, NodeKind::DefineValues);
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn test_define_record_type() {
             (owner-name animal-owner set-animal-owner!))",
     ];
     let bads = [];
-    test_parse(&goods, &bads, NodeKind::RecordTypeDefinition);
+    test_parse(&goods, &bads, NodeKind::DefineRecordType);
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn test_include_ci() {
         "(include-ci \"foo.scm\")",
     ];
     let bads = ["(include-ci)", "(include-ci 1)"];
-    test_parse(&goods, &bads, NodeKind::IncluderCI);
+    test_parse(&goods, &bads, NodeKind::Includer);
 
 }
 
@@ -193,4 +193,24 @@ fn test_quasiquotation() {
     ];
 
     test_parse(&goods, &bads, NodeKind::Quasiquotation(1));
+}
+
+#[test]
+fn test_library() {
+    let goods = [
+        "(define-library (foo))",
+        "(define-library (0123))",
+        "(define-library (foo 1))",
+        "(define-library (foo) (export bar))",
+        "(define-library (foo) (include \"bar.scm\"))",
+    ];
+
+    let bads = [
+        "(define-library foo)",
+        "(define-library 1)",
+        "(define-library (1.23))",
+        "(define-library (foo) (include bar))",
+    ];
+
+    test_parse(&goods, &bads, NodeKind::DefineLibrary);
 }

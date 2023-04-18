@@ -21,13 +21,13 @@ pub enum Object {
 pub fn eval(node: &Box<Node>) -> Result<Object, Error> {
     match node.deref().kind() {
         Assignment => eval_assignment(node),
-        Begin => eval_begin(node),
-        BeginDef => eval_begin_def(node),
+        Begin(false) => eval_begin(node),
+        Begin(true) => eval_begin_def(node),
         Identifier => eval_identifier(node),
         Literal => eval_literal(node),
         ProcedureCall => eval_procedure_call(node),
         Quotation => eval_quotation(node),
-        VariableDefinition | FunctionDefinition | SyntaxDefinition => eval_definition(node),
+        Define | DefineFunction | DefineSyntax => eval_definition(node),
         _ => Ok(Object::Null),
     }
 }

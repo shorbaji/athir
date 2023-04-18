@@ -3,8 +3,16 @@
 //! 
 //! TODO:
 //! 
-//! - test define-library
-//! - node captures source code
+//! - clean-up: parenthesized! macro
+//! - clean-up: type for Result<Vec<Box<Node>>, Error>
+//! - clean-up: iterator instead of Vec if possible
+//! - clean-up: code for zero or more
+//! - clean-up: code for one or more
+//! - clean-up: code for optional
+//! - clean-up: error reporting
+//! - clean-up: node and leaf as struct functions, not methods
+//! - test define-library including begin
+//! - Node captures source code
 //!  
 //! Example usage:
 //! ```
@@ -13,7 +21,6 @@
 //!     // we then create a Parser using the Source
 //!     // we then iterate over the Parser to get expressions
 //!     
-//! 
 //!     let source = Source::new(std::io::stdin().lines().map(|line| line.unwrap()));
 //!    
 //!     let parser = Parser::new(source);
@@ -31,11 +38,11 @@
 //! - derived expressions not implemented
 //!
 
+mod lexer;
+mod node;
 
 #[cfg(test)]
 mod tests;
-mod node;
-mod lexer;
 
 use std::iter::{once, from_fn};
 
@@ -77,7 +84,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     
     pub fn read(&mut self) -> ParseResult {
         self.expr().or_else(|e| {
-            self.lexer.next(); // consume the token that caused the error
+            self.lexer.next(); // if an error consume the token that caused it
             Err(e)
         })
     }
@@ -124,20 +131,23 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     
     fn expr(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::ParenOpen => self.paren_open().and(self.compound_expr()),
+            Token::ParenOpen => self.compound_expr(),
             _ => self.atom(),
         }
     }
 
-    fn atom(&mut self) -> ParseResult {        
+    fn atom(&mut self) -> ParseResult {  
         match self.peek()? {
-            Token::Boolean(_) | Token::Character(_) | Token::String(_) | Token::Number(_) => self.leaf(NodeKind::Literal),
+            Token::Boolean(_) => self.leaf(NodeKind::Literal),
+            Token::Character(_) => self.leaf(NodeKind::Literal),
             Token::Identifier(_) => self.leaf(NodeKind::Identifier),
-            Token::SharpOpen => self.vector().and_then(|vector| self.node(NodeKind::Vector, vec![vector])),
-            Token::SharpU8Open => self.bytevector().and_then(|bytevector| self.node(NodeKind::ByteVector, vec![bytevector])),
-            Token::Quote => self.quotation_short(),
+            Token::Number(_) => self.leaf(NodeKind::Literal),
             Token::Quasiquote => self.quasiquotation_short(1),
-            t @ _ => Err(Error{kind: ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "atom"}}) ,
+            Token::Quote => self.quotation_short(),
+            Token::SharpOpen => self.vector(),
+            Token::SharpU8Open => self.bytevector(),
+            Token::String(_)=> self.leaf(NodeKind::Literal),
+            t @ _ => Err(Error{ kind: ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "atom"} }) ,
         }
     }
     
@@ -148,15 +158,26 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     /// 
     
     fn compound_expr(&mut self) -> ParseResult {
-        match self.peek()? {
+        
+        // <compound expression> ::= <special form> | <procedure call>
+        // starts with a left parenthesis
+        // we look for a keyword for a special form or else we treat as a procedure call
+        // we then look for a right parenthesis
+
+        self.paren_open()?;
+
+        let expr = match self.peek()? {
             token @ Token::Identifier(id) => 
                 match id.as_str() {
                     "begin" => self.begin(),
-                    "define" | "define-values" | "define-record-type" | "define-syntax" => self.definition(),
-                    "define-library" => self.library(),
+                    "define" => self.define(),
+                    "define-values" => self.define_values(),
+                    "define-record-type" => self.define_record_type(),
+                    "define-syntax" => self.define_syntax(),
+                    "define-library" => self.define_library(),
                     "if" => self.conditional(),
                     "include" => self.include(),
-                    "include-ci" => self.include_ci(),
+                    "include-ci" => self.include(),
                     "lambda" => self.lambda(),
                     "let-syntax" | "letrec-syntax" => self.macro_block(),
                     "quasiquote" => self.quasiquotation(1),
@@ -166,298 +187,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     _ => self.procedure_call(),
                 },
             _ => self.procedure_call(),
-        }
+        };
+
+        self.paren_close()?;
+
+        expr
     }
     
-    ///
-    /// Library
-    /// 
-    /// 
-    ///
-
-    fn library(&mut self) -> ParseResult {
-        self.keyword("define-library").and_then(|_| 
-            self.library_name().and_then(|name| 
-                self.library_declaration_list().and_then(|body| 
-                    self.paren_close().and_then(|_| 
-                        self.node(NodeKind::Library, once(name).chain(body).collect())
-                    )
-                )
-            )
-        )
-
-    }
-
-    fn library_name(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_| self.library_name_after_open())
-    }
-
-    fn library_name_after_open(&mut self) -> ParseResult {
-        self.library_name_part().and_then(|part|
-            self.library_name_part_list().and_then(|parts|
-                self.paren_close().and_then(|_| 
-                    self.node(NodeKind::List, once(part).chain(parts).collect())
-                )
-            )
-        )
-    }
-
-    fn library_name_part_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.library_name_part().ok()).collect::<Vec<Box<Node>>>())
-    }
-
-    fn library_name_part(&mut self) -> ParseResult {
-        match self.peek()? {
-            Token::Identifier(_) => self.identifier(),
-            Token::Number(_) => self.uinteger10(),
-            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or uinteger10"})),
-        }
-    }
-
-    fn library_declaration_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.library_declaration().ok()).collect::<Vec<Box<Node>>>())
-    }
-
-    fn library_declaration(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_|
-            self.library_declaration_inner().and_then(|node|
-                self.paren_close().and_then(|_|  
-                    self.node(NodeKind::LibraryDeclaration, vec![node])
-                )
-            )
-        )
-    }
-
-    fn library_declaration_inner(&mut self) -> ParseResult {
-        match self.peek()? {
-            Token::Identifier(id) => 
-                match id.as_str() {
-                    "export" => self.export(),
-                    "import" => self.import(),
-                    "include" => self.include(),
-                    "include-ci" => self.include_ci(),
-                    "cond-expand" => self.cond_expand(),
-                    "begin" => self.begin(),
-                    _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
-                },
-            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
-            
-        }
-    }
-
-    fn export(&mut self) -> ParseResult {
-        self.keyword("export").and_then(|_| 
-            self.export_spec_list().and_then(|specs| 
-                self.node(NodeKind::Export, specs)
-            )
-        )
-    }
-
-    fn export_spec_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.export_spec().ok()).collect::<Vec<Box<Node>>>())
-    }
-
-    fn export_spec(&mut self) -> ParseResult {
-        match self.peek()? {
-            Token::Identifier(_) => self.identifier().and_then(|id| self.node(NodeKind::ExportSpec, vec![id])),
-            Token::ParenOpen => self.paren_open().and_then(|_|
-                                    self.keyword("rename").and_then(|_| 
-                                        self.identifier().and_then(|id1| 
-                                            self.identifier().and_then(|id2| 
-                                                self.paren_close().and_then(|_| 
-                                                    self.node(NodeKind::ExportSpec, vec![id1, id2])
-                                                )
-                                            )
-                                        )
-                                    )
-                                ),
-            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or export-spec-list"})),
-        }
-    }
-
-    fn import(&mut self) -> ParseResult {
-        self.keyword("import").and_then(|_| 
-            self.import_set().and_then(|set| 
-                self.import_set_list().and_then(|sets| 
-                    self.node(NodeKind::Import, once(set).chain(sets).collect())
-                )
-            )
-        )
-    }
-
-    fn import_set_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.import_set().ok()).collect::<Vec<Box<Node>>>())
-    }
-
-    fn import_set(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_|
-            match self.peek()? {
-                Token::Identifier(id) => 
-                    match id.as_str() {
-                        "only" => self.only(),
-                        "except" => self.except(),
-                        "prefix" => self.prefix(),
-                        "rename" => self.rename(),
-                        _ => self.library_name_after_open(),
-                    }
-                _ => self.library_name_after_open(),
-            }
-        )
-    }
-
-    fn only(&mut self) -> ParseResult {
-        self.keyword("only").and_then(|_| 
-            self.import_set().and_then(|import_set| 
-                self.identifier().and_then(|id| 
-                    self.identifier_sequence().and_then(|ids| 
-                        self.paren_close().and_then(|_| 
-                            self.node(NodeKind::ImportSet, once(import_set).chain(once(id)).chain(ids).collect())
-                        )
-                    )
-                )
-            )
-        )
-    }
-
-    fn except(&mut self) -> ParseResult {
-        self.keyword("except").and_then(|_| 
-            self.import_set().and_then(|import_set| 
-                self.identifier().and_then(|id| 
-                    self.identifier_sequence().and_then(|ids| 
-                        self.paren_close().and_then(|_| 
-                            self.node(NodeKind::ImportSet, once(import_set).chain(once(id)).chain(ids).collect())
-                        )
-                    )
-                )
-            )
-        )
-    }
-
-    fn prefix(&mut self) -> ParseResult {
-        self.keyword("prefix").and_then(|_| 
-            self.import_set().and_then(|import_set| 
-                self.identifier().and_then(|id| 
-                    self.paren_close().and_then(|_| 
-                        self.node(NodeKind::ImportSet, vec![import_set, id])
-                    )
-                )
-            )
-        )
-    }
-
-    fn rename(&mut self) -> ParseResult {
-        self.keyword("rename").and_then(|_| 
-            self.import_set().and_then(|import_set| 
-                self.paren_open().and_then(|_|
-                    self.identifier_pair().and_then(|pair| 
-                        self.identifier_pair_list().and_then(|pairs| 
-                            self.paren_close().and_then(|_| 
-                                self.node(NodeKind::ImportSet, once(import_set).chain(once(pair)).chain(pairs).collect())
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    }
-
-    fn identifier_pair_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.identifier_pair().ok()).collect::<Vec<Box<Node>>>())
-    }
-
-    fn identifier_pair(&mut self) -> ParseResult {
-        self.identifier().and_then(|id1| 
-            self.identifier().and_then(|id2| 
-                self.node(NodeKind::List, vec![id1, id2])
-            )
-        )
-    }
-
-    fn cond_expand(&mut self) -> ParseResult {
-        self.keyword("cond-expand").and_then(|_| 
-            self.cond_clause().and_then(|clause| 
-                self.cond_clause_list().and_then(|clauses| 
-                    self.paren_close().and_then(|_| 
-                        self.node(NodeKind::CondExpand, once(clause).chain(clauses).collect())
-                    )
-                )
-            )
-        )
-    }
-
-    fn cond_clause_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.cond_clause().ok()).collect::<Vec<Box<Node>>>())
-    }
-
-    fn cond_clause(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_|
-            self.feature_requirement().and_then(|requirement| 
-                self.library_declaration_list().and_then(|declarations| 
-                    self.paren_close().and_then(|_| 
-                        self.node(NodeKind::CondClause, once(requirement).chain(declarations).collect())
-                    )
-                )
-            )
-        )
-    }
-
-    fn feature_requirement(&mut self) -> ParseResult {
-        match self.peek()? {
-            Token::Identifier(_) => self.identifier(),
-            Token::ParenOpen => self.feature_requirement_with_paren(),
-            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or open parenthesis"})),
-        }
-    }
-
-    fn feature_requirement_with_paren(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_|
-            match self.peek()? {
-                Token::Identifier(id) => 
-                    match id.as_str() {
-                        "and" => self.and(),
-                        "or" => self.or(),
-                        "not" => self.not(),
-                        _ => self.library_name_after_open(),
-                    }
-                _ => self.library_name_after_open(),
-            }
-        )
-    }
-
-    fn and(&mut self) -> ParseResult {
-        self.keyword("and").and_then(|_| 
-            self.feature_requirement_list().and_then(|requirements| 
-                self.paren_close().and_then(|_| 
-                    self.node(NodeKind::FeatureRequirementAnd, requirements)
-                )
-            )
-        )
-    }
-
-    fn or(&mut self) -> ParseResult {
-        self.keyword("or").and_then(|_| 
-            self.feature_requirement_list().and_then(|requirements| 
-                self.paren_close().and_then(|_| 
-                    self.node(NodeKind::FeatureRequirementOr, requirements)
-                )
-            )
-        )
-    }
-
-    fn not(&mut self) -> ParseResult {
-        self.keyword("not").and_then(|_| 
-            self.feature_requirement().and_then(|requirement| 
-                self.paren_close().and_then(|_| 
-                    self.node(NodeKind::FeatureRequirementNot, vec![requirement])
-                )
-            )
-        )
-    }
-
-    fn feature_requirement_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.feature_requirement().ok()).collect::<Vec<Box<Node>>>())
-    }
-
     ///
     /// Begin
     /// 
@@ -468,42 +204,16 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         // we look for the keyword begin 
         // we then look for definitions. if that is all then we return a BeginDef
         // but if there is an expression then we return a Begin
-        self.keyword("begin").and_then(|_| 
-            self.command_or_definition_list().and_then(|nodes| 
-                self.paren_close().and_then(|_| {
-                    if nodes.iter().all(|node| node.is_definition_expr()) {
-                        return self.node(NodeKind::BeginDef, nodes)
-                    } else {
-                        self.node(NodeKind::Begin, nodes)
-                    }
-                })
-            ),
-        )       
-    }
 
-    fn command_or_definition_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        Ok(from_fn(|| self.command_or_definition().ok()).collect::<Vec<Box<Node>>>())
-    }
+        let _begin = self.keyword("begin")?;
 
-    fn command_or_definition(&mut self) -> ParseResult {
-        match self.lexer.peek().ok_or(Error::new(ErrorKind::EndOfInput))? {
-            Token::ParenOpen => self.paren_open().and_then(|_| {
-                match self.peek()? {
-                    Token::Identifier(id) if matches!(
-                                                id.as_str(),
-                                                "define"
-                                                | "define-values"
-                                                | "define-record-type"
-                                                | "define-syntax"
-                                            ) => self.definition(),
-                    Token::Identifier(id) if matches!(
-                                                id.as_str(),
-                                                "begin"
-                                            ) => self.begin(),
-                    _ => self.compound_expr(),
-                }
-            }),
-            _ => self.atom(),
+        let nodes = self.expr_list()?;
+        self.paren_close()?;
+
+        if nodes.iter().all(|node| node.is_definition_expr()) {
+            return self.node(NodeKind::Begin(true), nodes)
+        } else {
+            self.node(NodeKind::Begin(false), nodes)
         }
     }
 
@@ -515,134 +225,94 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     /// - a parenthesized list of identifiers (i.e. a function definition)
     /// 
 
-    fn definition(&mut self) -> ParseResult {
+    fn define(&mut self) -> ParseResult {
+        self.keyword("define")?;
         match self.peek()? {
-            t @ Token::Identifier(id) => 
-                match id.as_str() {
-                    "define" => self.variable_or_function_definition(),
-                    "define-values" => self.values_definition(),
-                    "define-record-type" => self.record_type_definition(),
-                    "define-syntax" => self.syntax_definition(),
-                    _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "define, define-values, define-record-type, define-syntax"})),
-                },
-            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "define, define-values, define-record-type, define-syntax"})),
+            Token::Identifier(_) => self.variable_definition(),
+            Token::ParenOpen => self.function_definition(),
+            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "identifier or open paren"})),
         }
-    }
-
-    fn variable_or_function_definition(&mut self) -> ParseResult {
-        self.keyword("define").and_then(|_| 
-            match self.peek()? {
-                Token::Identifier(_) => self.variable_definition(),
-                Token::ParenOpen => self.function_definition(),
-                t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "identifier or open paren"})),
-            },
-        )
     }
         
     fn variable_definition(&mut self) -> ParseResult {
-        self.identifier().and_then(
-            |id| self.expr().and_then(
-                |expr| self.paren_close().and_then(
-                    |_| self.node(NodeKind::VariableDefinition, vec![id, expr])
-                )
-            )
-        )
+        let id = self.identifier()?;
+        let expr = self.expr()?;
+        self.node(NodeKind::Define, vec![id, expr])
     }
         
     fn function_definition(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_| 
-            self.identifier().and_then(|id| 
-                self.def_formals().and_then(|formals| 
-                    self.paren_close().and_then(|_| 
-                        self.body().and_then(|body| 
-                            self.paren_close().and_then(|_| 
-                                self.node(NodeKind::FunctionDefinition, vec![id, formals, body])
-                            )
-                        )
-                    )
-                )
-            )
-        )
+        self.paren_open()?;
+        let id = self.identifier()?;
+        let formals = self.def_formals()?;
+        self.paren_close()?;
+        let body = self.body()?;
+        self.node(NodeKind::DefineFunction, vec![id, formals, body])
     } 
 
     fn def_formals(&mut self) -> ParseResult {
-        self.identifier_list()
+        self.identifier_list_possible_dot()
     }
 
-    fn values_definition(&mut self) -> ParseResult {
-        self.keyword("define-values").and_then(|_| 
-            self.formals().and_then(|formals| 
-                self.body().and_then(|exprs| 
-                    self.paren_close().and_then(|_| 
-                        self.node(NodeKind::ValuesDefinition, vec![formals, exprs])
-                    )
-                )
-            )
-        )
+    fn define_values(&mut self) -> ParseResult {
+        let _define_values = self.keyword("define-values")?;
+        let formals = self.formals()?;
+        let exprs = self.body()?;
+        self.node(NodeKind::DefineValues, vec![formals, exprs])
     }
 
-    fn record_type_definition(&mut self) -> ParseResult {
-        self.keyword("define-record-type").and_then(|_| 
-            self.identifier().and_then(|id1| 
-                self.constructor().and_then(|constructor| 
-                    self.identifier().and_then(|id2| 
-                        self.field_specs().and_then(|field_specs| 
-                            self.paren_close().and_then(|_| 
-                                self.node(NodeKind::RecordTypeDefinition, vec![id1, constructor, id2, field_specs])
-                            )
-                        )
-                    )
-                )
-            )
+    fn define_record_type(&mut self) -> ParseResult {
+        let _define_record_type = self.keyword("define-record-type")?;
+        let id1 = self.identifier()?;
+        let constructor = self.constructor()?;
+        let id2 = self.identifier()?;
+        let field_specs = self.field_spec_list()?;
+        self.node(
+            NodeKind::DefineRecordType,
+            once(id1).chain(once(constructor)).chain(once(id2)).chain(field_specs).collect()
         )
     }
 
     fn constructor(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_|
-            self.identifier().and_then(|id|
-                self.identifier_list().and_then(|field_names|
-                    self.paren_close().and_then(|_|
-                        self.node(NodeKind::List, vec![id, field_names])
-                    )
-                )
-            )
-        )
+        self.paren_open()?;
+        let id = self.identifier()?;
+        let field_names = self.identifier_list()?;
+        self.paren_close()?;
+
+        self.node(NodeKind::List, once(id).chain(field_names).collect())
     }
 
-    fn field_specs (&mut self) -> ParseResult {
-        Ok(from_fn(|| self.field_spec().ok()).collect::<Vec<Box<Node>>>()).and_then(|nodes|
-            self.node(NodeKind::List, nodes))
+    fn field_spec_list (&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.field_spec().ok()).collect::<Vec<Box<Node>>>())
     }
 
     fn field_spec(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_|
-            self.identifier().and_then(|field_name|
-                self.identifier().and_then(|accessor|
-                    match self.peek()? {
-                        Token::ParenClose => {
-                            return self.node(NodeKind::List, vec![field_name, accessor])
-                        },
-                        _ => self.identifier().and_then(|mutator|
-                                self.paren_close().and_then(|_|
-                                    self.node(NodeKind::List, vec![field_name, accessor, mutator])
-                                )
-                            ),
-                    }
-                )
-            )
-        )
+        self.paren_open()?;
+
+        let field_name = self.identifier()?;
+        let accessor = self.identifier()?;
+        let node = match self.peek()? {
+            Token::ParenClose => {
+                self.node(NodeKind::List, vec![field_name, accessor])
+            },
+            Token::Identifier(_) => {
+                let mutator = self.identifier()?;
+                self.node(NodeKind::List, vec![field_name, accessor, mutator])
+            }
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or close parenthesis"})),
+        }?;
+
+        self.paren_close()?;
+
+        Ok(node)
+
     }
 
-    fn syntax_definition(&mut self) -> ParseResult {
-        self.keyword("define-syntax").and_then(|_| 
-            self.identifier().and_then(|id| 
-                self.transformer_spec().and_then(|expr| 
-                    self.paren_close().and_then(|_| 
-                        self.node(NodeKind::SyntaxDefinition, vec![id, expr])
-                    )
-                )
-            )
-        )
+    fn define_syntax(&mut self) -> ParseResult {
+        let _define_syntax = self.keyword("define-syntax")?;
+        let id = self.identifier()?;
+        let expr = self.transformer_spec()?;
+
+        self.node(NodeKind::DefineSyntax, vec![id, expr])        
     }
 
     ///
@@ -651,28 +321,22 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     /// 
     ///
     fn conditional(&mut self) -> ParseResult {
-        self.keyword("if").and_then(
-            |_| self.expr().and_then(
-                |test| self.expr().and_then(
-                    |consequent| 
-                    match self.peek()? {
-                        Token::ParenClose => {
-                            self.lexer.next(); // consume ParenClose
-                            return self.node(NodeKind::Conditional, vec![test, consequent])
-                        },
-                        
-                        _ => self.expr().and_then(|alternative| 
-                            self.paren_close()
-                            .or(Err(Error::new(ErrorKind::NotImplemented)))
-                            .and_then(|_| self.node(NodeKind::Conditional, vec![test, consequent, alternative])
-                            )
-                        ),
-                    }
-                )
-            )
-        )
-    }        
-        
+        let _if = self.keyword("if")?;
+        let test = self.expr()?;
+        let consequent = self.expr()?;
+
+        match self.peek()? {
+            Token::ParenClose => self.node(NodeKind::Conditional, vec![test, consequent]),   
+            _ => {
+                let alternative = self.expr()?;
+                match self.peek()? {
+                    Token::ParenClose => self.node(NodeKind::Conditional, vec![test, consequent, alternative]),
+                    _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "close parenthesis"})),
+                }
+            },
+        }
+    }
+
     ///
     /// Lambda
     /// 
@@ -680,27 +344,21 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     ///
 
     fn lambda(&mut self) -> ParseResult {
-        self.keyword("lambda").and_then(|_| 
-            self.formals().and_then(|formals|
-                self.body().and_then(|body| 
-                    self.paren_close().and_then(|_| 
-                        self.node(NodeKind::Lambda, vec![formals, body])
-                    )
-                )
-            )
-        )
+        let _lambda = self.keyword("lambda")?;
+        let formals = self.formals()?;
+        let body = self.body()?;
+        self.node(NodeKind::Lambda, vec![formals, body])
     }
 
     fn formals(&mut self) -> ParseResult {   
         match self.peek()? {
             Token::Identifier(_) => self.identifier(),
-            Token::ParenOpen => self.paren_open().and_then(|_|
-                                    self.identifier_list().and_then(|ids|
-                                        self.paren_close().and_then(|_|
-                                            Ok(ids)
-                                        )
-                                    )
-                                ),
+            Token::ParenOpen => {
+                self.paren_open()?;
+                let ids = self.identifier_list_possible_dot()?;
+                self.paren_close()?;
+                Ok(ids)
+            }
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "identifier or open parenthesis"})),
         }
     }
@@ -712,8 +370,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn body(&mut self) -> ParseResult {        
         match self.peek()? {
             Token::ParenClose => Err(Error::new(ErrorKind::EmptyBodyinLambda)),
-            _ => self.expr_list().and_then(|exprs| {
+            _ => {
+                let exprs = self.expr_list()?;
                 let mut defs = true;
+
                 for expr in exprs.iter() {
                     if expr.is_definition_expr() {
                         if defs == false {
@@ -724,7 +384,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     }
                 }
                 self.node(NodeKind::List, exprs)
-            }),
+            }
         }
     }
 
@@ -735,13 +395,16 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     ///
 
     fn quotation(&mut self) -> ParseResult {
-        self.keyword("quote").and_then(|_| 
-            self.datum().and_then(|datum|
-                self.paren_close().and_then(|_|
-                    self.node(NodeKind::Quotation, vec![datum])
-                )
-            )
-        )
+        let _quote = self.keyword("quote")?;
+        let datum = self.datum()?;
+        self.node(NodeKind::Quotation, vec![datum])
+    }
+
+    fn quotation_short(&mut self) -> ParseResult {
+        // Implements '<datum> (i.e. single quote followed by datum)
+        let _quote = self.quote()?;
+        let datum = self.datum()?;
+        self.node(NodeKind::Quotation, vec![datum])
     }
 
     ///
@@ -751,15 +414,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     ///
 
     fn assignment(&mut self) -> ParseResult {
-        self.keyword("set!").and_then(|_|
-            self.identifier().and_then(|id| 
-                self.expr().and_then(|expr| 
-                    self.paren_close().and_then(|_| 
-                        self.node(NodeKind::Assignment, vec![id, expr])
-                    )
-                )
-            )
-        )        
+        self.keyword("set!")?;
+        
+        let id = self.identifier()?;
+        let expr = self.expr()?;
+
+        self.node(NodeKind::Assignment, vec![id, expr])
     }
 
     ///
@@ -769,17 +429,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     /// 
 
     fn procedure_call(&mut self) -> ParseResult {
-        self.expr().and_then(|operator| 
-            self.expr_list().and_then(|operands|
-                self.paren_close().and_then(|_| {
-                    self.node(
-                        NodeKind::ProcedureCall,
-                        once(operator)
-                        .chain(operands.into_iter())
-                        .collect())    
-                })
-            )
-        )
+        let operator = self.expr()?;
+        let operands = self.expr_list()?;
+        self.node(NodeKind::ProcedureCall, once(operator).chain(operands).collect())
     }
 
     ///
@@ -790,55 +442,35 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn macro_block(&mut self) -> ParseResult {
         // we look for the keywords let-syntax or letrec-syntax
-        let node = match self.peek()? {
+        match self.peek()? {
             t @ Token::Identifier(id) => 
                 match id.as_str() {
-                    "let-syntax" => self.let_syntax(),
-                    "letrec-syntax" => self.letrec_syntax(),
+                    "let-syntax" | "letrec-syntax"=> {
+                        let keyword = self.identifier()?;
+                        self.paren_open()?;
+                        let syntax_specs = self.syntax_specs()?;
+                        self.paren_close()?;
+                        let body = self.body()?;
+                        Ok(self.node(NodeKind::MacroBlock, once(keyword).chain(syntax_specs).chain(once(body)).collect()))
+                    }
                      _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "let-syntax or letrec-syntax" })),
                 },
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "let-syntax or letrec-syntax" })),
-        }?;
-
-        self.node(NodeKind::MacroBlock, vec![node])
+        }?
     }
 
-    fn let_syntax(&mut self) -> ParseResult {
-        self.keyword("let-syntax").and_then(|_| 
-            self.macro_block_suffix().and_then(|(transformer_specs, body)|
-                self.node(NodeKind::LetSyntax, vec![transformer_specs, body])))
-    }
-
-    fn letrec_syntax(&mut self) -> ParseResult {
-        self.keyword("letrec-syntax").and_then(|_| 
-            self.macro_block_suffix().and_then(|(transformer_specs, body)|
-                self.node(NodeKind::LetRecSyntax, vec![transformer_specs, body])))
-    }
-
-    fn macro_block_suffix(&mut self) -> Result<(Box<Node>, Box<Node>), Error> {
-        // ( <syntax spec>* ) <body> )
-        self.paren_open().and_then(|_|
-            self.syntax_specs().and_then(|syntax_specs|
-                self.paren_close().and_then(|_|
-                    self.body().and_then(|body|
-                        self.paren_close().and_then(|_|
-                            Ok((syntax_specs, body)))))))
-    }
-
-    fn syntax_specs(&mut self) -> ParseResult {
-        
+    fn syntax_specs(&mut self) -> Result<Vec<Box<Node>>, Error> {
         // <syntax spec>*
         Ok(from_fn(|| self.syntax_spec().ok()).collect::<Vec<Box<Node>>>())
-            .and_then(|specs| self.node(NodeKind::SyntaxSpecList, specs))
     }
 
     fn syntax_spec(&mut self) -> ParseResult {
         // ( <keyword> <transformer spec> )
-        self.paren_open().and_then(|_|
-            self.identifier().and_then(|keyword| 
-                self.transformer_spec().and_then(|transformer_spec|
-                    self.paren_close().and_then(|_|
-                        self.node(NodeKind::SyntaxSpec, vec![keyword, transformer_spec])))))
+        self.paren_open()?;
+        let keyword = self.identifier()?;
+        let transformer_spec = self.transformer_spec()?;
+        self.paren_close()?;
+        self.node(NodeKind::List, vec![keyword, transformer_spec])
     }
 
     ///
@@ -847,57 +479,42 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     /// 
     
     fn transformer_spec(&mut self) -> ParseResult {
-        
-        self.paren_open().and_then(|_|
-            self.keyword("syntax-rules").and_then(|_| 
-                match self.peek()? {
-                    Token::Identifier(_) => self.identifier().and_then(|id|
-                        self.transformer_spec_suffix().and_then(|(transformer_spec_identifier_list, syntax_rule_list)|
-                            self.node(NodeKind::TransformerSpec, vec![id, transformer_spec_identifier_list, syntax_rule_list]))),
-                    Token::ParenOpen => self.transformer_spec_suffix().and_then(|(transformer_spec_identifier_list, syntax_rule_list)|
-                        self.node(NodeKind::TransformerSpec, vec![transformer_spec_identifier_list, syntax_rule_list])),
-                    t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier or open parenthesis" })),
-                }))
+        self.paren_open()?;
+        self.keyword("syntax-rules")?;
+
+        let id = self.identifier();
+
+        self.paren_open()?;
+
+        let ids = self.identifier_list()?;
+        let ids = self.node(NodeKind::List, ids)?;
+
+        self.paren_close()?;
+        let syntax_rule_list = self.syntax_rule_list()?;
+        let syntax_rule_list = self.node(NodeKind::List, syntax_rule_list)?;
+
+        self.paren_close()?;
+
+        let children = match id {
+            Ok(id) => vec!(id, ids, syntax_rule_list),
+            Err(_) => vec!(ids, syntax_rule_list),
+        };
+
+        self.node(NodeKind::List, children)
     }
 
-    fn transformer_spec_suffix(&mut self) -> Result<(Box<Node>, Box<Node>), Error> {
-        // ( <identifier>* ) <syntax rule>* )
-        self.paren_open().and_then(|_|
-            self.transformer_spec_identifier_list().and_then(|transformer_spec_identifier_list|
-                self.paren_close().and_then(|_|
-                    self.syntax_rule_list().and_then(|syntax_rule_list|
-                        self.paren_close().and_then(|_| 
-                            Ok((transformer_spec_identifier_list, syntax_rule_list))
-                        )
-                    )
-                )
-            )
-        )
-    }
-
-    fn transformer_spec_identifier_list(&mut self) -> ParseResult {
-        // <identifier>*
-        Ok(from_fn(|| self.identifier().ok()).collect::<Vec<Box<Node>>>())
-            .and_then(|ids| self.node(NodeKind::TransformerSpecIdentifierList, ids))
-    }
-
-    fn syntax_rule_list(&mut self) -> ParseResult {
+    fn syntax_rule_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
         // <syntax rule>*
         Ok(from_fn(|| self.syntax_rule().ok()).collect::<Vec<Box<Node>>>())
-            .and_then(|syntax_rules| self.node(NodeKind::SyntaxRuleList, syntax_rules))
     }
 
     fn syntax_rule(&mut self) -> ParseResult {
         // ( <pattern> <template> )
-        self.paren_open().and_then(|_|
-            self.pattern().and_then(|pattern|
-                self.template().and_then(|template|
-                    self.paren_close().and_then(|_|
-                        self.node(NodeKind::SyntaxRule, vec![pattern, template])
-                    )
-                )
-            )
-        )
+        self.paren_open()?;
+        let pattern = self.pattern()?;
+        let template = self.template()?;
+        self.paren_close()?;
+        self.node(NodeKind::List, vec![pattern, template])
     }
 
     fn pattern(&mut self) -> ParseResult {
@@ -915,13 +532,11 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             Token::ParenOpen => self.pattern_with_paren(),
             Token::SharpOpen => self.pattern_with_sharp_paren(),
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
-        }.and_then(|pattern|
-            self.node(NodeKind::Pattern, vec!(pattern))
-        )
+        }
     }
 
     fn pattern_datum(&mut self) -> ParseResult {
-        self.leaf(NodeKind::PatternDatum)
+        self.leaf(NodeKind::Datum)
     }
 
     fn pattern_identifier(&mut self) -> ParseResult {
@@ -929,24 +544,21 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         match token {
             Token::Identifier(s) if s.as_str() == "..." => Err(Error::new(ErrorKind::EllipsisNotValidPatternIdentifier)),
-            _ => self.identifier().and_then(|id| self.node(NodeKind::PatternIdentifier, vec![id])),
+            _ => self.identifier(),
         }
     }
 
     fn pattern_underscore(&mut self) -> ParseResult {
-        self.keyword("_").and_then(|_| 
-            self.node(NodeKind::PatternUnderscore, vec!()))
+        self.keyword("_")
     }
 
 
     fn pattern_with_paren(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_|
-            self.pattern_with_paren_a().and_then(|pattern_list|
-                self.paren_close().and_then(|_|
-                    self.node(NodeKind::PatternWithParen, vec![pattern_list])
-                )
-            )
-        )
+        self.paren_open()?;
+        let pattern_list = self.pattern_with_paren_a()?;
+        self.paren_close()?;
+
+        Ok(pattern_list)
     }
 
 
@@ -958,36 +570,43 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
         match self.peek()? {
             
-            Token::ParenClose => self.node(NodeKind::PatternParen, vec!()), // empty
+            Token::ParenClose => self.node(NodeKind::List, vec!()), // empty
 
             _ => {
                 let mut pre_ellipse_patterns = self.pattern_pre_ellipse()?;
 
                 match self.peek()? {
                     // <pattern>*            
-                    Token::ParenClose => self.node(NodeKind::PatternParen, vec!(pre_ellipse_patterns)),
-
+                    Token::ParenClose => {
+                        let patterns = self.node(NodeKind::List, pre_ellipse_patterns)?;
+                        self.node(NodeKind::List, vec!(patterns))
+                    },
                     // | <pattern>+ . <pattern>
-                    Token::Dot => 
-                        self.dot().and_then(|_|
-                            self.pattern().and_then(|pattern| {
-                                pre_ellipse_patterns.add_child(pattern);
-                                self.node(NodeKind::PatternParen, vec!(pre_ellipse_patterns))
-                            }
-                            )
-                        ),
+                    Token::Dot => self.dot().and_then(|_|
+                        self.pattern().and_then(|pattern| {
+                            pre_ellipse_patterns.push(pattern);
+                            let patterns = self.node(NodeKind::List, pre_ellipse_patterns)?;
+                            self.node(NodeKind::List, vec!(patterns))        
+                        })
+                    ),
                     Token::Identifier(id) if  id.as_str() == "..." => 
                         self.identifier().and_then(|_ellipsis| {
                             let mut post_ellipse_patterns = self.pattern_post_ellipse()?;
                             match self.peek()? {
                                 // | <pattern>* <pattern> <ellipsis> <pattern>*
-                                Token::ParenClose => self.node(NodeKind::PatternParen, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
+                                Token::ParenClose => {
+                                    let pre_patterns = self.node(NodeKind::List, pre_ellipse_patterns)?;
+                                    let post_patterns = self.node(NodeKind::List, post_ellipse_patterns)?;
+                                    self.node(NodeKind::List, vec!(pre_patterns, post_patterns))
+                                },
                                 // | <pattern>* <pattern> <ellipsis> <pattern>* . pattern
                                 Token::Dot => 
                                     self.dot().and_then(|_|
                                         self.pattern().and_then(|pattern| {
-                                            post_ellipse_patterns.add_child(pattern);
-                                            self.node(NodeKind::PatternParen, vec!(pre_ellipse_patterns, post_ellipse_patterns))
+                                            post_ellipse_patterns.push(pattern);
+                                            let pre_patterns = self.node(NodeKind::List, pre_ellipse_patterns)?;
+                                            let post_patterns = self.node(NodeKind::List, post_ellipse_patterns)?;
+                                            self.node(NodeKind::List, vec!(pre_patterns, post_patterns))
                                         })
                                     ),
                                 t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
@@ -995,47 +614,50 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                         }),
                     t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone() , expected: "close parenthesis, dot or ellipsis" })),
                 }
-
-
             }
         }
     }
 
-    fn pattern_pre_ellipse(&mut self) -> ParseResult {
+    fn pattern_pre_ellipse(&mut self) -> Result<Vec<Box<Node>>, Error> {
         // <pattern>*
-        Ok(from_fn(|| self.pattern().ok()).collect()).and_then(|patterns|
-            self.node(NodeKind::PatternPreEllipse, patterns))
+        Ok(from_fn(|| self.pattern().ok()).collect())
     }
 
-    fn pattern_post_ellipse(&mut self) -> ParseResult {
+    fn pattern_post_ellipse(&mut self) -> Result<Vec<Box<Node>>, Error> {
         // <pattern>*
-        Ok(from_fn(|| self.pattern().ok()).collect()).and_then(|patterns|
-            self.node(NodeKind::PatternPostEllipse, patterns))
+        Ok(from_fn(|| self.pattern().ok()).collect())
     }
     
     fn pattern_with_sharp_paren(&mut self) -> ParseResult {
         //  #( <pattern>* )
         // | #( <pattern>* <pattern> <ellipsis> <pattern>* )
 
-        self.sharpopen().and_then(|_|
-            self.pattern_with_sharp_paren_a().and_then(|pattern_list|
-                self.paren_close().and_then(|_|
-                    self.node(NodeKind::PatternSharp, vec![pattern_list]))))
+        self.sharpopen()?;
+        let pattern_list = self.pattern_with_sharp_paren_a()?;
+        self.paren_close()?;
+        self.node(NodeKind::List, vec![pattern_list])
 
     }
 
     fn pattern_with_sharp_paren_a(&mut self) -> ParseResult {
         match self.peek()? {
-            Token::ParenClose => self.node(NodeKind::PatternSharp, vec!()),
+            Token::ParenClose => self.node(NodeKind::List, vec!()),
             _ => {
                 let pre_ellipse_patterns = self.pattern_pre_ellipse()?;
                 match self.peek()? {
-                    Token::ParenClose => self.node(NodeKind::PatternSharp, vec!(pre_ellipse_patterns)),
+                    Token::ParenClose => {
+                        let patterns = self.node(NodeKind::List, pre_ellipse_patterns)?;
+                        self.node(NodeKind::List, vec!(patterns))
+                    },
                     Token::Identifier(id) if  id.as_str() == "..." =>
                         self.identifier().and_then(|_ellipsis| {
                             let post_ellipse_patterns = self.pattern_post_ellipse()?;
                             match self.peek()? {
-                                Token::ParenClose => self.node(NodeKind::PatternSharp, vec!(pre_ellipse_patterns, post_ellipse_patterns)),
+                                Token::ParenClose => {
+                                    let pre_patterns = self.node(NodeKind::List, pre_ellipse_patterns)?;
+                                    let post_patterns = self.node(NodeKind::List, post_ellipse_patterns)?;
+                                    self.node(NodeKind::List, vec!(pre_patterns, post_patterns))
+                                },
                                 t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis" })),
                             }
                     }),
@@ -1059,22 +681,22 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn template_identifier(&mut self) -> ParseResult {
-        self.pattern_identifier().and_then(|id|
-            self.node(NodeKind::Template, vec![id]))
+        self.pattern_identifier()
     }
 
     fn template_with_paren(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_|
-            self.template_with_paren_a().and_then(|template|
-                self.paren_close().and_then(|_|
-                    self.node(NodeKind::TemplateWithParen, template))))
+        self.paren_open()?;
+        let template = self.template_with_paren_a()?;
+        self.paren_close()?;
+
+        self.node(NodeKind::List, template)
     }
 
     fn template_with_paren_a(&mut self) -> Result<Vec<Box<Node>>, Error> {
         match self.peek()? {
             Token::ParenClose => Ok(vec!()), // empty list
             _ => self.template_element().and_then(|first| // non-empty list so get first template_element
-                    self.template_element_sequence().and_then(|template_element_sequence| // get rest of template_element sequence
+                    self.template_element_list().and_then(|template_element_sequence| // get rest of template_element sequence
                         match self.peek()? {
                             Token::ParenClose => Ok(once(first).chain(template_element_sequence).collect()),
                             Token::Dot => self.dot().and_then(|_|
@@ -1095,29 +717,26 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         
         match self.peek()? {
             Token::Identifier(id) if id.as_str() == "..." => { 
-                self.lexer.next();
-                self.node(NodeKind::TemplateElementEllipsis, vec![template])
+                let ellipsis = self.leaf(NodeKind::Identifier)?;
+                self.node(NodeKind::List, vec![ellipsis, template])
             }
-            _ => self.node(NodeKind::TemplateElement, vec![template])
+            _ => self.node(NodeKind::List, vec![template])
         }
     }
 
     fn template_with_sharp_paren(&mut self) -> ParseResult {
-        self.sharpopen().and_then(|_|
-            self.template_element_sequence().and_then(|template_list|
-                self.paren_close().and_then(|_|
-                    self.node(NodeKind::TemplateSharp, template_list)
-                )
-            )
-        )
+        self.sharpopen()?;
+        let template_list = self.template_element_list()?;
+        self.paren_close()?;
+        self.node(NodeKind::List, template_list)
     }
 
-    fn template_element_sequence(&mut self) -> Result<Vec<Box<Node>>, Error> {
+    fn template_element_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
         Ok(from_fn(|| self.template_element().ok()).collect())
     }
 
     fn template_datum(&mut self) -> ParseResult {
-        self.leaf(NodeKind::TemplateDatum)
+        self.leaf(NodeKind::Datum)
     }
 
     ///
@@ -1130,7 +749,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         .or_else(|_| self.abbreviation())
         .or_else(|_| self.list())
         .or_else(|_| self.vector())
-        .and_then(|node| self.node(NodeKind::Datum, vec![node]))
     }
 
     fn simple_datum(&mut self) -> ParseResult {
@@ -1150,49 +768,44 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn abbreviation(&mut self) -> ParseResult {
-        self.quote()
+        let prefix = self.quote()
         .or_else(|_| self.quasiquote())
         .or_else(|_| self.comma())
-        .or_else(|_| self.comma_at())
-        .and_then(|prefix| 
-            self.datum().and_then(|expr| 
-                self.node(NodeKind::List, vec!(prefix, expr))
-            )
-        )
+        .or_else(|_| self.comma_at())?;
+
+        let expr = self.datum()?;
+
+        self.node(NodeKind::List, vec!(prefix, expr))
     }
 
     fn list(&mut self) -> ParseResult {
-        self.paren_open().and_then(|_| 
-            self.datum_list().and_then(|data| 
-                self.paren_close().and_then(|_| 
-                    self.node(NodeKind::List, data)
-                )
-            )
-        )
+        self.paren_open()?;
+        let data = self.datum_list_possible_dot()?;
+        self.paren_close()?;
+        self.node(NodeKind::List, data)
+    }
+
+    fn datum_list_possible_dot(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        match self.peek()? {
+            Token::ParenClose => Ok(vec!()), // empty list
+            _ => {
+                let datum = self.datum()?;
+                let data = self.datum_list()?;
+
+                match self.peek()? {
+                    Token::ParenClose => Ok(once(datum).chain(data).collect()),
+                    Token::Dot => {
+                        self.dot()?;
+                        let last = self.datum()?;
+                        Ok(once(datum).chain(data).chain(once(last)).collect())
+                    },
+                    t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
+                }
+            },
+        }
     }
 
     fn datum_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
-        match self.peek()? {
-            Token::ParenClose => Ok(vec!()), // empty list
-            _ => self.datum()
-                    .and_then(|first| // non-empty list so get first datum
-                        self.datum_sequence().and_then(|datum_sequence| // get rest of datum sequence
-                            match self.peek()? {
-                                Token::ParenClose => Ok(once(first).chain(datum_sequence).collect()),
-                                Token::Dot => self.dot().and_then(|_|
-                                                self.datum().and_then(|last|
-                                                    Ok(once(first)
-                                                        .chain(datum_sequence)
-                                                        .chain(once(last))
-                                                        .collect()))),
-                                t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
-                            }
-                        )
-                    ),
-       }
-    }
-
-    fn datum_sequence(&mut self) -> Result<Vec<Box<Node>>, Error> {
         Ok(from_fn(|| self.datum().ok()).collect())
     }
 
@@ -1203,26 +816,16 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     //
 
     fn include(&mut self) -> ParseResult {
-        self.keyword("include").and_then(|_| 
-            self.string().and_then(|path| 
-                self.string_list().and_then(|strings| 
-                    self.paren_close().and_then(|_|
-                        self.node(NodeKind::Includer, once(path).chain(strings.into_iter()).collect())
-                    )
-                )
-            )
-        )
-    }
+        let keyword = self.leaf(NodeKind::Identifier)?;
 
-    fn include_ci(&mut self) -> ParseResult {
-        self.keyword("include-ci").and_then(|_| 
-            self.string().and_then(|path| 
-                self.string_list().and_then(|strings| 
-                    self.paren_close().and_then(|_|
-                        self.node(NodeKind::IncluderCI, once(path).chain(strings.into_iter()).collect())
-                    )
-                )
-            )
+        let path = self.string()?;
+        let paths = self.string_list()?;
+        self.node(
+            NodeKind::Includer,
+            once(keyword)
+            .chain(once(path))
+            .chain(paths.into_iter())
+            .collect()
         )
     }
 
@@ -1233,21 +836,16 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     //
 
     fn quasiquotation(&mut self, depth: u32) -> ParseResult {
-        self.keyword("quasiquote").and_then(|_| 
-            self.qq_template(depth).and_then(|template| 
-                self.paren_close().and_then(|_| 
-                    self.node(NodeKind::Quasiquotation(depth), vec![template])
-                )
-            )
-        )
+        self.keyword("quasiquote")?;
+
+        let template = self.qq_template(depth)?;
+        self.node(NodeKind::Quasiquotation(depth), vec![template])
     }
 
     fn quasiquotation_short(&mut self, depth: u32) -> ParseResult {
-        self.quasiquote().and_then(|_|
-            self.qq_template(depth).and_then(|template|
-                self.node(NodeKind::Quasiquotation(depth), vec![template])
-            )
-        )
+        self.quasiquote()?;
+        let template = self.qq_template(depth)?;
+        self.node(NodeKind::Quasiquotation(depth), vec!(template))
     }
 
     fn qq_template(&mut self, depth: u32) -> ParseResult {
@@ -1262,19 +860,24 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 | Token::SharpU8Open => self.simple_datum(),
                 Token::SharpOpen => self.qq_template_vector(depth),
                 Token::Comma => self.qq_template_unquotation_short(depth),
-                Token::Quote => self.quote().and_then(|_| self.qq_template(depth)),
+                Token::Quote => {
+                    self.quote()?;
+                    self.qq_template(depth)
+                },
                 Token::Quasiquote => self.quasiquotation_short(depth + 1),
-                Token::ParenOpen => self.paren_open().and_then(|_|
+                Token::ParenOpen => {
+                    self.paren_open()?;
+
                     match self.peek()? {
                         Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(depth + 1),
                         Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth),
-                        _ => self.qq_template_or_splice_list(depth).and_then(|list|
-                            self.paren_close().and_then(|_|
-                                self.node(NodeKind::List, list)
-                            )
-                        ),
+                        _ => {
+                            let list = self.qq_template_or_splice_list(depth)?;
+                            self.paren_close()?;
+                            self.node(NodeKind::List, list)
+                        },
                     }
-                ),
+                },
                 t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "identifier, literal or list" })),
             }    
         }
@@ -1292,45 +895,329 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn qq_splice_unquotation(&mut self, depth: u32) -> ParseResult {
-        self.comma_at().and_then(|_|
-            self.qq_template(depth - 1)
-        )
+        self.comma_at()?;
+        self.qq_template(depth - 1)
     }
 
     fn qq_template_unquotation_short(&mut self, depth: u32) -> ParseResult {
-        self.comma().and_then(|_|
-            self.qq_template(depth - 1).and_then(|template|
-                self.node(NodeKind::Unquotation(depth-1), vec!(template))
-            )
-        )
+        self.comma()?;
+        let template = self.qq_template(depth - 1)?;
+        self.node(NodeKind::Unquotation(depth-1), vec!(template))
     }
 
     fn qq_template_unquotation(&mut self, depth: u32) -> ParseResult {
-        self.keyword("unquote").and_then(|_|
-            self.qq_template(depth - 1).and_then(|template|
-                self.paren_close().and_then(|_|
-                    self.node(NodeKind::Unquotation(depth-1), vec!(template))
-                )
-            )
-        )
+        self.keyword("unquote")?;
+        let template = self.qq_template(depth - 1)?;
+        self.paren_close()?;
+        self.node(NodeKind::Unquotation(depth-1), vec!(template))
     }
 
     fn qq_template_vector(&mut self, depth: u32) -> ParseResult {
-        self.sharpopen().and_then(|_|
-            self.keyword("vector").and_then(|_|
-                self.qq_template_list(depth).and_then(|list|
-                    self.paren_close().and_then(|_|
-                        self.node(NodeKind::Vector, list)
-                    )
-                )
-            )
-        )
+        self.sharpopen()?;
+        self.keyword("vector")?;
+        let list = self.qq_template_list(depth)?;
+        self.paren_close()?;
+        self.node(NodeKind::Vector, list)
     }
 
     fn qq_template_list(&mut self, depth: u32) -> Result<Vec<Box<Node>>, Error> {
         Ok(from_fn(|| self.qq_template(depth).ok()).collect::<Vec<Box<Node>>>())
     }
 
+    ///
+    /// define-library
+    /// 
+    /// 
+    ///
+
+    fn define_library(&mut self) -> ParseResult {
+        self.keyword("define-library")?;
+
+        let name = self.library_name()?;
+        let body = self.library_declaration_list()?;
+        self.node(NodeKind::DefineLibrary, once(name).chain(body).collect())
+    }
+
+    fn library_name(&mut self) -> ParseResult {
+        self.paren_open()?;
+        self.library_name_after_open()
+    }
+
+    fn library_name_after_open(&mut self) -> ParseResult {
+        let part = self.library_name_part()?;
+        let parts = self.library_name_part_list()?;
+        self.paren_close()?;
+        self.node(NodeKind::List, once(part).chain(parts).collect())
+    }
+
+    fn library_name_part(&mut self) -> ParseResult {
+        match self.peek()? {
+            Token::Identifier(_) => self.identifier(),
+            Token::Number(_) => self.uinteger10(),
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or uinteger10"})),
+        }
+    }
+
+    fn library_name_part_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.library_name_part().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn library_declaration(&mut self) -> ParseResult {
+        self.paren_open()?;
+        let declaration = self.library_declaration_inner()?;
+        self.paren_close()?;
+        Ok(declaration)
+    }
+
+    fn library_declaration_inner(&mut self) -> ParseResult {
+        match self.peek()? {
+            Token::Identifier(id) => 
+                match id.as_str() {
+                    "begin" => self.begin(),
+                    "export" => self.export(),
+                    "import" => self.import(),
+                    "include" => self.include(),
+                    "include-ci" => self.include(),
+                    "include-library-declarations" => self.include_library_declarations(),
+                    "cond-expand" => self.cond_expand(),
+                    _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
+                },
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
+            
+        }
+    }
+
+    fn library_declaration_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.library_declaration().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn export(&mut self) -> ParseResult {
+        let export = self.keyword("export")?;
+        let specs = self.export_spec_list()?;
+        self.node(NodeKind::List, once(export).chain(specs.into_iter()).collect())
+    }
+
+    fn export_spec_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.export_spec().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn export_spec(&mut self) -> ParseResult {
+        match self.peek()? {
+            Token::Identifier(_) => self.export_spec_id(),
+            Token::ParenOpen => self.export_spec_rename(),
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or export-spec-list"})),
+        }
+    }
+
+    fn export_spec_id(&mut self) -> ParseResult {
+        let id = self.identifier()?;
+        self.node(NodeKind::List, vec![id])
+    }
+
+    fn export_spec_rename(&mut self) -> ParseResult {
+        self.paren_open()?;
+        self.keyword("rename")?;
+
+        let id1 = self.identifier()?;
+        let id2 = self.identifier()?;
+        self.paren_close()?;
+        self.node(NodeKind::List, vec![id1, id2])
+    }
+
+    fn import(&mut self) -> ParseResult {
+        let import = self.keyword("import")?;
+        let set = self.import_set()?;
+        let sets = self.import_set_list()?;               
+        self.node(
+            NodeKind::List, 
+            once(import)
+            .chain(once(set))
+            .chain(sets).collect()
+        )
+    }
+
+    fn import_set_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.import_set().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn import_set(&mut self) -> ParseResult {
+        self.paren_open()?;
+        let import_set = match self.peek()? {
+            Token::Identifier(id) => 
+                match id.as_str() {
+                    "only" => self.only(),
+                    "except" => self.except(),
+                    "prefix" => self.prefix(),
+                    "rename" => self.rename(),
+                    _ => self.library_name_after_open(),
+                }
+            _ => self.library_name_after_open(),
+        };
+
+        self.paren_close()?;
+
+        import_set
+    }
+
+    fn only(&mut self) -> ParseResult {
+        let only = self.keyword("only")?;
+        let set = self.import_set()?;
+        let id = self.identifier()?;
+        let ids = self.identifier_list()?;
+        self.node(
+            NodeKind::List,
+            once(only)
+            .chain(once(set))
+            .chain(once(id))
+            .chain(ids)
+            .collect()
+        )
+    }
+
+    fn except(&mut self) -> ParseResult {
+        let except = self.keyword("except")?;
+        let set = self.import_set()?;
+        let id = self.identifier()?;
+        let ids = self.identifier_list()?;
+        self.node(
+            NodeKind::List,
+            once(except)
+            .chain(once(set))
+            .chain(once(id))
+            .chain(ids)
+            .collect()
+        )
+    }
+
+    fn prefix(&mut self) -> ParseResult {
+        let prefix = self.keyword("prefix")?;
+        let set = self.import_set()?;
+        let id = self.identifier()?;
+        self.node(NodeKind::List, vec!(prefix, set, id))
+    }
+
+    fn rename(&mut self) -> ParseResult {
+        let rename = self.keyword("rename")?;
+        let set = self.import_set()?;
+        self.paren_open()?;
+
+        let pair = self.identifier_pair()?;
+        let pairs = self.identifier_pair_list()?;
+
+        self.paren_close()?;
+        self.node(
+            NodeKind::List,
+            once(rename)
+            .chain(once(set))
+            .chain(once(pair))
+            .chain(pairs)
+            .collect()
+        )
+    }
+
+    fn identifier_pair_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.identifier_pair().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn identifier_pair(&mut self) -> ParseResult {
+        self.paren_open()?;
+        let id1 = self.identifier()?;
+        let id2 = self.identifier()?;
+
+        let pair = self.node(NodeKind::List, vec![id1, id2]);
+        self.paren_close()?;
+        pair
+    }
+
+    fn cond_expand(&mut self) -> ParseResult {
+        let cond_expand = self.keyword("cond-expand")?;
+
+        let clause = self.cond_clause()?;
+        let clauses = self.cond_clause_list()?;
+        self.node(
+            NodeKind::List,
+            once(cond_expand)
+            .chain(once(clause))
+            .chain(clauses)
+            .collect()
+        )
+    }
+
+    fn cond_clause_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.cond_clause().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn cond_clause(&mut self) -> ParseResult {
+        self.paren_open()?;
+        let requirement = self.feature_requirement()?;
+        let declarations = self.library_declaration_list()?;
+        self.paren_close()?;
+
+        self.node(NodeKind::List, once(requirement).chain(declarations).collect())
+
+    }
+
+    fn feature_requirement(&mut self) -> ParseResult {
+        match self.peek()? {
+            Token::Identifier(_) => self.identifier(),
+            Token::ParenOpen => self.feature_requirement_with_paren(),
+            _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "identifier or open parenthesis"})),
+        }
+    }
+
+    fn feature_requirement_with_paren(&mut self) -> ParseResult {
+        self.paren_open()?;
+
+        let requirement = match self.peek()? {
+            Token::Identifier(id) => 
+                match id.as_str() {
+                    "and" => self.and(),
+                    "or" => self.or(),
+                    "not" => self.not(),
+                    _ => self.library_name_after_open(),
+                }
+            _ => self.library_name_after_open(),
+        };
+
+        self.paren_close()?;
+
+        requirement
+    }
+
+    fn and(&mut self) -> ParseResult {
+        let and = self.keyword("and")?;
+        let requirements = self.feature_requirement_list()?;
+        self.node(NodeKind::List, once(and).chain(requirements).collect())
+    }
+
+    fn or(&mut self) -> ParseResult {
+        let or = self.keyword("or")?;
+        let requirements = self.feature_requirement_list()?;
+        self.node(NodeKind::List, once(or).chain(requirements).collect())
+    }
+
+    fn not(&mut self) -> ParseResult {
+        let not = self.keyword("not")?;
+        let requirement = self.feature_requirement()?;
+        self.node(NodeKind::List, vec!(not, requirement))
+    }
+
+    fn feature_requirement_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
+        Ok(from_fn(|| self.feature_requirement().ok()).collect::<Vec<Box<Node>>>())
+    }
+
+    fn include_library_declarations(&mut self) -> ParseResult {
+        let include_library_declarations = self.keyword("include-library-declarations")?;
+        let string = self.string()?;
+        let strings = self.string_list()?;
+        self.node(
+            NodeKind::List,
+            once(include_library_declarations)
+            .chain(once(string))
+            .chain(strings)
+            .collect()
+        )
+    }
     //
     // Helpers
     //
@@ -1350,13 +1237,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         Ok(Box::new(Node::Leaf(kind, self.lexer.next().unwrap())))
     }
 
-    fn keyword(&mut self, keyword: &str) -> Result<(), Error> {
+    fn keyword(&mut self, keyword: &str) -> ParseResult {
         let token = self.peek()?;
         
         match token {
             Token::Identifier(s) if keyword == s => {
-                self.lexer.next(); // consume keyword
-                Ok(())
+                self.identifier()
             },
             _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: token.clone() , expected: "a  keyword" })),
         }
@@ -1460,33 +1346,34 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         }        
     }
 
-    fn identifier_list(&mut self) -> ParseResult {
+    fn identifier_list_possible_dot(&mut self) -> ParseResult {
         match self.peek()? {
             Token::ParenClose => self.node(NodeKind::List, vec!()), // empty list
-            Token::Identifier(_) => self.identifier().and_then(|first| // non-empty list so get first identifier
-                self.identifier_sequence().and_then(|identifier_sequence| // get rest of identifier sequence
-                    match self.peek()? {
-                        Token::ParenClose => self.node(NodeKind::List, once(first).chain(identifier_sequence).collect()),
-                        Token::Dot => self.dot().and_then(|_|
-                                        self.identifier().and_then(|last|
-                                            self.node(
-                                                NodeKind::List, 
-                                                once(first)
-                                                .chain(identifier_sequence)
-                                                .chain(once(last))
-                                                .collect()
-                                            )
-                                        )
-                                    ),
-                        t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
-                    }
-                )
-            ),
+            Token::Identifier(_) => {
+                let id = self.identifier()?;
+                let ids = self.identifier_list()?;
+
+                match self.peek()? {
+                    Token::ParenClose => self.node(NodeKind::List, once(id).chain(ids).collect()),
+                    Token::Dot => {
+                        self.dot()?;
+                        let last = self.identifier()?;
+                        self.node(
+                            NodeKind::List, 
+                            once(id)
+                            .chain(ids)
+                            .chain(once(last))
+                            .collect()
+                        )
+                    },
+                    t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
+                }
+            },
             t @ _ => Err(Error::new(ErrorKind::UnexpectedToken { unexpected: t.clone(), expected: "close parenthesis or dot" })),
         }   
     }
     
-    fn identifier_sequence(&mut self) -> Result<Vec<Box<Node>>, Error> {
+    fn identifier_list(&mut self) -> Result<Vec<Box<Node>>, Error> {
         Ok(from_fn(|| self.identifier().ok()).collect())
     }
 
@@ -1530,29 +1417,17 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn vector(&mut self) -> ParseResult {
-        self.sharpopen().and_then(|_| 
-            self.datum_list().and_then(|data| 
-                self.paren_close().and_then(|_| 
-                    self.node(NodeKind::Vector, data))))
+        self.sharpopen()?;
+        let data = self.datum_list_possible_dot()?;
+        self.paren_close()?;
+        self.node(NodeKind::Vector, data)
     }
 
     fn bytevector(&mut self) -> ParseResult {
-        self.sharpu8open().and_then(|_| 
-            self.datum_list().and_then(|data| 
-                self.paren_close().and_then(|_| 
-                    self.node(NodeKind::ByteVector, data)
-                )
-            )
-        )
-    }
-
-    /// Implements '<datum> (i.e. single quote followed by datum)
-    fn quotation_short(&mut self) -> ParseResult {
-        self.quote().and_then(
-            |_| self.datum().and_then(
-                |expr| self.node(NodeKind::Quotation, vec![expr])
-            )
-        )
+        self.sharpu8open()?;
+        let data = self.datum_list_possible_dot()?;
+        self.paren_close()?;
+        self.node(NodeKind::ByteVector, data)
     }
 
 }

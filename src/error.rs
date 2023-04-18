@@ -6,7 +6,6 @@ use crate::read::Token;
 #[derive(Debug)]
 pub enum ErrorKind {
     UnexpectedToken{unexpected: Token, expected: &'static str} ,
-    NotImplemented,
     EmptyBodyinLambda,
     DefinitionsBeforeExpressionsinLambda,
     EllipsisNotValidPatternIdentifier,
