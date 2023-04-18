@@ -4,18 +4,17 @@
 //! TODO:
 //! 
 //! [P0]
-//! - test define-library including begin
-//! - test begin
-//! - clean-up: iterator instead of Vec if possible
-//! - Node captures source code
-//! - helper macros - zero or more, one or more, parenthesized
-//! 
-//! [P1]
 //! - Review code for readability
 //! - Benchmark performance
 //! - Review code for performance
 //! 
+//! [P1]
+//! - Node captures source code
+//! 
 //! [P2[]
+//! - clean-up helper macros - zero or more, one or more, optional, parenthesized
+//! - clean-up: iterator instead of Vec if possible
+//! - clean-up: simplify NodeKind - add Keyword and use List to replace expression types
 //! - clean-up: code for optional
 //! - clean-up: error reporting
 //!  
@@ -32,7 +31,7 @@
 //!     for expr in parser {
 //!         match expr { // expr is of type Result<Box<Node>, Error>
 //!             Ok(expr) => println!("{:?}", expr),
-//!             Err(err) => println!("{}", err),
+//!             Err(err) => println!("{:?}", err),
 //!         }
 //!     }
 //! ```
@@ -193,11 +192,11 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                     _ => self.procedure_call(),
                 },
             _ => self.procedure_call(),
-        };
+        }?;
 
         self.paren_close()?;
 
-        expr
+        Ok(expr)
     }
     
     ///
@@ -906,12 +905,13 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn library_name(&mut self) -> ParseResult {
         self.paren_open()?;
-        self.library_name_after_open()
+        let name = self.library_name_after_open()?;
+        self.paren_close()?;
+        Ok(name)
     }
 
     fn library_name_after_open(&mut self) -> ParseResult {
         let parts = self.one_or_more(Parser::library_name_part)?;
-        self.paren_close()?;
         self.node(NodeKind::List, parts)
     }
 
@@ -925,13 +925,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn library_declaration(&mut self) -> ParseResult {
         self.paren_open()?;
-        let declaration = self.library_declaration_inner()?;
-        self.paren_close()?;
-        Ok(declaration)
-    }
-
-    fn library_declaration_inner(&mut self) -> ParseResult {
-        match self.peek()? {
+        let declaration = match self.peek()? {
             Token::Identifier(id) => 
                 match id.as_str() {
                     "begin" => self.begin(),
@@ -945,7 +939,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
                 },
             _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: self.peek()?.clone(), expected: "export, import, include, include-ci, cond-expand"})),
             
-        }
+        }?;
+        self.paren_close()?;
+        Ok(declaration)
     }
 
     fn export(&mut self) -> ParseResult {
@@ -992,18 +988,18 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let import_set = match self.peek()? {
             Token::Identifier(id) => 
                 match id.as_str() {
-                    "only" => self.only(),
-                    "except" => self.except(),
-                    "prefix" => self.prefix(),
-                    "rename" => self.rename(),
-                    _ => self.library_name_after_open(),
+                    "only" => self.only()?,
+                    "except" => self.except()?,
+                    "prefix" => self.prefix()?,
+                    "rename" => self.rename()?,
+                    _ => self.library_name_after_open()?,
                 }
-            _ => self.library_name_after_open(),
+            _ => self.library_name_after_open()?,
         };
 
         self.paren_close()?;
 
-        import_set
+        Ok(import_set)
     }
 
     fn only(&mut self) -> ParseResult {
@@ -1043,12 +1039,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     fn rename(&mut self) -> ParseResult {
         let rename = self.keyword("rename")?;
         let set = self.import_set()?;
-        self.paren_open()?;
 
         let pairs = self.one_or_more(Parser::identifier_pair)?;
 
-
-        self.paren_close()?;
         self.node(
             NodeKind::List,
             once(rename)
@@ -1063,9 +1056,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let id1 = self.identifier()?;
         let id2 = self.identifier()?;
 
-        let pair = self.node(NodeKind::List, vec![id1, id2]);
+        let pair = self.node(NodeKind::List, vec![id1, id2])?;
         self.paren_close()?;
-        pair
+
+        Ok(pair)
     }
 
     fn cond_expand(&mut self) -> ParseResult {
@@ -1087,8 +1081,25 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let declarations = self.zero_or_more(Parser::library_declaration)?;
         self.paren_close()?;
 
-        self.node(NodeKind::List, once(requirement).chain(declarations).collect())
+        let iter = once(requirement).chain(declarations);
 
+        match self.peek()? {
+            Token::ParenClose => self.node(NodeKind::List, iter.collect()),
+            Token::ParenOpen => {
+                let else_clause = self.cond_expand_else()?;
+                self.node(NodeKind::List, iter.chain(once(else_clause)).collect())
+            },
+            t @ _ => Err(Error::new(ErrorKind::UnexpectedToken{unexpected: t.clone(), expected: "close parenthesis or cond-expand else clause"})),
+        }
+    }
+
+    fn cond_expand_else(&mut self) -> ParseResult {
+        self.paren_open()?;
+        let keyword = self.keyword("else")?;
+        let declarations = self.zero_or_more(Parser::library_declaration)?;
+        self.paren_close()?;
+
+        self.node(NodeKind::List, once(keyword).chain(declarations).collect())
     }
 
     fn feature_requirement(&mut self) -> ParseResult {

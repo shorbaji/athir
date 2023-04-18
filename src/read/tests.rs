@@ -196,13 +196,32 @@ fn test_quasiquotation() {
 }
 
 #[test]
-fn test_library() {
+fn test_define_library() {
     let goods = [
         "(define-library (foo))",
         "(define-library (0123))",
         "(define-library (foo 1))",
         "(define-library (foo) (export bar))",
         "(define-library (foo) (include \"bar.scm\"))",
+        "(define-library (foo) (include \"bar.scm\") (export bar))",
+        "(define-library (foo) (export bar) (include \"bar.scm\"))",
+        "(define-library (foo) (import (bar 1)))",
+        "(define-library (foo) (import (only (bar n) x y z)))",
+        "(define-library (foo) (import (except (bar n) x y z)))",
+        "(define-library (foo) (import (prefix (bar n) x)))",
+        "(define-library (foo)
+            (import (rename (bar n) 
+                            (x y)
+                            (z a))))",
+        "(define-library (foo)
+            (begin (define x 1) (+ x 1)))",
+        "(define-library (foo)
+            (include-library-declarations \"bar.scm\" \"baz.scm\"))",
+        "(define-library (foo)
+            (cond-expand (bar (export baz))))",
+        "(define-library (foo)
+            (cond-expand (bar (export baz))
+                    (else (import (qux 1)))))",
     ];
 
     let bads = [
@@ -210,7 +229,36 @@ fn test_library() {
         "(define-library 1)",
         "(define-library (1.23))",
         "(define-library (foo) (include bar))",
+        "(define-library (foo) (import (prefix (bar n) x y)))",
+
     ];
 
     test_parse(&goods, &bads, NodeKind::DefineLibrary);
+}
+
+#[test]
+fn test_begin() {
+    let goods = [
+        "(begin 1 2 3)",
+        "(begin 1)",
+        "(begin (define x 1) (+ x 1))",
+    ];
+
+    let bads = [
+    ];
+
+    test_parse(&goods, &bads, NodeKind::Begin(false));
+}
+
+#[test]
+fn test_begin_def() {
+    let goods = [
+        "(begin (define x 1))",
+        "(begin)",
+    ];
+
+    let bads = [
+    ];
+
+    test_parse(&goods, &bads, NodeKind::Begin(true));
 }
