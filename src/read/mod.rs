@@ -76,7 +76,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     
     pub fn read(&mut self) -> ParseResult {
         self.expr()
-        .or_else(|e| { self.lexer.next(); Err(e) }) // if an error consume the token that caused it
+        .or_else(|e| { 
+            self.lexer.next(); // if we see an error we consume the token that caused it
+            Err(e)
+        }) 
     }
 
     /// 
@@ -120,9 +123,10 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     /// 
     
     fn expr(&mut self) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::ParenLeft => self.compound_expr(),
-            _ => self.atom(),
+        if matches!(self.peek_or_eof()?, Token::ParenLeft) {
+            self.compound()
+        } else {
+            self.atom()
         }
     }
 
@@ -156,115 +160,57 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
             token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "literal" }),
         }
     }
-
-    fn boolean(&mut self) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::Boolean(_) => {
-                let next = self.lexer.next();
-                match next {
-                    Some(token) => match token {
-                            Token::Boolean(b) => Ok(Box::new(Expr::Literal(Literal::Boolean(b)))),
-                            _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "boolean" }),
-                        },
-                    None => Err(SyntaxError::UnexpectedEOF),
-                }
-            },
-            token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "boolean" }),
-        }
-    }
-
-    fn character(&mut self) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::Character(_) => {
-                let next = self.lexer.next();
-                match next {
-                    Some(token) => match token {
-                            Token::Character(c) => Ok(Box::new(Expr::Literal(Literal::Character(c)))),
-                            _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "character" }),
-                        },
-                    None => Err(SyntaxError::UnexpectedEOF),
-                }
-            },
-            token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "character" }),
-        }
-    }
-
     
-    fn string(&mut self) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::String(_) => {
-                let next = self.lexer.next();
-                match next {
-                    Some(token) => match token {
-                            Token::String(s) => Ok(Box::new(Expr::Literal(Literal::String(s)))),
-                            _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "string" }),
-                        },
-                    None => Err(SyntaxError::UnexpectedEOF),
-                }
-            },
-            token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "string" }),
-        }
-    }
-
-    fn number(&mut self) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::Number(_) => {
-                let next = self.lexer.next();
-                match next {
-                    Some(token) => match token {
-                            Token::Number(n) => Ok(Box::new(Expr::Literal(Literal::Number(n)))),
-                            _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "number" }),
-                        },
-                    None => Err(SyntaxError::UnexpectedEOF),
-                }
-            },
-            token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "number" }),
-        }
-    }
-
     /// 
     /// this function handles a non-atomic expression 
     /// starting with a parenthesis we then first look for keywords
     /// if not keyword found we fall back to a procedure call
     /// 
     
-    fn compound_expr(&mut self) -> ParseResult {
+    fn compound(&mut self) -> ParseResult {
         
         // <compound expression> ::= <special form> | <procedure call>
-        // starts with a left parenthesis
-        // we look for a keyword for a special form or else we treat as a procedure call
-        // we then look for a right parenthesis
+        // we start with a left parenthesis
+        // we then call special_form_handler to select a handler based the keyword
+        // if no keyword is found we default to a procedure call
+        // we call the handler and look for a right parenthesis before we return the result
 
         self.paren_left()?;
 
-        let expr = match self.peek_or_eof()? {
-            token @ Token::Identifier(id) => 
-                match id.as_str() {
-                    "begin" => self.begin(),
-                    "define" => self.define(),
-                    "define-values" => self.define_values(),
-                    "define-record-type" => self.define_record_type(),
-                    "define-syntax" => self.define_syntax(),
-                    "define-library" => self.define_library(),
-                    "if" => self.iff(),
-                    "include" => self.include(),
-                    "include-ci" => self.include(),
-                    "lambda" => self.lambda(),
-                    "let-syntax" | "letrec-syntax" => self.macro_block(),
-                    "quasiquote" => self.quasiquotation(1),
-                    "quote" => self.quotation(),
-                    "set!" => self.assignment(),
-                    "unquote" => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string() , expected: "operator or other keyword" }),
-                    _ => self.procedure_call(),
-                },
-            _ => self.procedure_call(),
-        }?;
+        let handler = if let Token::Identifier(id) = self.peek_or_eof()? {
+            Parser::<T>::special_form_handler(id.as_str()).unwrap_or(Parser::procedure_call)
+        } else {
+            Parser::procedure_call
+        };
 
+        let expr = handler(self);
         self.paren_right()?;
 
-        Ok(expr)
+        expr
     }
     
+    fn special_form_handler(id: &str) -> Option<fn (&mut Parser<T>) -> ParseResult> {
+        match id {
+            "begin" => Some(Parser::begin),
+            "define" => Some(Parser::define),
+            "define-values" => Some(Parser::define_values),
+            "define-record-type" => Some(Parser::define_record_type),
+            "define-syntax" => Some(Parser::define_syntax),
+            "define-library" => Some(Parser::define_library),
+            "if" => Some(Parser::iff),
+            "include" => Some(Parser::include),
+            "include-ci" => Some(Parser::include),
+            "lambda" => Some(Parser::lambda),
+            "let-syntax" | "letrec-syntax" => Some(Parser::macro_block),
+            "quasiquote" => Some(|parser| Parser::quasiquotation(parser, 1)),
+            "quote" => Some(Parser::quotation),
+            "set!" => Some(Parser::assignment),
+            "syntax-rules" => Some(Parser::syntax_rules),
+            "unquote" => Some (|_| Err(SyntaxError::UnexpectedToken { unexpected: "unquote".to_string(), expected: "operator or other keyword" })),
+            _ => None,
+        }
+    }
+
     ///
     /// Begin
     /// 
@@ -277,7 +223,6 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         // but if there is an expression then we return a Begin
 
         let begin = self.keyword("begin")?;
-
         let exprs = self.begin_exprs()?;
 
         Expr::list(vec!(begin, exprs))
@@ -287,19 +232,12 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         let exprs = self.zero_or_more(Parser::expr)?;
 
         // we add a tag to the end of the list to indicate if all expressions are definitions
-        let is_def = Box::new(
-                        Expr::Literal(
-                            Literal::Boolean(
-                                exprs
-                                .iter()
-                                .all(|node| node.is_definition_expr())
-                            )
-                        )
-                    );
+        let is_all_defs = exprs.iter().all(|node| node.is_definition_expr());
+        let is_all_defs = Box::new(Expr::Literal(Literal::Boolean(is_all_defs)));
         
         let list = Expr::list(exprs)?;
 
-        Expr::list(vec!(list, is_def))
+        Expr::list(vec!(list, is_all_defs))
     }
 
     ///
@@ -842,10 +780,7 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
     }
 
     fn simple_datum(&mut self) -> ParseResult {
-        self.boolean()
-        .or_else(|_| self.number())
-        .or_else(|_| self.character())
-        .or_else(|_| self.string())
+        self.literal()
         .or_else(|_| self.symbol())
         .or_else(|_| self.bytevector())
     }
@@ -895,13 +830,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         println!("include");
         let keyword = self.keyword_box_leaf_from_next()?;
         println!("keyword: {:?}", keyword);
-        let paths = self.paths()?;
+        let paths = self.strings()?;
         println!("paths: {:?}", paths);
         Expr::list(vec!(keyword, paths))
-    }
-
-    fn paths(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::string)?)
     }
 
     //
@@ -1276,13 +1207,9 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
 
     fn include_library_declarations(&mut self) -> ParseResult {
         let keyword = self.keyword("include-library-declarations")?;
-        let strings = self.include_library_declaration_strings()?;
+        let strings = self.strings()?;
 
         Expr::list(vec!(keyword, strings))
-    }
-
-    fn include_library_declaration_strings(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::string)?)
     }
 
     //
@@ -1369,6 +1296,26 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         self.punctuation(Token::SharpU8Open, "#u8(")
     }
 
+    fn strings(&mut self) -> ParseResult {
+        Expr::list(self.one_or_more(Parser::string)?)
+    }
+
+    fn string(&mut self) -> ParseResult {
+        match self.peek_or_eof()? {
+            Token::String(_) => {
+                let next = self.lexer.next();
+                match next {
+                    Some(token) => match token {
+                            Token::String(s) => Ok(Box::new(Expr::Literal(Literal::String(s)))),
+                            _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "string" }),
+                        },
+                    None => Err(SyntaxError::UnexpectedEOF),
+                }
+            },
+            token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "string" }),
+        }
+    }
+
     fn identifier(&mut self) -> ParseResult {        
         match self.peek_or_eof()? {
             Token::Identifier(_) => Ok(Box::new(Expr::Identifier(Identifier::from(&self.lexer.next().unwrap())))),
@@ -1400,10 +1347,14 @@ impl<T> Parser<T> where T: Iterator<Item = String> {
         Expr::list(ids)
     }
     
-
     fn uinteger10(&mut self) -> ParseResult {
         match self.peek_or_eof()? {
-            Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => self.number(),
+            Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => {
+                match self.lexer.next() {
+                    Some(Token::Number(n)) => Ok(Box::new(Expr::Literal(Literal::Number(n.clone())))),
+                    _ => return Err(SyntaxError::UnexpectedEOF),
+                }
+            },
             token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "uninteger10" }),
         }
     }
