@@ -166,8 +166,14 @@ impl Expr {
     }
 
     pub fn is_definition_expr(&self) -> bool {
+        match self.car() {
+            Some(node) => node.is_define(),
+            None => false,
+        }
+    }
 
-        matches!(self.car(), Some(node) if **node == Expr::Identifier(Identifier::Keyword(Keyword::Define)))
+    pub fn is_define(&self) -> bool {
+        matches!(self, Expr::Identifier(Identifier::Keyword(Keyword::Define)))
     }
 
 }

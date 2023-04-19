@@ -143,8 +143,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::Character(_)
             | Token::Number(_)
             | Token::String(_) => {
-                let next = self.lexer.next();
-                match next {
+                match self.lexer.next() {
                     Some(token) => match token {
                             Token::Boolean(b) => Ok(Box::new(Expr::Literal(Literal::Boolean(b)))),
                             Token::Character(c) => Ok(Box::new(Expr::Literal(Literal::Character(c)))),

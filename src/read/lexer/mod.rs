@@ -68,7 +68,10 @@ impl<T> Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>>{
                 let tokens = lexer.collect::<Vec<Token>>();
                 Some(tokens.into_iter().peekable())
             },
-            Err(_) => None 
+            Err(err) => {
+                println!("Error reading line: {}", err);
+                None 
+            }
         }
     }
 
