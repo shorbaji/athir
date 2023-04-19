@@ -5,10 +5,7 @@ use std::fmt;
 pub enum SyntaxError {
     UnexpectedToken{unexpected: String, expected: &'static str} ,
     DefinitionsBeforeExpressionsinLambda,
-    EllipsisNotValidPatternIdentifier,
-    UnexpectedEOF,
-    // EmptyBodyinLambda,
-    // NotImplemented,
+    EOF,
 }
 
 impl<'a> fmt::Display for SyntaxError {

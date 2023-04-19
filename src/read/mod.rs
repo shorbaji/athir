@@ -6,6 +6,7 @@
 //! - review for readability
 //! - documentation
 //! - tests
+//! - error recovery
 //! 
 //! Example usage:
 //! ```
@@ -61,7 +62,7 @@ impl<T> Iterator for Parser<T> where T: Iterator<Item = Result<String, std::io::
     type Item = ParseResult;
 
     fn next(&mut self) -> Option<Self::Item> {
-        Some(self.read())
+        self.read()
     }
 }
 
@@ -72,12 +73,15 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
     
-    pub fn read(&mut self) -> ParseResult {
-        self.expr()
-        .or_else(|e| { 
-            self.lexer.next(); // if we see an error we consume the token that caused it
-            Err(e)
-        }) 
+    pub fn read(&mut self) -> Option<ParseResult> {
+        match self.expr() {
+            Ok(expr) => Some(Ok(expr)),
+            Err(SyntaxError::EOF) => None,
+            Err(err) => { 
+                self.lexer.next();
+                None
+            },
+        }
     }
 
     /// 
@@ -121,10 +125,9 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     
     fn expr(&mut self) -> ParseResult {
-        if matches!(self.peek_or_eof()?, Token::ParenLeft) {
-            self.compound()
-        } else {
-            self.atom()
+        match self.peek_or_eof()? {
+            Token::ParenLeft => self.compound(),
+            _ => self.atom(),
         }
     }
 
@@ -135,6 +138,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         .or_else(|_| self.quotation_short())
         .or_else(|_| self.quasiquotation_short(1))
         .or_else(|_| self.vector())
+        .or(Err(SyntaxError::UnexpectedToken { unexpected: self.peek_or_eof()?.to_string(), expected: "atom expression" }))
     }
 
     fn literal(&mut self) -> ParseResult {
@@ -151,7 +155,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                             Token::String(s) => Ok(Box::new(Expr::Literal(Literal::String(s)))),
                             _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "literal" }),
                         },
-                    None => Err(SyntaxError::UnexpectedEOF),
+                    None => Err(SyntaxError::EOF),
                 }
             }
             token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "literal" }),
@@ -181,8 +185,11 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         };
 
         let expr = handler(self);
-        self.paren_right()?;
 
+        self.paren_right()?;
+        println!("consumed right paren {:?}", self.peek_or_eof());
+
+        println!("COMPOUND RETURNING {:?} with next is {:?}", expr, self.peek_or_eof());
         expr
     }
     
@@ -428,6 +435,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     ///
 
     fn assignment(&mut self) -> ParseResult {
+        println!("TRYING ASSIGMENT");
         let keyword = self.keyword("set!")?;
         
         let id = self.identifier()?;
@@ -565,7 +573,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let token = self.peek_or_eof()?;
 
         match token {
-            Token::Identifier(s) if s.as_str() == "..." => Err(SyntaxError::EllipsisNotValidPatternIdentifier),
+            Token::Identifier(s) if s.as_str() == "..." => Err(SyntaxError::UnexpectedToken { unexpected: "...".to_string(), expected: "pattern identifier" }),
             _ => self.identifier(),
         }
     }
@@ -824,11 +832,8 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     //
 
     fn include(&mut self) -> ParseResult {
-        println!("include");
         let keyword = self.keyword_box_leaf_from_next()?;
-        println!("keyword: {:?}", keyword);
         let paths = self.strings()?;
-        println!("paths: {:?}", paths);
         Expr::list(vec!(keyword, paths))
     }
 
@@ -945,13 +950,9 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     ///
 
     fn define_library(&mut self) -> ParseResult {
-        println!("define-library");
         let keyword = self.keyword("define-library")?;
-        println!("keyword: {:?}", keyword);
         let name = self.library_name()?;
-        println!("name: {:?}", name);
         let declarations = self.library_declarations()?;
-        println!("declarations: {:?}", declarations);
         Expr::list(vec!(keyword, name, declarations))
     }
 
@@ -980,9 +981,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn library_declaration(&mut self) -> ParseResult {
-        println!("library_declaration {:?}", self.peek_or_eof()?);
         self.paren_left()?;
-        println!("library_declaration paren_open {:?}", self.peek_or_eof()?);
         let declaration = match self.peek_or_eof()? {
             Token::Identifier(id) => 
                 match id.as_str() {
@@ -1003,9 +1002,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn export(&mut self) -> ParseResult {
-        println!("export {:?}", self.peek_or_eof()?);
         let keyword = self.keyword("export")?;
-        println!("export keyword {:?}", keyword);
         let specs = self.export_specs()?;
 
         Expr::list(vec!(keyword, specs))
@@ -1221,7 +1218,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
     
     fn peek_or_eof(&mut self) -> Result<&Token, SyntaxError> {
-        self.peek().ok_or(SyntaxError::UnexpectedEOF)
+        self.peek().ok_or(SyntaxError::EOF)
     }
 
     fn zero_or_more(&mut self, closure: fn(&mut Self) -> ParseResult) -> ParseVecResult {
@@ -1306,7 +1303,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                             Token::String(s) => Ok(Box::new(Expr::Literal(Literal::String(s)))),
                             _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "string" }),
                         },
-                    None => Err(SyntaxError::UnexpectedEOF),
+                    None => Err(SyntaxError::EOF),
                 }
             },
             token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "string" }),
@@ -1349,7 +1346,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => {
                 match self.lexer.next() {
                     Some(Token::Number(n)) => Ok(Box::new(Expr::Literal(Literal::Number(n.clone())))),
-                    _ => return Err(SyntaxError::UnexpectedEOF),
+                    _ => return Err(SyntaxError::EOF),
                 }
             },
             token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "uninteger10" }),
@@ -1367,7 +1364,6 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.sharpu8open()?;
         let data = self.zero_or_more(Parser::expr)?;
         self.paren_right()?;
-
         Ok(Box::new(Expr::Literal(expr::Literal::Bytevector(data))))
     }
 

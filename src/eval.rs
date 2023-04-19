@@ -17,7 +17,6 @@ pub enum Object {
 }
 
 pub fn eval(node: &Box<Expr>) -> Result<Object, &'static str> {
-    println!("eval: {:?}", node);
     match node.deref() {
         Expr::Identifier(identifier) => eval_identifier(identifier),
         Expr::Literal(literal) => eval_literal(literal),

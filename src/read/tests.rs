@@ -1,8 +1,14 @@
 use super::*;
 
 fn test_parse(goods: &[&str], bads: &[&str]) {
-    assert!(Parser::new(goods.iter().map(|s| Ok(s.to_string()))).read().is_ok());
-    assert!(Parser::new(bads.iter().map(|s| Ok(s.to_string()))).read().is_err());
+    let parser = Parser::new(goods.iter().map(|s| Ok(s.to_string())));
+
+    for result in parser {
+        assert!(result.is_ok());
+    }
+
+    let mut parser = Parser::new(bads.iter().map(|s| Ok(s.to_string())));
+    assert!(parser.read().is_none())
 }
 
 #[test]
@@ -25,14 +31,14 @@ fn test_vector() {
     let goods = [
         "#()",
         "#(1 2 3)",
-        "#(0 10 5),"
+        "#(0 10 5)",
     ];
     let bads = [];
     test_parse(&goods, &bads);
 }
 
 #[test]
-fn test_byte_vector() {
+fn test_bytevector() {
     let goods = [
         "#u8()",
         "#u8(1 2 3)",
@@ -90,7 +96,7 @@ fn test_assignment() {
         "(set! x (+ 1 2))"
     ];
     let bads = [
-        "(set! 1 1)",
+        "(set! 1 2)",
         "(set! x)",
         "(set! x 1 2)"
         ];
@@ -107,7 +113,10 @@ fn test_variable_definition() {
 #[test]
 fn test_function_definition() {
     let goods = ["(define (f x) x)", "(define (f) x)", "(define (f x) (set! x 1) x)", "(define (f x y) x)", "(define (f x . y) x)"];
-    let bads = ["(define (f x))", "(define (f x . y z) x)"];
+    let bads = [
+        "(define (f x))",
+        "(define (f x . y z) x)"
+        ];
     test_parse(&goods, &bads);
 }
 
