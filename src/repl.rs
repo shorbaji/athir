@@ -7,14 +7,13 @@
 use std::io::Write;
 
 use crate::read::Parser;
-
 use crate::eval::eval;
 
 pub fn repl() {
     print!("> ");
     std::io::stdout().flush().unwrap();
 
-    let parser = Parser::new(std::io::stdin().lines().map(|l| l.unwrap()));
+    let parser = Parser::new(std::io::stdin().lines());
 
     for expr in parser {
         match expr {

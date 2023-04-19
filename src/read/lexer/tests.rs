@@ -5,7 +5,7 @@ fn test_input<T>(input: &str, expected: T)
 where
     T: IntoIterator<Item = Token>,
 {
-    let source = vec![input.to_string()].into_iter();
+    let source = vec![Ok(input.to_string())].into_iter();
     let mut lex = Lexer::new(source);
     
     for token in expected {

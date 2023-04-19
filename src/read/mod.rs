@@ -53,11 +53,11 @@ type ParseVecResult = Result<Vec<Box<Expr>>, SyntaxError>;
 /// Uses a peekable Lexer to get tokens and then parses them into an AST
 /// (see mod crate::read::lexer)
 
-pub struct Parser <T: Iterator<Item=String>> {
+pub struct Parser <T: Iterator<Item=Result<String, std::io::Error>>> {
     lexer: Lexer<T>,
 }
 
-impl<T> Iterator for Parser<T> where T: Iterator<Item = String> {
+impl<T> Iterator for Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     type Item = ParseResult;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -65,7 +65,7 @@ impl<T> Iterator for Parser<T> where T: Iterator<Item = String> {
     }
 }
 
-impl<T> Parser<T> where T: Iterator<Item = String> {
+impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     pub fn new(source: T) -> Self {
         Self { 
             lexer: Lexer::new(source),

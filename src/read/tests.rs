@@ -1,8 +1,8 @@
 use super::*;
 
 fn test_parse(goods: &[&str], bads: &[&str]) {
-    assert!(Parser::new(goods.iter().map(|s| s.to_string())).read().is_ok());
-    assert!(Parser::new(bads.iter().map(|s| s.to_string())).read().is_err());
+    assert!(Parser::new(goods.iter().map(|s| Ok(s.to_string()))).read().is_ok());
+    assert!(Parser::new(bads.iter().map(|s| Ok(s.to_string()))).read().is_err());
 }
 
 #[test]
