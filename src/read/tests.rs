@@ -1,22 +1,8 @@
 use super::*;
 
 fn test_parse(goods: &[&str], bads: &[&str]) {
-
-    goods
-    .iter()
-    .map(|s| s.to_string())
-    .for_each(|s| {
-        let result = Parser::new([s.clone()].into_iter()).read();
-
-        println!("result: {:?}", result);
-        assert!(result.is_ok(), "failed to parse: {}", s);
-
-    });
-
-    bads
-    .iter()
-    .map(|s| s.to_string())
-    .for_each(|s| assert!(Parser::new([s].into_iter()).read().is_err()));
+    assert!(Parser::new(goods.iter().map(|s| s.to_string())).read().is_ok());
+    assert!(Parser::new(bads.iter().map(|s| s.to_string())).read().is_err());
 }
 
 #[test]

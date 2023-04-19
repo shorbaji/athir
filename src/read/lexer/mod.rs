@@ -24,13 +24,11 @@ mod tests;
 
 mod delimited;
 mod number;
-mod source;
 mod token;
 
 use std::iter::Peekable;
 use delimited::DelimitedLexer;
 pub use token::Token;
-pub use source::Source;
 
 /// Lexer
 /// 
@@ -39,10 +37,11 @@ pub use source::Source;
 /// It holds a Peekable iterator over the tokens produced by the DelimitedLexer 
 /// It also holds a source which is an iterator over strings of input.
 
-pub struct Lexer<T> {
+pub struct Lexer<T> where T: Iterator<Item=String> {
     inner: Peekable<std::vec::IntoIter<Token>>,
     source: T,
 }
+
 
 impl<T> Lexer<T> where T: Iterator<Item=String>{
     pub fn new(source: T) -> Self {

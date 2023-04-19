@@ -9,12 +9,11 @@
 //! 
 //! Example usage:
 //! ```
-//!     // we first create a Source using an iterator over String
 //!     // in this example we use stdin
-//!     // we then create a Parser using the Source
+//!     // we then create a Parser using the stdin lines as the source
 //!     // we then iterate over the Parser to get expressions
 //!     
-//!     let source = Source::new(std::io::stdin().lines().map(|line| line.unwrap()));
+//!     let source = std::io::stdin().lines().map(|line| line.unwrap());
 //!    
 //!     let parser = Parser::new(source);
 //!     for expr in parser {
@@ -42,7 +41,6 @@ use std::iter::{once, from_fn};
 
 use lexer::{Lexer, Token};
 
-pub use lexer::Source; 
 pub use expr::{Literal, Keyword, Identifier, Expr}; 
 pub use error::SyntaxError;
 
