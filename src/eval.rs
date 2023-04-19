@@ -5,7 +5,7 @@
 /// 
 use std::ops::Deref;
 
-use crate::read::{Identifier, Literal, Expr};
+use crate::read::{Identifier, Literal, Keyword, Expr};
 
 #[derive(Debug)]
 pub enum Object {
@@ -16,10 +16,21 @@ pub enum Object {
     Null,
 }
 
-pub fn eval(node: &Box<Expr>) -> Result<Object, &'static str> {
-    match node.deref() {
+pub fn eval(expr: &Box<Expr>) -> Result<Object, &'static str> {
+    match expr.deref() {
         Expr::Identifier(identifier) => eval_identifier(identifier),
         Expr::Literal(literal) => eval_literal(literal),
+        Expr::Pair(car, cdr) => {
+            match &**car {
+                Expr::Identifier(Identifier::Keyword(keyword)) => match keyword {
+                    Keyword::Define => eval_define(cdr),
+                    Keyword::Set => eval_assignment(cdr),
+                    Keyword::Begin => eval_begin(cdr),
+                    Keyword::Quote => eval_quotation(cdr),
+                    _ => Err("eval error: not implemented"),
+                }
+                _ => eval_procedure_call(car, cdr), }
+        }
         _ => Ok(Object::Null),
     }
 }
@@ -36,7 +47,7 @@ fn eval_literal(literal: &Literal) -> Result<Object, &'static str> {
     }
 }
 
-fn eval_procedure_call(_node: &Box<Expr>) -> Result<Object, &'static str> {
+fn eval_procedure_call(_operator: &Box<Expr>, _operands: &Box<Expr>) -> Result<Object, &'static str> {
     // let children = node.children().unwrap();
     // let operator = eval(&children[0])?;
     // let operands = &children[1..].into_iter().map(eval);
@@ -53,7 +64,7 @@ fn eval_procedure_call(_node: &Box<Expr>) -> Result<Object, &'static str> {
 //     Ok(Object::Null)
 // }
 
-fn eval_definition(_node: &Box<Expr>) -> Result<Object, &'static str> {
+fn eval_define(_node: &Box<Expr>) -> Result<Object, &'static str> {
     Ok(Object::Null)
 }
 
@@ -62,10 +73,6 @@ fn eval_assignment(_node: &Box<Expr>) -> Result<Object, &'static str> {
 }
 
 fn eval_begin(_node: &Box<Expr>) -> Result<Object, &'static str> {
-    Ok(Object::Null)
-}
-
-fn eval_begin_def(_node: &Box<Expr>) -> Result<Object, &'static str> {
     Ok(Object::Null)
 }
 

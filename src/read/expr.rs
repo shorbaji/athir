@@ -129,7 +129,10 @@ impl From<&Token> for Literal {
     }
 }
 
+// public methods
+
 impl Expr {
+    /// Creates an expression from a Vec of expressions
     pub fn list(nodes: Vec<Box<Expr>>) -> ParseResult {
         let mut result = Expr::Null;
         for node in nodes.into_iter().rev() {
@@ -139,41 +142,85 @@ impl Expr {
         Ok(Box::new(result))
     }
 
+    /// Checks if the expression is a define expression, i.e 
+    /// (define ...), (define-values ...), (define-record-type ...), (define-syntax ...)
+    /// or (begin (define ...) ...))
+    pub fn is_definition_expr(&self) -> bool {
+        
+        match self.car() {
+            Some(node) => node.is_definition_keyword() || node.is_begin_definition_expr(),
+            None => false,
+        }
+    }
+}
 
-    pub fn car(&self) -> Option<&Box<Expr>> {
+// private methods
+
+#[doc(hidden)]
+impl Expr {
+    fn car(&self) -> Option<&Box<Expr>> {
         match self {
             Expr::Pair(car, _) => Some(car),
             _ => None,
         }
     }
 
-    pub fn _cdr(&self) -> Option<&Box<Expr>> {
+    fn cdr(&self) -> Option<&Box<Expr>> {
         match self {
             Expr::Pair(_, cdr) => Some(cdr),
             _ => None,
         }
     }
 
-    pub fn _is_null(&self) -> bool {
+    fn cadr(&self) -> Option<&Box<Expr>> {
+        match self.cdr() {
+            Some(cdr) => cdr.car(),
+            None => None,
+        }
+    }
+
+    fn _is_null(&self) -> bool {
         match self {
             Expr::Null => true,
             _ => false,
         }
     }
 
-    pub fn _cons(&self, expr: Expr) -> Expr {
+    fn _cons(&self, expr: Expr) -> Expr {
         Expr::Pair(Box::new(self.clone()), Box::new(expr))
     }
 
-    pub fn is_definition_expr(&self) -> bool {
+    fn is_definition_keyword(&self) -> bool {
+        matches!(self, 
+            Expr::Identifier(Identifier::Keyword(Keyword::Define))
+            | Expr::Identifier(Identifier::Keyword(Keyword::DefineValues))
+            | Expr::Identifier(Identifier::Keyword(Keyword::DefineRecordType))
+            | Expr::Identifier(Identifier::Keyword(Keyword::DefineSyntax))
+        )
+    }
+
+    fn is_begin_keyword(&self) -> bool {
+        matches!(self, Expr::Identifier(Identifier::Keyword(Keyword::Begin)))
+    }
+
+    fn is_begin_expr(&self) -> bool {
         match self.car() {
-            Some(node) => node.is_define(),
+            Some(node) => node.is_begin_keyword(),
             None => false,
         }
     }
 
-    pub fn is_define(&self) -> bool {
-        matches!(self, Expr::Identifier(Identifier::Keyword(Keyword::Define)))
+    fn is_begin_definition_expr(&self) -> bool {        
+        self.is_begin_expr() && 
+
+        match self.cdr() {
+            Some(cdr) => match cdr.cadr() {
+                Some(node) => matches!(**node, Expr::Literal(Literal::Boolean(true))),
+                None => false,
+            },
+            None => false,
+        }
     }
+
 
 }

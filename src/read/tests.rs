@@ -1,13 +1,14 @@
 use super::*;
 
 fn test_parse(goods: &[&str], bads: &[&str]) {
-    let parser = Parser::new(goods.iter().map(|s| Ok(s.to_string())));
+    let parser = Reader::new(goods.iter().map(|s| Ok(s.to_string())));
 
     for result in parser {
+        println!("{:?}", result);
         assert!(result.is_ok());
     }
-    
-    // let mut parser = Parser::new(bads.iter().map(|s| Ok(s.to_string())));
+
+    let mut _parser = Reader::new(bads.iter().map(|s| Ok(s.to_string())));
     // assert!(parser.next().is_none())
 }
 
@@ -262,6 +263,7 @@ fn test_begin() {
         "(begin 1 2 3)",
         "(begin 1)",
         "(begin (define x 1) (+ x 1))",
+        "(begin (define x 1))",
     ];
 
     let bads = [

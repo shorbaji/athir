@@ -1,24 +1,16 @@
-//! Athir parser module
-//! Implements recursive descent parser for R7RS Scheme
-//! 
-//! TODO:
-//! 
-//! - review for readability
-//! - documentation
-//! - tests
-//! - error recovery
+//! Athir parser/reader module.
+//! This provides [Reader] which implements recursive descent parser for R7RS Scheme
 //! 
 //! Example usage:
 //! ```
 //!     // in this example we use stdin
-//!     // we then create a Parser using the stdin lines as the source
-//!     // we then iterate over the Parser to get expressions
 //!     
 //!     let source = std::io::stdin().lines());
 //!    
-//!     let parser = Parser::new(source);
-//!     for expr in parser {
-//!         match expr { // expr is of type Result<Box<Node>, Error>
+//!     let reader = Reader::new(source);
+//!     for expr in reader {
+//!         // expr is a Result<Box<Expr>, SyntaxError>
+//!         match expr { 
 //!             Ok(expr) => println!("{:?}", expr),
 //!             Err(err) => println!("{:?}", err),
 //!         }
@@ -31,6 +23,17 @@
 //! - derived expressions not implemented
 //!
 
+
+// TODO:
+// 
+// [P0]
+// - error recovery
+// 
+// [P1]
+// - test: all tests pass including bads
+// - test: is definition for begin
+// 
+
 mod error;
 mod lexer; // lexical analyzer
 mod expr; // abstract syntax tree node
@@ -42,32 +45,38 @@ use std::iter::{once, from_fn};
 
 use lexer::{Lexer, Token};
 
+#[doc(hidden)]
 type ParseResult = Result<Box<Expr>, SyntaxError>;
+
+#[doc(hidden)]
 type ParseVecResult = Result<Vec<Box<Expr>>, SyntaxError>;
 
 //
 // Public API
 //
-// - Parser as an Iterator<Item = Result<Box<Expr>, SyntaxError>
-// - Parser::new(source: T) -> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>>
-// - Parser::next() -> Option<ParseResult>
+// - Reader as an Iterator<Item = Result<Box<Expr>, SyntaxError>
+// - Reader::new(source: T) -> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>>
+// - Reader::next() -> Option<Result<Box<Expr>, SyntaxError>>
 // - Expr
 // - SyntaxError
 // - Literal
 // - Keyword
 
+#[doc(inline)]
 pub use expr::{Literal, Keyword, Identifier, Expr}; 
+#[doc(inline)]
 pub use error::SyntaxError;
 
 /// Parser struct
 /// 
-/// Uses a peekable Lexer to get tokens and then parses them into an AST
-/// (see mod crate::read::lexer)
-pub struct Parser <T: Iterator<Item=Result<String, std::io::Error>>> {
+/// Parses into an [Expr]
+/// 
+pub struct Reader <T: Iterator<Item=Result<String, std::io::Error>>> {
+    #[doc(hidden)]
     lexer: Lexer<T>,
 }
 
-impl<T> Iterator for Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
+impl<T> Iterator for Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     type Item = ParseResult;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -82,7 +91,7 @@ impl<T> Iterator for Parser<T> where T: Iterator<Item = Result<String, std::io::
     }
 }
 
-impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
+impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     pub fn new(source: T) -> Self {
         Self { 
             lexer: Lexer::new(source),
@@ -92,48 +101,41 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
 // private methods
 
-impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {    
-    /// 
-    /// Expressions
-    /// 
-    /// This function implements the following rules from R7RS 7.1.3
-    /// 
-    /// <expression> ::= <identifier>
-    /// | <literal>
-    /// | <procedure call>
-    /// | <lambda expression>
-    /// | <conditional>
-    /// | <assignment>
-    /// | <derived expression>
-    /// | <macro use>
-    /// | <macro block>
-    /// | <includer>
-    /// 
-    /// <literal> ::= <quotation> | <self-evaluating>
-    /// 
-    /// <self-evaluating> ::= <boolean> | <number> | <vector> 
-    /// | <character> | <string> | <bytevector>
-    /// 
-    /// <quotation> ::= ’<datum> | ( quote <datum> )
-    /// 
-    /// 
-    /// Known issues:
-    /// - includer is not implemented
-    /// - macro block is not implemented
-    /// - derived expression is not implemented
-    /// - macro use is not implemented
-    /// - vector and bytevector are not fully implemented
-    /// 
-    /// 
-    /// 1. look for self-evaluating literal expressions
-    /// 2. handle '<datum> quotation directly and leave (quote <datum>) 
-    ///    to compound_expr() since if begins with a parenthesis
-    /// 3. look for identifier
-    /// 4. look for a parenthesis for compount expressions
-    /// 5. return an error to handle unexpected tokens like ,@ etc
-    /// 
-    
+#[doc(hidden)]
+impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {    
+    // 
+    // Expressions
+    // 
+    // This function implements the following rules from R7RS 7.1.3
+    // 
+    // <expression> ::= <identifier>
+    // | <literal>
+    // | <procedure call>
+    // | <lambda expression>
+    // | <conditional>
+    // | <assignment>
+    // | <derived expression>
+    // | <macro use>
+    // | <macro block>
+    // | <includer>
+    // 
+    // <literal> ::= <quotation> | <self-evaluating>
+    // 
+    // <self-evaluating> ::= <boolean> | <number> | <vector> 
+    // | <character> | <string> | <bytevector>
+    // 
+    // <quotation> ::= ’<datum> | ( quote <datum> )
+    // 
+    // 
+    // Known issues:
+    // - derived expression is not implemented
+    // - does not check bytevector elements are bytes (i.e. 0-255)
+    // - no error recovery
+
     fn expr(&mut self) -> ParseResult {
+        // a left parenthesis indicates a compound expression
+        // checks for an atom
+
         match self.peek_or_eof()? {
             Token::ParenLeft => self.compound(),
             _ => self.atom(),
@@ -141,15 +143,19 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn atom(&mut self) -> ParseResult {  
+        // checks for an single-token literal, vector, bytevector, identifier, quotation or quasiquotation
+        // otherwise returns an error
         self.bytevector()
         .or_else(|_| self.identifier())
         .or_else(|_| self.literal())
         .or_else(|_| self.quotation_short())
         .or_else(|_| self.quasiquotation_short(1))
         .or_else(|_| self.vector())
+        .or_else(|_| Err(SyntaxError::UnexpectedToken { unexpected: self.peek_or_eof()?.to_string(), expected: "expression" }))
     }
 
     fn literal(&mut self) -> ParseResult {
+        // checks for a single-token literal, i.e. boolean, character, number or string
         match self.peek_or_eof()? {
             Token::Boolean(_)
             | Token::Character(_)
@@ -170,12 +176,6 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
     
-    /// 
-    /// this function handles a non-atomic expression 
-    /// starting with a parenthesis we then first look for keywords
-    /// if not keyword found we fall back to a procedure call
-    /// 
-    
     fn compound(&mut self) -> ParseResult {
         
         // <compound expression> ::= <special form> | <procedure call>
@@ -187,9 +187,9 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.paren_left()?;
 
         let handler = match self.peek_or_eof()? {
-            Token::Identifier(id) => Parser::<T>::special_form_handler(id.as_str())
-                                                    .unwrap_or(Parser::procedure_call),
-            _ => Parser::procedure_call,
+            Token::Identifier(id) => Reader::<T>::special_form_handler(id.as_str())
+                                                    .unwrap_or(Reader::procedure_call),
+            _ => Reader::procedure_call,
         };
 
         let expr = handler(self);
@@ -199,22 +199,23 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         expr
     }
     
-    fn special_form_handler(id: &str) -> Option<fn (&mut Parser<T>) -> ParseResult> {
+    fn special_form_handler(id: &str) -> Option<fn (&mut Reader<T>) -> ParseResult> {
+        // we look up the keyword and return the handler
         match id {
-            "begin" => Some(Parser::begin),
-            "define" => Some(Parser::define),
-            "define-values" => Some(Parser::define_values),
-            "define-record-type" => Some(Parser::define_record_type),
-            "define-syntax" => Some(Parser::define_syntax),
-            "define-library" => Some(Parser::define_library),
-            "if" => Some(Parser::iff),
-            "include" => Some(Parser::include),
-            "include-ci" => Some(Parser::include),
-            "lambda" => Some(Parser::lambda),
-            "let-syntax" | "letrec-syntax" => Some(Parser::macro_block),
-            "quasiquote" => Some(|parser| Parser::quasiquotation(parser, 1)),
-            "quote" => Some(Parser::quotation),
-            "set!" => Some(Parser::assignment),
+            "begin" => Some(Reader::begin),
+            "define" => Some(Reader::define),
+            "define-values" => Some(Reader::define_values),
+            "define-record-type" => Some(Reader::define_record_type),
+            "define-syntax" => Some(Reader::define_syntax),
+            "define-library" => Some(Reader::define_library),
+            "if" => Some(Reader::iff),
+            "include" => Some(Reader::include),
+            "include-ci" => Some(Reader::include),
+            "lambda" => Some(Reader::lambda),
+            "let-syntax" | "letrec-syntax" => Some(Reader::macro_block),
+            "quasiquote" => Some(|parser| Reader::quasiquotation(parser, 1)),
+            "quote" => Some(Reader::quotation),
+            "set!" => Some(Reader::assignment),
             _ => None,
         }
     }
@@ -227,8 +228,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn begin(&mut self) -> ParseResult {
         // we look for the keyword begin 
-        // we then look for definitions. if that is all then we return a BeginDef
-        // but if there is an expression then we return a Begin
+        // then we look for a list of expressions
 
         let begin = self.keyword("begin")?;
         let exprs = self.begin_exprs()?;
@@ -237,15 +237,19 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn begin_exprs(&mut self) -> ParseResult {
-        let exprs = self.zero_or_more(Parser::expr)?;
+        // we look for a list of expressions after begin
+        // we also create a boolean tag  is_all_defs to indicate if all expressions are definitions
+        // we return a list (exprs is_all_defs)
+        // this is used by the evaluator to determine if the begin expression is itself a definition
 
-        // we add a tag to the end of the list to indicate if all expressions are definitions
+        let exprs = self.zero_or_more(Reader::expr)?;
+
         let is_all_defs = exprs.iter().all(|node| node.is_definition_expr());
         let is_all_defs = Box::new(Expr::Literal(Literal::Boolean(is_all_defs)));
         
-        let list = Expr::list(exprs)?;
+        let exprs = Expr::list(exprs)?;
 
-        Expr::list(vec!(list, is_all_defs))
+        Expr::list(vec!(exprs, is_all_defs))
     }
 
     ///
@@ -308,12 +312,12 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn field_names(&mut self) -> ParseResult {
-        let names = self.zero_or_more(Parser::identifier)?;
+        let names = self.zero_or_more(Reader::identifier)?;
         Expr::list(names)
     }
 
     fn field_specs(&mut self) -> ParseResult {
-        let specs = self.zero_or_more(Parser::field_spec)?;
+        let specs = self.zero_or_more(Reader::field_spec)?;
         Expr::list(specs)
     }
 
@@ -355,7 +359,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn library_declarations(&mut self) -> ParseResult {
-        let declarations = self.zero_or_more(Parser::library_declaration)?;
+        let declarations = self.zero_or_more(Reader::library_declaration)?;
         Expr::list(declarations)
     }
 
@@ -367,7 +371,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn library_name_after_open(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::library_name_part)?)
+        Expr::list(self.one_or_more(Reader::library_name_part)?)
     }
 
     fn library_name_part(&mut self) -> ParseResult {
@@ -407,7 +411,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn export_specs(&mut self) -> ParseResult {
-        let specs = self.zero_or_more(Parser::export_spec)?;
+        let specs = self.zero_or_more(Reader::export_spec)?;
 
         Expr::list(specs)
     }
@@ -443,7 +447,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn import_sets(&mut self) -> ParseResult {
-        let sets = self.zero_or_more(Parser::import_set)?;
+        let sets = self.zero_or_more(Reader::import_set)?;
         Expr::list(sets)
     }
 
@@ -475,7 +479,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn import_set_ids(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::identifier)?)
+        Expr::list(self.one_or_more(Reader::identifier)?)
     }
 
 
@@ -505,7 +509,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn rename_pairs(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::identifier_pair)?)
+        Expr::list(self.one_or_more(Reader::identifier_pair)?)
     }
 
 
@@ -518,7 +522,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn cond_expand_clauses(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::cond_clause)?)
+        Expr::list(self.one_or_more(Reader::cond_clause)?)
     }
 
     fn cond_clause(&mut self) -> ParseResult {
@@ -547,7 +551,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn feature_requirements(&mut self) -> ParseResult {
-        let requirements = self.zero_or_more(Parser::feature_requirement)?;
+        let requirements = self.zero_or_more(Reader::feature_requirement)?;
         Expr::list(requirements)
     }
 
@@ -668,7 +672,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// body cannot have definitions after any expression
     
     fn body(&mut self) -> ParseResult {       
-        let exprs = self.one_or_more(Parser::expr)?;
+        let exprs = self.one_or_more(Reader::expr)?;
         let mut defs = true;
 
         for expr in exprs.iter() {
@@ -709,7 +713,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn syntax_specs (&mut self) -> ParseResult {
-        let syntax_specs = self.zero_or_more(Parser::syntax_spec)?;
+        let syntax_specs = self.zero_or_more(Reader::syntax_spec)?;
         Expr::list(syntax_specs)
     }
 
@@ -858,7 +862,6 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     ///
 
     fn assignment(&mut self) -> ParseResult {
-        println!("TRYING ASSIGMENT");
         let keyword = self.keyword("set!")?;
         
         let id = self.identifier()?;
@@ -881,7 +884,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn operands(&mut self) -> ParseResult {
-        let operands = self.zero_or_more(Parser::expr)?;
+        let operands = self.zero_or_more(Reader::expr)?;
         Expr::list(operands)
     }
 
@@ -913,12 +916,12 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn transformer_spec_ids(&mut self) -> ParseResult {
-        let ids = self.zero_or_more(Parser::identifier)?;
+        let ids = self.zero_or_more(Reader::identifier)?;
         Expr::list(ids)
     }
 
     fn syntax_rules(&mut self) -> ParseResult {
-        let syntax_rules = self.zero_or_more(Parser::syntax_rule)?;
+        let syntax_rules = self.zero_or_more(Reader::syntax_rule)?;
         Expr::list(syntax_rules)
     }
 
@@ -994,7 +997,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 let mut ellipse = false;
 
                 // we look for patterns before ellipse
-                pre_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
+                pre_ellipse_patterns = self.zero_or_more(Reader::pattern)?;
 
                 match self.peek_or_eof()? {
                     Token::ParenRight => (), // no dot
@@ -1009,7 +1012,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                             {
                                 ellipse = true;
                                 let _ellipsis = self.identifier()?;
-                                post_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
+                                post_ellipse_patterns = self.zero_or_more(Reader::pattern)?;
 
                                 if !matches!(self.peek_or_eof()?, Token::ParenRight) { // dot with ellipse and dot 
                                     self.dot()?;
@@ -1025,7 +1028,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                     {
                         ellipse = true;
                         let _ellipsis = self.identifier()?;
-                        post_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
+                        post_ellipse_patterns = self.zero_or_more(Reader::pattern)?;
 
                         if !matches!(self.peek_or_eof()?, Token::ParenRight) {
                             self.dot()?;
@@ -1068,13 +1071,13 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::ParenRight => (), // empty
             _ => {
-                pre_ellipse_patterns = self.one_or_more(Parser::pattern)?;
+                pre_ellipse_patterns = self.one_or_more(Reader::pattern)?;
                 match self.peek_or_eof()? {
                     Token::ParenRight => (),
                     Token::Identifier(id) if  id.as_str() == "..." => {
                         let _ellipsis = self.identifier()?;
                         ellipse = true;
-                        post_ellipse_patterns = self.zero_or_more(Parser::pattern)?;
+                        post_ellipse_patterns = self.zero_or_more(Reader::pattern)?;
 
                     },
                     _ => ()
@@ -1114,7 +1117,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let template = match self.peek_or_eof()? {
             Token::ParenRight => Ok(vec!()), // empty list
             _ => {
-                let mut elements = self.one_or_more(Parser::template_element)?;
+                let mut elements = self.one_or_more(Reader::template_element)?;
                 match self.peek_or_eof()? {
                     Token::ParenRight => Ok(elements),
                     Token::Dot => {
@@ -1146,7 +1149,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn template_with_sharp_paren(&mut self) -> ParseResult {
         self.sharpopen()?;
-        let elements = self.zero_or_more(Parser::template_element)?;
+        let elements = self.zero_or_more(Reader::template_element)?;
         self.paren_right()?;
 
         Expr::list(elements)
@@ -1195,7 +1198,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let mut data: Vec<Box<Expr>> = vec!();
 
         if !matches!(self.peek_or_eof()?, Token::ParenRight) {
-            data = self.one_or_more(Parser::datum)?;
+            data = self.one_or_more(Reader::datum)?;
 
             if !matches!(self.peek_or_eof()?, Token::ParenRight) {
                     self.dot()?;
@@ -1294,7 +1297,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn strings(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::string)?)
+        Expr::list(self.one_or_more(Reader::string)?)
     }
 
     fn string(&mut self) -> ParseResult {
@@ -1334,7 +1337,7 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let mut ids = vec!();
         
         if !matches!(self.peek_or_eof()?, Token::ParenRight) {
-            ids = self.one_or_more(Parser::identifier)?;
+            ids = self.one_or_more(Reader::identifier)?;
             if matches!(self.peek_or_eof()?, Token::Dot) {
                 self.dot()?;
                 ids.push(self.identifier()?);
@@ -1358,14 +1361,14 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn vector(&mut self) -> ParseResult {
         self.sharpopen()?;
-        let data = self.zero_or_more(Parser::expr)?;
+        let data = self.zero_or_more(Reader::expr)?;
         self.paren_right()?;
         Ok(Box::new(Expr::Literal(expr::Literal::Vector(data))))
     }
 
     fn bytevector(&mut self) -> ParseResult {
         self.sharpu8open()?;
-        let data = self.zero_or_more(Parser::expr)?;
+        let data = self.zero_or_more(Reader::expr)?;
         self.paren_right()?;
         Ok(Box::new(Expr::Literal(expr::Literal::Bytevector(data))))
     }

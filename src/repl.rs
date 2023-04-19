@@ -6,16 +6,14 @@
 
 use std::io::Write;
 
-use crate::read::Parser;
+use crate::read::Reader;
 use crate::eval::eval;
 
 pub fn repl() {
     print!("> ");
     std::io::stdout().flush().unwrap();
 
-    let parser = Parser::new(std::io::stdin().lines());
-
-    for expr in parser {
+    for expr in Reader::new(std::io::stdin().lines()) {
         match expr {
             Ok(expr) => println!("{:?}", eval(&expr)),
             Err(err) => println!("{}", err),
