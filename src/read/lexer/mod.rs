@@ -64,14 +64,11 @@ impl<T> Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>>{
     fn refresh(&mut self) -> Option<Peekable<std::vec::IntoIter<Token>>> {
         match self.source.next()? {
             Ok(line) => {
-                let mut lexer = DelimitedLexer::new(&line);
+                let lexer = DelimitedLexer::new(&line);
                 let tokens = lexer.collect::<Vec<Token>>();
                 Some(tokens.into_iter().peekable())
             },
-            Err(err) => {
-                println!("Error reading input: {}", err);
-                None
-            }
+            Err(_) => None 
         }
     }
 

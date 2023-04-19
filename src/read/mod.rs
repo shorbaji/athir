@@ -13,7 +13,7 @@
 //!     // we then create a Parser using the stdin lines as the source
 //!     // we then iterate over the Parser to get expressions
 //!     
-//!     let source = std::io::stdin().lines().map(|line| line.unwrap());
+//!     let source = std::io::stdin().lines());
 //!    
 //!     let parser = Parser::new(source);
 //!     for expr in parser {
