@@ -42,18 +42,27 @@ use std::iter::{once, from_fn};
 
 use lexer::{Lexer, Token};
 
-pub use expr::{Literal, Keyword, Identifier, Expr}; 
-pub use error::SyntaxError;
-
 type ParseResult = Result<Box<Expr>, SyntaxError>;
 type ParseVecResult = Result<Vec<Box<Expr>>, SyntaxError>;
 
-/// 
-/// Parser 
+//
+// Public API
+//
+// - Parser as an Iterator<Item = Result<Box<Expr>, SyntaxError>
+// - Parser::new(source: T) -> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>>
+// - Parser::next() -> Option<ParseResult>
+// - Expr
+// - SyntaxError
+// - Literal
+// - Keyword
+
+pub use expr::{Literal, Keyword, Identifier, Expr}; 
+pub use error::SyntaxError;
+
+/// Parser struct
 /// 
 /// Uses a peekable Lexer to get tokens and then parses them into an AST
 /// (see mod crate::read::lexer)
-
 pub struct Parser <T: Iterator<Item=Result<String, std::io::Error>>> {
     lexer: Lexer<T>,
 }
@@ -62,7 +71,14 @@ impl<T> Iterator for Parser<T> where T: Iterator<Item = Result<String, std::io::
     type Item = ParseResult;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.read()
+        match self.expr() {
+            Ok(expr) => Some(Ok(expr)),
+            Err(SyntaxError::EOF) => None,
+            Err(err) => {
+                self.lexer.next();
+                Some(Err(err))
+            },
+        }
     }
 }
 
@@ -72,18 +88,11 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             lexer: Lexer::new(source),
         }
     }
-    
-    pub fn read(&mut self) -> Option<ParseResult> {
-        match self.expr() {
-            Ok(expr) => Some(Ok(expr)),
-            Err(SyntaxError::EOF) => None,
-            Err(err) => { 
-                self.lexer.next();
-                None
-            },
-        }
-    }
+}
 
+// private methods
+
+impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {    
     /// 
     /// Expressions
     /// 
@@ -138,7 +147,6 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         .or_else(|_| self.quotation_short())
         .or_else(|_| self.quasiquotation_short(1))
         .or_else(|_| self.vector())
-        .or(Err(SyntaxError::UnexpectedToken { unexpected: self.peek_or_eof()?.to_string(), expected: "atom expression" }))
     }
 
     fn literal(&mut self) -> ParseResult {
@@ -178,18 +186,16 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         self.paren_left()?;
 
-        let handler = if let Token::Identifier(id) = self.peek_or_eof()? {
-            Parser::<T>::special_form_handler(id.as_str()).unwrap_or(Parser::procedure_call)
-        } else {
-            Parser::procedure_call
+        let handler = match self.peek_or_eof()? {
+            Token::Identifier(id) => Parser::<T>::special_form_handler(id.as_str())
+                                                    .unwrap_or(Parser::procedure_call),
+            _ => Parser::procedure_call,
         };
 
         let expr = handler(self);
 
         self.paren_right()?;
-        println!("consumed right paren {:?}", self.peek_or_eof());
 
-        println!("COMPOUND RETURNING {:?} with next is {:?}", expr, self.peek_or_eof());
         expr
     }
     
@@ -209,8 +215,6 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             "quasiquote" => Some(|parser| Parser::quasiquotation(parser, 1)),
             "quote" => Some(Parser::quotation),
             "set!" => Some(Parser::assignment),
-            "syntax-rules" => Some(Parser::syntax_rules),
-            "unquote" => Some (|_| Err(SyntaxError::UnexpectedToken { unexpected: "unquote".to_string(), expected: "operator or other keyword" })),
             _ => None,
         }
     }
@@ -338,6 +342,269 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     ///
+    /// define-library
+    /// 
+    /// 
+    ///
+
+    fn define_library(&mut self) -> ParseResult {
+        let keyword = self.keyword("define-library")?;
+        let name = self.library_name()?;
+        let declarations = self.library_declarations()?;
+        Expr::list(vec!(keyword, name, declarations))
+    }
+
+    fn library_declarations(&mut self) -> ParseResult {
+        let declarations = self.zero_or_more(Parser::library_declaration)?;
+        Expr::list(declarations)
+    }
+
+    fn library_name(&mut self) -> ParseResult {
+        self.paren_left()?;
+        let name = self.library_name_after_open()?;
+        self.paren_right()?;
+        Ok(name)
+    }
+
+    fn library_name_after_open(&mut self) -> ParseResult {
+        Expr::list(self.one_or_more(Parser::library_name_part)?)
+    }
+
+    fn library_name_part(&mut self) -> ParseResult {
+        match self.peek_or_eof()? {
+            Token::Identifier(_) => self.identifier(),
+            Token::Number(_) => self.uinteger10(),
+            token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or uinteger10"}),
+        }
+    }
+
+    fn library_declaration(&mut self) -> ParseResult {
+        self.paren_left()?;
+        let declaration = match self.peek_or_eof()? {
+            Token::Identifier(id) => 
+                match id.as_str() {
+                    "begin" => self.begin(),
+                    "export" => self.export(),
+                    "import" => self.import(),
+                    "include" => self.include(),
+                    "include-ci" => self.include(),
+                    "include-library-declarations" => self.include_library_declarations(),
+                    "cond-expand" => self.cond_expand(),
+                    token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"}),
+                },
+            token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"}),
+            
+        }?;
+        self.paren_right()?;
+        Ok(declaration)
+    }
+
+    fn export(&mut self) -> ParseResult {
+        let keyword = self.keyword("export")?;
+        let specs = self.export_specs()?;
+
+        Expr::list(vec!(keyword, specs))
+    }
+
+    fn export_specs(&mut self) -> ParseResult {
+        let specs = self.zero_or_more(Parser::export_spec)?;
+
+        Expr::list(specs)
+    }
+
+    fn export_spec(&mut self) -> ParseResult {
+        match self.peek_or_eof()? {
+            Token::Identifier(_) => self.export_spec_id(),
+            Token::ParenLeft => self.export_spec_rename(),
+            token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or export-spec-list"}),
+        }
+    }
+
+    fn export_spec_id(&mut self) -> ParseResult {
+        self.identifier()
+    }
+
+    fn export_spec_rename(&mut self) -> ParseResult {
+        self.paren_left()?;
+        self.keyword("rename")?;
+
+        let id1 = self.identifier()?;
+        let id2 = self.identifier()?;
+        self.paren_right()?;
+
+        Expr::list(vec!(id1, id2))
+    }
+
+    fn import(&mut self) -> ParseResult {
+        let keyword= self.keyword("import")?;
+        let sets = self.import_sets()?;
+
+        Expr::list(vec!(keyword, sets))
+    }
+
+    fn import_sets(&mut self) -> ParseResult {
+        let sets = self.zero_or_more(Parser::import_set)?;
+        Expr::list(sets)
+    }
+
+    fn import_set(&mut self) -> ParseResult {
+        self.paren_left()?;
+        let import_set = match self.peek_or_eof()? {
+            Token::Identifier(id) => 
+                match id.as_str() {
+                    "only" => self.only()?,
+                    "except" => self.except()?,
+                    "prefix" => self.prefix()?,
+                    "rename" => self.rename()?,
+                    _ => self.library_name_after_open()?,
+                }
+            _ => self.library_name_after_open()?,
+        };
+
+        self.paren_right()?;
+
+        Ok(import_set)
+    }
+
+    fn only(&mut self) -> ParseResult {
+        let keyword = self.keyword("only")?;
+        let set = self.import_set()?;
+        let ids = self.import_set_ids()?;
+
+        Expr::list(vec!(keyword, set, ids))
+    }
+
+    fn import_set_ids(&mut self) -> ParseResult {
+        Expr::list(self.one_or_more(Parser::identifier)?)
+    }
+
+
+    fn except(&mut self) -> ParseResult {
+        let keyword = self.keyword("except")?;
+        let set = self.import_set()?;
+        let ids = self.import_set_ids()?;
+
+        Expr::list(vec!(keyword, set, ids))
+    }
+
+    fn prefix(&mut self) -> ParseResult {
+        let keyword = self.keyword("prefix")?;
+        let set = self.import_set()?;
+        let id = self.identifier()?;
+
+        Expr::list(vec!(keyword, set, id))
+    }
+
+    fn rename(&mut self) -> ParseResult {
+        let keyword = self.keyword("rename")?;
+        let set = self.import_set()?;
+
+        let pairs = self.rename_pairs()?;
+
+        Expr::list(vec!(keyword, set, pairs))
+    }
+
+    fn rename_pairs(&mut self) -> ParseResult {
+        Expr::list(self.one_or_more(Parser::identifier_pair)?)
+    }
+
+
+    fn cond_expand(&mut self) -> ParseResult {
+        let keyword = self.keyword("cond-expand")?;
+
+        let clauses = self.cond_expand_clauses()?;
+
+        Expr::list(vec!(keyword, clauses))
+    }
+
+    fn cond_expand_clauses(&mut self) -> ParseResult {
+        Expr::list(self.one_or_more(Parser::cond_clause)?)
+    }
+
+    fn cond_clause(&mut self) -> ParseResult {
+        self.paren_left()?;
+        let requirement = self.feature_requirement()?;
+        let declarations = self.library_declarations()?;
+        self.paren_right()?;
+
+        let mut vec = vec!(requirement, declarations);
+
+        if matches!(self.peek_or_eof()?, Token::ParenLeft) {
+            let else_clause = self.cond_expand_else()?;
+            vec.push(else_clause);
+        }
+
+        Expr::list(vec)
+    }
+
+    fn cond_expand_else(&mut self) -> ParseResult {
+        self.paren_left()?;
+        let keyword = self.keyword("else")?;
+        let declarations = self.library_declarations()?;
+        self.paren_right()?;
+
+        Expr::list(vec!(keyword, declarations))
+    }
+
+    fn feature_requirements(&mut self) -> ParseResult {
+        let requirements = self.zero_or_more(Parser::feature_requirement)?;
+        Expr::list(requirements)
+    }
+
+    fn feature_requirement(&mut self) -> ParseResult {
+        match self.peek_or_eof()? {
+            Token::Identifier(_) => self.identifier(),
+            Token::ParenLeft => self.feature_requirement_with_paren(),
+            token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open parenthesis"}),
+        }
+    }
+
+    fn feature_requirement_with_paren(&mut self) -> ParseResult {
+        self.paren_left()?;
+
+        let requirement = match self.peek_or_eof()? {
+            Token::Identifier(id) => 
+                match id.as_str() {
+                    "and" => self.and(),
+                    "or" => self.or(),
+                    "not" => self.not(),
+                    _ => self.library_name_after_open(),
+                }
+            _ => self.library_name_after_open(),
+        };
+
+        self.paren_right()?;
+
+        requirement
+    }
+
+    fn and(&mut self) -> ParseResult {
+        let keyword = self.keyword("and")?;
+        let requirements = self.feature_requirements()?; 
+        Expr::list(vec!(keyword, requirements))
+    }
+
+    fn or(&mut self) -> ParseResult {
+        let keyword = self.keyword("or")?;
+        let requirements = self.feature_requirements()?;
+        Expr::list(vec!(keyword, requirements))
+    }
+
+    fn not(&mut self) -> ParseResult {
+        let keyword = self.keyword("not")?;
+        let requirement = self.feature_requirement()?;
+
+        Expr::list(vec!(keyword, requirement))
+    }
+
+    fn include_library_declarations(&mut self) -> ParseResult {
+        let keyword = self.keyword("include-library-declarations")?;
+        let strings = self.strings()?;
+
+        Expr::list(vec!(keyword, strings))
+    }
+
+    ///
     /// Conditionals
     /// 
     /// 
@@ -354,7 +621,18 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
 
         Expr::list(vec)
-        // Expr::List(vec)
+    }
+
+    //
+    // Includer
+    //
+    //
+    //
+
+    fn include(&mut self) -> ParseResult {
+        let keyword = self.keyword_box_leaf_from_next()?;
+        let paths = self.strings()?;
+        Expr::list(vec!(keyword, paths))
     }
 
     ///
@@ -403,6 +681,151 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             }
         }
         Expr::list(exprs)
+    }
+
+    ///
+    /// Macro blocks
+    /// 
+    /// 
+    ///
+
+    fn macro_block(&mut self) -> ParseResult {
+        // we look for the keywords let-syntax or letrec-syntax
+        match self.peek_or_eof()? {
+            token @ Token::Identifier(id) => 
+                match id.as_str() {
+                    "let-syntax" | "letrec-syntax"=> {
+                        let keyword = self.identifier()?;
+                        self.paren_left()?;
+                        let syntax_specs = self.syntax_specs()?;
+                        self.paren_right()?;
+                        let body = self.body()?;
+                        Expr::list(vec!(keyword, syntax_specs, body))
+                    }
+                     _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" }),
+                },
+            token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" }),
+        }
+    }
+
+    fn syntax_specs (&mut self) -> ParseResult {
+        let syntax_specs = self.zero_or_more(Parser::syntax_spec)?;
+        Expr::list(syntax_specs)
+    }
+
+    fn syntax_spec(&mut self) -> ParseResult {
+        // ( <keyword> <transformer spec> )
+        self.paren_left()?;
+        let keyword = self.identifier()?;
+        let transformer_spec = self.transformer_spec()?;
+        self.paren_right()?;
+        Expr::list(vec!(keyword, transformer_spec))
+    }
+
+//
+    // Quasiquotation
+    //
+    //
+    //
+
+    fn quasiquotation(&mut self, depth: u32) -> ParseResult {
+        let keyword = self.keyword("quasiquote")?;
+
+        let template = self.qq_template(depth)?;
+
+        Expr::list(vec!(keyword, template))
+
+    }
+
+    fn quasiquotation_short(&mut self, depth: u32) -> ParseResult {
+        self.quasiquote()?;
+        let keyword = Box::new(Expr::Identifier(Identifier::Keyword(Keyword::from("quasiquote".to_string()))));
+        let template = self.qq_template(depth)?;
+        Expr::list(vec!(keyword, template))
+    }
+
+    fn qq_template(&mut self, depth: u32) -> ParseResult {
+        match depth {
+            0 => self.expr(),
+            _ => match self.peek_or_eof()? {
+                Token::Boolean(_)
+                | Token::Character(_)
+                | Token::String(_)
+                | Token::Number(_)
+                | Token::Identifier(_)
+                | Token::SharpU8Open => self.simple_datum(),
+                Token::SharpOpen => self.qq_template_vector(depth),
+                Token::Comma => self.qq_template_unquotation_short(depth),
+                Token::Quote => {
+                    self.quote()?;
+                    self.qq_template(depth)
+                },
+                Token::Quasiquote => self.quasiquotation_short(depth + 1),
+                Token::ParenLeft => {
+                    self.paren_left()?;
+
+                    match self.peek_or_eof()? {
+                        Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(depth + 1),
+                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth),
+                        _ => {
+                            let list = self.qq_template_or_splice_list(depth)?;
+                            self.paren_right()?;
+                            Expr::list(list)
+                        },
+                    }
+                },
+                token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" }),
+            }    
+        }
+    }
+
+    fn qq_template_or_splice(&mut self, depth: u32) -> ParseResult {
+        match self.peek_or_eof()? {
+            Token::CommaAt => self.qq_splice_unquotation(depth),
+            _ => self.qq_template(depth),
+        }
+    }
+
+    fn qq_template_or_splice_list(&mut self, depth: u32) -> ParseVecResult {
+        Ok(from_fn(|| self.qq_template_or_splice(depth).ok()).collect::<Vec<Box<Expr>>>())
+    }
+
+    fn qq_splice_unquotation(&mut self, depth: u32) -> ParseResult {
+        self.comma_at()?;
+        self.qq_template(depth - 1)
+    }
+
+    fn qq_template_unquotation_short(&mut self, depth: u32) -> ParseResult {
+        let keyword = self.comma()?;
+        let template = self.qq_template(depth - 1)?;
+
+        Expr::list(vec!(keyword, template))
+    }
+
+    fn qq_template_unquotation(&mut self, depth: u32) -> ParseResult {
+        let keyword = self.keyword("unquote")?;
+        let template = self.qq_template(depth - 1)?;
+        self.paren_right()?;
+
+        Expr::list(vec!(keyword, template))
+    }
+
+    fn qq_template_vector(&mut self, depth: u32) -> ParseResult {
+        let keyword = self.sharpopen()?;
+        self.keyword("vector")?;
+        let qq_templates = self.qq_templates(depth)?;
+        self.paren_right()?;
+
+        Expr::list(vec!(keyword, qq_templates))
+    }
+
+    fn qq_templates(&mut self, depth: u32) -> ParseResult {
+        let templates = self.qq_template_list(depth)?;
+        Expr::list(templates)
+    }
+
+    fn qq_template_list(&mut self, depth: u32) -> ParseVecResult {
+        Ok(from_fn(|| self.qq_template(depth).ok()).collect::<Vec<Box<Expr>>>())
     }
 
     ///
@@ -460,45 +883,6 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     fn operands(&mut self) -> ParseResult {
         let operands = self.zero_or_more(Parser::expr)?;
         Expr::list(operands)
-    }
-
-    ///
-    /// Macro blocks
-    /// 
-    /// 
-    ///
-
-    fn macro_block(&mut self) -> ParseResult {
-        // we look for the keywords let-syntax or letrec-syntax
-        match self.peek_or_eof()? {
-            token @ Token::Identifier(id) => 
-                match id.as_str() {
-                    "let-syntax" | "letrec-syntax"=> {
-                        let keyword = self.identifier()?;
-                        self.paren_left()?;
-                        let syntax_specs = self.syntax_specs()?;
-                        self.paren_right()?;
-                        let body = self.body()?;
-                        Expr::list(vec!(keyword, syntax_specs, body))
-                    }
-                     _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" }),
-                },
-            token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "let-syntax or letrec-syntax" }),
-        }
-    }
-
-    fn syntax_specs (&mut self) -> ParseResult {
-        let syntax_specs = self.zero_or_more(Parser::syntax_spec)?;
-        Expr::list(syntax_specs)
-    }
-
-    fn syntax_spec(&mut self) -> ParseResult {
-        // ( <keyword> <transformer spec> )
-        self.paren_left()?;
-        let keyword = self.identifier()?;
-        let transformer_spec = self.transformer_spec()?;
-        self.paren_right()?;
-        Expr::list(vec!(keyword, transformer_spec))
     }
 
     ///
@@ -823,387 +1207,6 @@ impl<T> Parser<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         Expr::list(data)
 
-    }
-
-    //
-    // Includer
-    //
-    //
-    //
-
-    fn include(&mut self) -> ParseResult {
-        let keyword = self.keyword_box_leaf_from_next()?;
-        let paths = self.strings()?;
-        Expr::list(vec!(keyword, paths))
-    }
-
-    //
-    // Quasiquotation
-    //
-    //
-    //
-
-    fn quasiquotation(&mut self, depth: u32) -> ParseResult {
-        let keyword = self.keyword("quasiquote")?;
-
-        let template = self.qq_template(depth)?;
-
-        Expr::list(vec!(keyword, template))
-
-    }
-
-    fn quasiquotation_short(&mut self, depth: u32) -> ParseResult {
-        self.quasiquote()?;
-        let keyword = Box::new(Expr::Identifier(Identifier::Keyword(Keyword::from("quasiquote".to_string()))));
-        let template = self.qq_template(depth)?;
-        Expr::list(vec!(keyword, template))
-    }
-
-    fn qq_template(&mut self, depth: u32) -> ParseResult {
-        match depth {
-            0 => self.expr(),
-            _ => match self.peek_or_eof()? {
-                Token::Boolean(_)
-                | Token::Character(_)
-                | Token::String(_)
-                | Token::Number(_)
-                | Token::Identifier(_)
-                | Token::SharpU8Open => self.simple_datum(),
-                Token::SharpOpen => self.qq_template_vector(depth),
-                Token::Comma => self.qq_template_unquotation_short(depth),
-                Token::Quote => {
-                    self.quote()?;
-                    self.qq_template(depth)
-                },
-                Token::Quasiquote => self.quasiquotation_short(depth + 1),
-                Token::ParenLeft => {
-                    self.paren_left()?;
-
-                    match self.peek_or_eof()? {
-                        Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(depth + 1),
-                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(depth),
-                        _ => {
-                            let list = self.qq_template_or_splice_list(depth)?;
-                            self.paren_right()?;
-                            Expr::list(list)
-                        },
-                    }
-                },
-                token @ _ => Err(SyntaxError::UnexpectedToken { unexpected: token.to_string(), expected: "identifier, literal or list" }),
-            }    
-        }
-    }
-
-    fn qq_template_or_splice(&mut self, depth: u32) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::CommaAt => self.qq_splice_unquotation(depth),
-            _ => self.qq_template(depth),
-        }
-    }
-
-    fn qq_template_or_splice_list(&mut self, depth: u32) -> ParseVecResult {
-        Ok(from_fn(|| self.qq_template_or_splice(depth).ok()).collect::<Vec<Box<Expr>>>())
-    }
-
-    fn qq_splice_unquotation(&mut self, depth: u32) -> ParseResult {
-        self.comma_at()?;
-        self.qq_template(depth - 1)
-    }
-
-    fn qq_template_unquotation_short(&mut self, depth: u32) -> ParseResult {
-        let keyword = self.comma()?;
-        let template = self.qq_template(depth - 1)?;
-
-        Expr::list(vec!(keyword, template))
-    }
-
-    fn qq_template_unquotation(&mut self, depth: u32) -> ParseResult {
-        let keyword = self.keyword("unquote")?;
-        let template = self.qq_template(depth - 1)?;
-        self.paren_right()?;
-
-        Expr::list(vec!(keyword, template))
-    }
-
-    fn qq_template_vector(&mut self, depth: u32) -> ParseResult {
-        let keyword = self.sharpopen()?;
-        self.keyword("vector")?;
-        let qq_templates = self.qq_templates(depth)?;
-        self.paren_right()?;
-
-        Expr::list(vec!(keyword, qq_templates))
-    }
-
-    fn qq_templates(&mut self, depth: u32) -> ParseResult {
-        let templates = self.qq_template_list(depth)?;
-        Expr::list(templates)
-    }
-
-    fn qq_template_list(&mut self, depth: u32) -> ParseVecResult {
-        Ok(from_fn(|| self.qq_template(depth).ok()).collect::<Vec<Box<Expr>>>())
-    }
-
-    ///
-    /// define-library
-    /// 
-    /// 
-    ///
-
-    fn define_library(&mut self) -> ParseResult {
-        let keyword = self.keyword("define-library")?;
-        let name = self.library_name()?;
-        let declarations = self.library_declarations()?;
-        Expr::list(vec!(keyword, name, declarations))
-    }
-
-    fn library_declarations(&mut self) -> ParseResult {
-        let declarations = self.zero_or_more(Parser::library_declaration)?;
-        Expr::list(declarations)
-    }
-
-    fn library_name(&mut self) -> ParseResult {
-        self.paren_left()?;
-        let name = self.library_name_after_open()?;
-        self.paren_right()?;
-        Ok(name)
-    }
-
-    fn library_name_after_open(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::library_name_part)?)
-    }
-
-    fn library_name_part(&mut self) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::Identifier(_) => self.identifier(),
-            Token::Number(_) => self.uinteger10(),
-            token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or uinteger10"}),
-        }
-    }
-
-    fn library_declaration(&mut self) -> ParseResult {
-        self.paren_left()?;
-        let declaration = match self.peek_or_eof()? {
-            Token::Identifier(id) => 
-                match id.as_str() {
-                    "begin" => self.begin(),
-                    "export" => self.export(),
-                    "import" => self.import(),
-                    "include" => self.include(),
-                    "include-ci" => self.include(),
-                    "include-library-declarations" => self.include_library_declarations(),
-                    "cond-expand" => self.cond_expand(),
-                    token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"}),
-                },
-            token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "export, import, include, include-ci, cond-expand"}),
-            
-        }?;
-        self.paren_right()?;
-        Ok(declaration)
-    }
-
-    fn export(&mut self) -> ParseResult {
-        let keyword = self.keyword("export")?;
-        let specs = self.export_specs()?;
-
-        Expr::list(vec!(keyword, specs))
-    }
-
-    fn export_specs(&mut self) -> ParseResult {
-        let specs = self.zero_or_more(Parser::export_spec)?;
-
-        Expr::list(specs)
-    }
-
-    fn export_spec(&mut self) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::Identifier(_) => self.export_spec_id(),
-            Token::ParenLeft => self.export_spec_rename(),
-            token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or export-spec-list"}),
-        }
-    }
-
-    fn export_spec_id(&mut self) -> ParseResult {
-        self.identifier()
-    }
-
-    fn export_spec_rename(&mut self) -> ParseResult {
-        self.paren_left()?;
-        self.keyword("rename")?;
-
-        let id1 = self.identifier()?;
-        let id2 = self.identifier()?;
-        self.paren_right()?;
-
-        Expr::list(vec!(id1, id2))
-    }
-
-    fn import(&mut self) -> ParseResult {
-        let keyword= self.keyword("import")?;
-        let sets = self.import_sets()?;
-
-        Expr::list(vec!(keyword, sets))
-    }
-
-    fn import_sets(&mut self) -> ParseResult {
-        let sets = self.zero_or_more(Parser::import_set)?;
-        Expr::list(sets)
-    }
-
-    fn import_set(&mut self) -> ParseResult {
-        self.paren_left()?;
-        let import_set = match self.peek_or_eof()? {
-            Token::Identifier(id) => 
-                match id.as_str() {
-                    "only" => self.only()?,
-                    "except" => self.except()?,
-                    "prefix" => self.prefix()?,
-                    "rename" => self.rename()?,
-                    _ => self.library_name_after_open()?,
-                }
-            _ => self.library_name_after_open()?,
-        };
-
-        self.paren_right()?;
-
-        Ok(import_set)
-    }
-
-    fn only(&mut self) -> ParseResult {
-        let keyword = self.keyword("only")?;
-        let set = self.import_set()?;
-        let ids = self.import_set_ids()?;
-
-        Expr::list(vec!(keyword, set, ids))
-    }
-
-    fn import_set_ids(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::identifier)?)
-    }
-
-
-    fn except(&mut self) -> ParseResult {
-        let keyword = self.keyword("except")?;
-        let set = self.import_set()?;
-        let ids = self.import_set_ids()?;
-
-        Expr::list(vec!(keyword, set, ids))
-    }
-
-    fn prefix(&mut self) -> ParseResult {
-        let keyword = self.keyword("prefix")?;
-        let set = self.import_set()?;
-        let id = self.identifier()?;
-
-        Expr::list(vec!(keyword, set, id))
-    }
-
-    fn rename(&mut self) -> ParseResult {
-        let keyword = self.keyword("rename")?;
-        let set = self.import_set()?;
-
-        let pairs = self.rename_pairs()?;
-
-        Expr::list(vec!(keyword, set, pairs))
-    }
-
-    fn rename_pairs(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::identifier_pair)?)
-    }
-
-
-    fn cond_expand(&mut self) -> ParseResult {
-        let keyword = self.keyword("cond-expand")?;
-
-        let clauses = self.cond_expand_clauses()?;
-
-        Expr::list(vec!(keyword, clauses))
-    }
-
-    fn cond_expand_clauses(&mut self) -> ParseResult {
-        Expr::list(self.one_or_more(Parser::cond_clause)?)
-    }
-
-    fn cond_clause(&mut self) -> ParseResult {
-        self.paren_left()?;
-        let requirement = self.feature_requirement()?;
-        let declarations = self.library_declarations()?;
-        self.paren_right()?;
-
-        let mut vec = vec!(requirement, declarations);
-
-        if matches!(self.peek_or_eof()?, Token::ParenLeft) {
-            let else_clause = self.cond_expand_else()?;
-            vec.push(else_clause);
-        }
-
-        Expr::list(vec)
-    }
-
-    fn cond_expand_else(&mut self) -> ParseResult {
-        self.paren_left()?;
-        let keyword = self.keyword("else")?;
-        let declarations = self.library_declarations()?;
-        self.paren_right()?;
-
-        Expr::list(vec!(keyword, declarations))
-    }
-
-    fn feature_requirements(&mut self) -> ParseResult {
-        let requirements = self.zero_or_more(Parser::feature_requirement)?;
-        Expr::list(requirements)
-    }
-
-    fn feature_requirement(&mut self) -> ParseResult {
-        match self.peek_or_eof()? {
-            Token::Identifier(_) => self.identifier(),
-            Token::ParenLeft => self.feature_requirement_with_paren(),
-            token @ _ => Err(SyntaxError::UnexpectedToken{unexpected: token.to_string(), expected: "identifier or open parenthesis"}),
-        }
-    }
-
-    fn feature_requirement_with_paren(&mut self) -> ParseResult {
-        self.paren_left()?;
-
-        let requirement = match self.peek_or_eof()? {
-            Token::Identifier(id) => 
-                match id.as_str() {
-                    "and" => self.and(),
-                    "or" => self.or(),
-                    "not" => self.not(),
-                    _ => self.library_name_after_open(),
-                }
-            _ => self.library_name_after_open(),
-        };
-
-        self.paren_right()?;
-
-        requirement
-    }
-
-    fn and(&mut self) -> ParseResult {
-        let keyword = self.keyword("and")?;
-        let requirements = self.feature_requirements()?; 
-        Expr::list(vec!(keyword, requirements))
-    }
-
-    fn or(&mut self) -> ParseResult {
-        let keyword = self.keyword("or")?;
-        let requirements = self.feature_requirements()?;
-        Expr::list(vec!(keyword, requirements))
-    }
-
-    fn not(&mut self) -> ParseResult {
-        let keyword = self.keyword("not")?;
-        let requirement = self.feature_requirement()?;
-
-        Expr::list(vec!(keyword, requirement))
-    }
-
-    fn include_library_declarations(&mut self) -> ParseResult {
-        let keyword = self.keyword("include-library-declarations")?;
-        let strings = self.strings()?;
-
-        Expr::list(vec!(keyword, strings))
     }
 
     //
