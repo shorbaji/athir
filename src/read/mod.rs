@@ -28,7 +28,6 @@
 // 
 // [P0]
 // - test: is definition for begin
-// - bugfix: empty line exits
 
 // [P1]
 // 

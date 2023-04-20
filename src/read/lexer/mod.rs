@@ -61,16 +61,20 @@ impl<T> Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>>{
     /// - wraps the iterator in a Peekable iterator
     /// - returns the iterator
 
-    fn refresh(&mut self) -> Option<Peekable<std::vec::IntoIter<Token>>> {
-        match self.source.next()? {
-            Ok(line) => {
+    fn refresh(&mut self) -> Result<Peekable<std::vec::IntoIter<Token>>, std::io::Error> {
+        match self.source.next() {
+            Some(Ok(line)) => {
                 let lexer = DelimitedLexer::new(&line);
                 let tokens = lexer.collect::<Vec<Token>>();
-                Some(tokens.into_iter().peekable())
+                Ok(tokens.into_iter().peekable())
             },
-            Err(err) => {
+            Some(Err(err)) => {
                 println!("Error reading line: {}", err);
-                None 
+                Err(err) 
+            },
+            None => {
+                println!("No more input");
+                Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "No more input"))
             }
         }
     }
@@ -81,9 +85,16 @@ impl<T> Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>>{
     /// then this function calls refresh to get a new one
     ///
     pub fn peek(&mut self) -> Option<&Token> {
-        if let None = self.inner.peek() {
-            self.inner = self.refresh()?;
+        while self.inner.peek().is_none() {
+            match self.refresh() {
+                Ok(inner) => self.inner = inner,
+                Err(err) => {
+                    println!("Error refreshing: {}", err);
+                    return None;
+                }
+            }
         }
+
         self.inner.peek()
     }
 }
@@ -97,8 +108,14 @@ impl<T> Iterator for Lexer<T>
     /// if no more tokens are available from the current Peekable iterator
     /// then this function calls refresh to get a new one
     fn next(&mut self) -> Option<Self::Item> {
-        if let None = self.inner.peek() {
-            self.inner = self.refresh()?;
+        while self.inner.peek().is_none() {
+            match self.refresh() {
+                Ok(inner) => self.inner = inner,
+                Err(err) => {
+                    println!("Error refreshing: {}", err);
+                    return None;
+                }
+            }
         }
         
         self.inner.next()
