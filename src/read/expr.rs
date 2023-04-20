@@ -155,11 +155,12 @@ impl Expr {
     /// (define ...), (define-values ...), (define-record-type ...), (define-syntax ...)
     /// or (begin (define ...) ...))
     pub fn is_definition_expr(&self) -> bool {
-        
-        match self.car() {
-            Some(node) => node.is_definition_keyword() || node.is_begin_definition_expr(),
+        let is_definition_keyword = match self.car() {
+            Some(node) => node.is_definition_keyword(),
             None => false,
-        }
+        };
+        
+        is_definition_keyword || self.is_begin_definition_expr()
     }
 }
 
@@ -184,6 +185,13 @@ impl Expr {
     fn cadr(&self) -> Option<&Box<Expr>> {
         match self.cdr() {
             Some(cdr) => cdr.car(),
+            None => None,
+        }
+    }
+
+    fn cdadr(&self) -> Option<&Box<Expr>> {
+        match self.cadr() {
+            Some(cadr) => cadr.cdr(),
             None => None,
         }
     }
@@ -219,17 +227,12 @@ impl Expr {
         }
     }
 
-    fn is_begin_definition_expr(&self) -> bool {        
+    fn is_begin_definition_expr(&self) -> bool {    
         self.is_begin_expr() && 
-
-        match self.cdr() {
-            Some(cdr) => match cdr.cadr() {
-                Some(node) => matches!(**node, Expr::Literal(Literal::Boolean(true))),
-                None => false,
-            },
+        match self.cdadr() {
+            Some(expr) => matches!(&**expr, Expr::Literal(Literal::Boolean(true))),
             None => false,
         }
     }
-
 
 }

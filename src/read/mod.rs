@@ -23,15 +23,6 @@
 //! - derived expressions not implemented
 //!
 
-
-// TODO:
-// 
-// [P0]
-// - test: is definition for begin
-
-// [P1]
-// 
-
 mod error;
 mod lexer; // lexical analyzer
 mod expr; // abstract syntax tree node
@@ -260,25 +251,23 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         // then we look for a list of expressions
 
         let begin = self.keyword("begin", rdepth)?;
-        let exprs = self.begin_exprs(rdepth)?;
 
-        Expr::list(vec!(begin, exprs))
-    }
-
-    fn begin_exprs(&mut self, rdepth: usize) -> ParseResult {
         // we look for a list of expressions after begin
         // we also create a boolean tag  is_all_defs to indicate if all expressions are definitions
         // we return a list (exprs is_all_defs)
         // this is used by the evaluator to determine if the begin expression is itself a definition
 
         let exprs = self.zero_or_more(Reader::expr, rdepth)?;
-
+        
         let is_all_defs = exprs.iter().all(|node| node.is_definition_expr());
         let is_all_defs = Box::new(Expr::Literal(Literal::Boolean(is_all_defs)));
-        
+
         let exprs = Expr::list(exprs)?;
 
-        Expr::list(vec!(exprs, is_all_defs))
+        let tagged = Box::new(Expr::Pair(exprs, is_all_defs));
+
+        Expr::list(vec!(begin, tagged))
+
     }
 
     ///
