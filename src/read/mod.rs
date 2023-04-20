@@ -27,11 +27,9 @@
 // TODO:
 // 
 // [P0]
-// - error recovery
-// - replace all or_else because it is buggy
-// - differntiate dotted pairs from lists
+// - differentiate dotted pairs from lists
+
 // [P1]
-// - test: all tests pass including bads
 // - test: is definition for begin
 // - empty line exits
 // 
@@ -1196,16 +1194,33 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     /// 
     fn datum(&mut self, rdepth: usize) -> ParseResult {
-        self.simple_datum(rdepth)
-        .or_else(|_| self.abbreviation(rdepth))
-        .or_else(|_| self.datum_list(rdepth))
-        .or_else(|_| self.vector(rdepth))
+        match self.peek_or_eof()? {
+            Token::Identifier(_) => self.symbol(rdepth),
+            Token::ParenLeft => self.datum_list(rdepth),
+            Token::SharpOpen => self.vector(rdepth),
+            Token::Boolean(_)
+            | Token::Character(_)
+            | Token::String(_)
+            | Token::Number(_) => self.literal(rdepth),
+            Token::SharpU8Open => self.bytevector(rdepth),
+            Token::Quote 
+            | Token::Quasiquote
+            | Token::Comma
+            | Token::CommaAt => self.abbreviation(rdepth),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string(), None))
+        }
     }
 
     fn simple_datum(&mut self, rdepth: usize) -> ParseResult {
-        self.literal(rdepth)
-        .or_else(|_| self.symbol(rdepth))
-        .or_else(|_| self.bytevector(rdepth))
+        match self.peek_or_eof()? {
+            Token::Identifier(_) => self.symbol(rdepth),
+            Token::Boolean(_)
+            | Token::Character(_)
+            | Token::String(_)
+            | Token::Number(_) => self.literal(rdepth),
+            Token::SharpU8Open => self.bytevector(rdepth),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string(), None))
+        }
     }
 
     fn symbol(&mut self, rdepth: usize) -> ParseResult {
@@ -1213,10 +1228,13 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn abbreviation(&mut self, rdepth: usize) -> ParseResult {
-        let prefix = self.quote(rdepth)
-        .or_else(|_| self.quasiquote(rdepth))
-        .or_else(|_| self.comma(rdepth))
-        .or_else(|_| self.comma_at(rdepth))?;
+        let prefix = match self.peek_or_eof()? {
+            Token::Quote => self.quote(rdepth),
+            Token::Quasiquote => self.quasiquote(rdepth),
+            Token::Comma => self.comma(rdepth),
+            Token::CommaAt => self.comma_at(rdepth),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "quote, quasiquote, comma or comma-at".to_string(), None))
+        }?;
 
         let expr = self.datum(rdepth)?;
 
@@ -1226,20 +1244,25 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     fn datum_list(&mut self, rdepth: usize) -> ParseResult {
         self.paren_left(rdepth)?;
 
-        let mut data: Vec<Box<Expr>> = vec!();
 
-        if !matches!(self.peek_or_eof()?, Token::ParenRight) {
-            data = self.one_or_more(Reader::datum, rdepth + 1)?;
+        let data = match self.peek_or_eof()? {
+            Token::ParenRight => Expr::list(vec!()),
+            _ => {
+                let data = self.one_or_more(Reader::datum, rdepth + 1)?;
 
-            if !matches!(self.peek_or_eof()?, Token::ParenRight) {
-                    self.dot(rdepth + 1)?;
-                    data.push(self.datum(rdepth + 1)?);
+                match self.peek_or_eof()? {
+                    Token::Dot => {
+                        self.dot(rdepth + 1)?;
+                        Expr::list_not_null_terminated(data, self.datum(rdepth + 1)?)
+                    },
+                    _ => Expr::list(data),
+                }
             }
-        }
+        };
 
         self.paren_right(rdepth + 1)?;
 
-        Expr::list(data)
+        data
 
     }
 
@@ -1366,17 +1389,19 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn identifier_list_possible_dot(&mut self, rdepth: usize) -> ParseResult {
-        let mut ids = vec!();
-        
-        if !matches!(self.peek_or_eof()?, Token::ParenRight) {
-            ids = self.one_or_more(Reader::identifier, rdepth)?;
-            if matches!(self.peek_or_eof()?, Token::Dot) {
-                self.dot(rdepth)?;
-                ids.push(self.identifier(rdepth)?);
+        match self.peek_or_eof()? {
+            Token::ParenRight => Expr::list(vec!()),
+            _ => {
+                let ids = self.one_or_more(Reader::identifier, rdepth)?;
+                match self.peek_or_eof()? {
+                    Token::Dot => {
+                        self.dot(rdepth)?;
+                        Expr::list_not_null_terminated(ids, self.identifier(rdepth)?)
+                    },
+                    _ => Expr::list(ids),
+                }
             }
         }
-
-        Expr::list(ids)
     }
     
     fn uinteger10(&mut self, rdepth: usize) -> ParseResult {

@@ -142,6 +142,15 @@ impl Expr {
         Ok(Box::new(result))
     }
 
+    pub fn list_not_null_terminated(nodes: Vec<Box<Expr>>, node: Box<Expr>) -> ParseResult {
+        let mut result = *node;
+        for node in nodes.into_iter().rev() {
+            result = Expr::Pair(node, Box::new(result));
+        }
+
+        Ok(Box::new(result))
+    }
+
     /// Checks if the expression is a define expression, i.e 
     /// (define ...), (define-values ...), (define-record-type ...), (define-syntax ...)
     /// or (begin (define ...) ...))
