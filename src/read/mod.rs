@@ -27,11 +27,10 @@
 // TODO:
 // 
 // [P0]
-// - differentiate dotted pairs from lists
+// - test: is definition for begin
+// - bugfix: empty line exits
 
 // [P1]
-// - test: is definition for begin
-// - empty line exits
 // 
 
 mod error;
