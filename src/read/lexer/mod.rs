@@ -100,6 +100,7 @@ impl<T> Iterator for Lexer<T>
         if let None = self.inner.peek() {
             self.inner = self.refresh()?;
         }
+        
         self.inner.next()
     }
 }

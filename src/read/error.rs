@@ -1,11 +1,24 @@
 
 use std::fmt;
 
-#[derive(Debug)]
-pub enum SyntaxError {
-    UnexpectedToken{unexpected: String, expected: &'static str} ,
+#[derive(Debug, Clone)]
+pub enum SyntaxErrorKind {
+    UnexpectedToken{depth: usize, unexpected: String, expected: String} ,
     DefinitionsBeforeExpressionsinLambda,
     EOF,
+}
+
+#[derive(Debug, Clone)]
+pub struct SyntaxError {
+    pub kind: SyntaxErrorKind,
+    pub child: Option<Box<SyntaxError>>,
+}
+
+pub fn unexpected(depth: usize, unexpected: String, expected: String, child: Option<Box<SyntaxError>>) -> SyntaxError {
+    SyntaxError {
+        kind: SyntaxErrorKind::UnexpectedToken{depth, unexpected, expected},
+        child: child,
+    }
 }
 
 impl<'a> fmt::Display for SyntaxError {

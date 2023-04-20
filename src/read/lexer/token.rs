@@ -157,3 +157,4 @@ fn to_string(lex: &mut Lexer<Token>) -> Option<String> {
     let s: String = String::from(&s[1..s.len() - 1]);
     Some(s)
 }    
+
