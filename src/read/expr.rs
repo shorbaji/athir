@@ -99,31 +99,26 @@ impl From<&Token> for Identifier {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Literal {
+pub enum Object {
+    Null,
     Boolean(bool),
     Character(char),
     String(String),
     Number(String),
-    Bytevector(Vec<Box<Expr>>),
-    Vector(Vec<Box<Expr>>),
-    Quotation(Box<Expr>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
-    Null,
-    Literal(Literal),
+    Bytevector(Vec<Box<Object>>),
+    Vector(Vec<Box<Object>>),
+    Quotation(Box<Object>),
     Identifier(Identifier),
-    Pair(Box<Expr>, Box<Expr>),
+    Pair(Box<Object>, Box<Object>),
 }
 
-impl From<&Token> for Literal {
+impl From<&Token> for Object {
     fn from(value: &Token) -> Self {
         match value {
-            Token::Boolean(b) => Literal::Boolean(*b),
-            Token::Character(c) => Literal::Character(*c),
-            Token::String(s) => Literal::String(s.clone()),
-            Token::Number(n) => Literal::Number(n.clone()),
+            Token::Boolean(b) => Object::Boolean(*b),
+            Token::Character(c) => Object::Character(*c),
+            Token::String(s) => Object::String(s.clone()),
+            Token::Number(n) => Object::Number(n.clone()),
             _ => panic!("Cannot convert {:?} to NodeKind", value),
         }
     }
@@ -131,27 +126,72 @@ impl From<&Token> for Literal {
 
 // public methods
 
-impl Expr {
-    /// Creates an expression from a Vec of expressions
-    pub fn list(nodes: Vec<Box<Expr>>) -> ParseResult {
-        let mut result = Expr::Null;
+impl Object {
+    /// Creates an Objectession from a Vec of Objectessions
+    pub fn list(nodes: Vec<Box<Object>>) -> ParseResult {
+        let mut result = Object::Null;
         for node in nodes.into_iter().rev() {
-            result = Expr::Pair(node, Box::new(result));
+            result = Object::Pair(node, Box::new(result));
         }
 
         Ok(Box::new(result))
     }
 
-    pub fn list_not_null_terminated(nodes: Vec<Box<Expr>>, node: Box<Expr>) -> ParseResult {
+    pub fn list_not_null_terminated(nodes: Vec<Box<Object>>, node: Box<Object>) -> ParseResult {
         let mut result = *node;
         for node in nodes.into_iter().rev() {
-            result = Expr::Pair(node, Box::new(result));
+            result = Object::Pair(node, Box::new(result));
         }
 
         Ok(Box::new(result))
     }
 
-    /// Checks if the expression is a define expression, i.e 
+    pub fn car(&self) -> Option<&Box<Object>> {
+        match self {
+            Object::Pair(car, _) => Some(car),
+            _ => None,
+        }
+    }
+
+    pub fn cdr(&self) -> Option<&Box<Object>> {
+        match self {
+            Object::Pair(_, cdr) => Some(cdr),
+            _ => None,
+        }
+    }
+
+    pub fn cadr(&self) -> Option<&Box<Object>> {
+        match self.cdr() {
+            Some(cdr) => cdr.car(),
+            None => None,
+        }
+    }
+
+    pub fn cdadr(&self) -> Option<&Box<Object>> {
+        match self.cadr() {
+            Some(cadr) => cadr.cdr(),
+            None => None,
+        }
+    }
+
+    pub fn _is_null(&self) -> bool {
+        match self {
+            Object::Null => true,
+            _ => false,
+        }
+    }
+
+    fn _cons(&self, object: Object) -> Object {
+        Object::Pair(Box::new(self.clone()), Box::new(object))
+    }
+
+
+}
+
+pub type Expr = Object;
+
+impl Expr {
+    /// Checks if the Objectession is a define Objectession, i.e 
     /// (define ...), (define-values ...), (define-record-type ...), (define-syntax ...)
     /// or (begin (define ...) ...))
     pub fn is_definition_expr(&self) -> bool {
@@ -162,62 +202,23 @@ impl Expr {
         
         is_definition_keyword || self.is_begin_definition_expr()
     }
-}
 
+}
 // private methods
 
 #[doc(hidden)]
 impl Expr {
-    fn car(&self) -> Option<&Box<Expr>> {
-        match self {
-            Expr::Pair(car, _) => Some(car),
-            _ => None,
-        }
-    }
-
-    fn cdr(&self) -> Option<&Box<Expr>> {
-        match self {
-            Expr::Pair(_, cdr) => Some(cdr),
-            _ => None,
-        }
-    }
-
-    fn cadr(&self) -> Option<&Box<Expr>> {
-        match self.cdr() {
-            Some(cdr) => cdr.car(),
-            None => None,
-        }
-    }
-
-    fn cdadr(&self) -> Option<&Box<Expr>> {
-        match self.cadr() {
-            Some(cadr) => cadr.cdr(),
-            None => None,
-        }
-    }
-
-    fn _is_null(&self) -> bool {
-        match self {
-            Expr::Null => true,
-            _ => false,
-        }
-    }
-
-    fn _cons(&self, expr: Expr) -> Expr {
-        Expr::Pair(Box::new(self.clone()), Box::new(expr))
-    }
-
     fn is_definition_keyword(&self) -> bool {
         matches!(self, 
-            Expr::Identifier(Identifier::Keyword(Keyword::Define))
-            | Expr::Identifier(Identifier::Keyword(Keyword::DefineValues))
-            | Expr::Identifier(Identifier::Keyword(Keyword::DefineRecordType))
-            | Expr::Identifier(Identifier::Keyword(Keyword::DefineSyntax))
+            Object::Identifier(Identifier::Keyword(Keyword::Define))
+            | Object::Identifier(Identifier::Keyword(Keyword::DefineValues))
+            | Object::Identifier(Identifier::Keyword(Keyword::DefineRecordType))
+            | Object::Identifier(Identifier::Keyword(Keyword::DefineSyntax))
         )
     }
 
     fn is_begin_keyword(&self) -> bool {
-        matches!(self, Expr::Identifier(Identifier::Keyword(Keyword::Begin)))
+        matches!(self, Object::Identifier(Identifier::Keyword(Keyword::Begin)))
     }
 
     fn is_begin_expr(&self) -> bool {
@@ -230,7 +231,7 @@ impl Expr {
     fn is_begin_definition_expr(&self) -> bool {    
         self.is_begin_expr() && 
         match self.cdadr() {
-            Some(expr) => matches!(&**expr, Expr::Literal(Literal::Boolean(true))),
+            Some(object) => matches!(&**object, Object::Boolean(true)),
             None => false,
         }
     }

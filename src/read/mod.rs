@@ -53,7 +53,7 @@ type ParseVecResult = Result<Vec<Box<Expr>>, SyntaxError>;
 // - Keyword
 
 #[doc(inline)]
-pub use expr::{Literal, Keyword, Identifier, Expr}; 
+pub use expr::{Keyword, Identifier, Expr}; 
 #[doc(inline)]
 pub use error::{SyntaxError, SyntaxErrorKind};
 
@@ -183,10 +183,10 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::String(_) => {
                 match self.lexer.next() {
                     Some(token) => match token {
-                            Token::Boolean(b) => Ok(Box::new(Expr::Literal(Literal::Boolean(b)))),
-                            Token::Character(c) => Ok(Box::new(Expr::Literal(Literal::Character(c)))),
-                            Token::Number(n) => Ok(Box::new(Expr::Literal(Literal::Number(n)))),
-                            Token::String(s) => Ok(Box::new(Expr::Literal(Literal::String(s)))),
+                            Token::Boolean(b) => Ok(Box::new(Expr::Boolean(b))),
+                            Token::Character(c) => Ok(Box::new(Expr::Character(c))),
+                            Token::Number(n) => Ok(Box::new(Expr::Number(n))),
+                            Token::String(s) => Ok(Box::new(Expr::String(s))),
                             _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string(), None)),
                         },
                     None => Err(SyntaxError{kind: SyntaxErrorKind::EOF, child: None}),
@@ -260,7 +260,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let exprs = self.zero_or_more(Reader::expr, rdepth)?;
         
         let is_all_defs = exprs.iter().all(|node| node.is_definition_expr());
-        let is_all_defs = Box::new(Expr::Literal(Literal::Boolean(is_all_defs)));
+        let is_all_defs = Box::new(Expr::Boolean(is_all_defs));
 
         let exprs = Expr::list(exprs)?;
 
@@ -859,7 +859,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let datum = self.datum(rdepth)?;
 
 
-        Ok(Box::new(Expr::Literal(Literal::Quotation(datum))))
+        Ok(Box::new(Expr::Quotation(datum)))
         // Expr::list(vec!(keyword, datum))
     }
 
@@ -868,7 +868,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let _quote = self.quote(rdepth)?;
         let datum = self.datum(rdepth)?;
 
-        Ok(Box::new(Expr::Literal(Literal::Quotation(datum))))
+        Ok(Box::new(Expr::Quotation(datum)))
     }
 
     ///
@@ -1348,7 +1348,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 let next = self.lexer.next();
                 match next {
                     Some(token) => match token {
-                            Token::String(s) => Ok(Box::new(Expr::Literal(Literal::String(s)))),
+                            Token::String(s) => Ok(Box::new(Expr::String(s))),
                             _ => Err(unexpected(rdepth, token.to_string(), "string".to_string(), None)),
                         },
                     None => Err(SyntaxError{kind: SyntaxErrorKind::EOF, child: None}),
@@ -1395,7 +1395,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => {
                 match self.lexer.next() {
-                    Some(Token::Number(n)) => Ok(Box::new(Expr::Literal(Literal::Number(n.clone())))),
+                    Some(Token::Number(n)) => Ok(Box::new(Expr::Number(n.clone()))),
                     _ => return Err(SyntaxError{kind: SyntaxErrorKind::EOF, child: None}),
                 }
             },
@@ -1407,7 +1407,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.sharpopen(rdepth)?;
         let data = self.zero_or_more(Reader::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        Ok(Box::new(Expr::Literal(expr::Literal::Vector(data))))
+        Ok(Box::new(Expr::Vector(data)))
     }
 
     fn bytevector(&mut self, rdepth: usize) -> ParseResult {
@@ -1415,7 +1415,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let data = self.zero_or_more(Reader::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        Ok(Box::new(Expr::Literal(expr::Literal::Bytevector(data))))
+        Ok(Box::new(Expr::Bytevector(data)))
     }
 
 }
