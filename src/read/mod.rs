@@ -1358,7 +1358,13 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn identifier(&mut self, rdepth: usize) -> ParseResult {        
         match self.peek_or_eof()? {
-            Token::Identifier(id) => Ok(Box::new(Expr::Identifier(Identifier::Variable(id.clone())))),
+            Token::Identifier(id) => {
+                if let Some(Token::Identifier(id)) = self.lexer.next() {
+                    Ok(Box::new(Expr::Identifier(Identifier::Variable(id.clone()))))
+                } else {
+                    Err(Error::EOF)
+                }
+            },
             token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier".to_string())),
         }        
     }
