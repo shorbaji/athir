@@ -19,6 +19,16 @@ mod repl;
 
 use repl::repl;
 
+
+use object::Object;
+use error::Error;
+
+#[doc(hidden)]
+pub type AthirResult = Result<Box<Object>, Error>;
+
+#[doc(hidden)]
+pub type AthirVecResult = Result<Vec<Box<Object>>, Error>;
+
 /// Main entry point
 ///
 /// At the moment, the main function simply prints a welcome message and calls the REPL.

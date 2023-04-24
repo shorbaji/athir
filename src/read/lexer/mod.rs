@@ -37,6 +37,7 @@ pub use token::Token;
 /// It holds a Peekable iterator over the tokens produced by the DelimitedLexer 
 /// It also holds a source which is an iterator over strings of input.
 
+#[derive(Debug)]
 pub struct Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>> {
     inner: Peekable<std::vec::IntoIter<Token>>,
     source: T,

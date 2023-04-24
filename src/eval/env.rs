@@ -1,40 +1,36 @@
 use std::collections::HashMap;
+use crate::object::Object;
 
-type ObjectPtr = i32;
 
-#[derive(Debug, Clone)]
-pub struct Env {
+use crate::read::{Identifier, Expr, Keyword};
+use crate::error::Error;
+use crate::eval::Heap;
+
+use std::ops::Deref;
+
+type ObjectPtr = usize;
+
+#[derive(Debug)]
+pub struct Env<'a> {
     hashmap: HashMap<String, ObjectPtr>,
-    parent: Option<Box<Env>>,
+    parent: Option<Box<Env<'a>>>,
+    heap: &'a mut Heap,
 }
 
-impl Env {
-    pub fn new() -> Env {
+impl<'a> Env<'a> {
+    pub fn new(heap: &mut Heap) -> Env {
         Env {
             hashmap: HashMap::new(),
             parent: None,
+            heap: heap,
         }
     }
 
-    fn new_with_parent(parent: Env) -> Env {
-        Env {
-            hashmap: HashMap::new(),
-            parent: Some(Box::new(parent)),
-        }
-    }
+    // fn new_with_parent(parent: Env) -> Env {
+    //     Env {
+    //         hashmap: HashMap::new(),
+    //         parent: Some(Box::new(parent)),
+    //     }
+    // }
 
-    pub fn get(&self, key: &str) -> Option<&ObjectPtr> {
-        match self.hashmap.get(key) {
-            Some(value) => Some(value),
-            None => match self.parent {
-                Some(ref parent) => parent.get(key),
-                None => None,
-            },
-        }
-    }
-
-    pub fn set(&mut self, key: String, value: ObjectPtr) {
-
-        self.hashmap.insert(key, value);
-    }
 }

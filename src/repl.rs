@@ -8,15 +8,18 @@ use std::io::Write;
 
 pub fn repl() {
 
-    let mut reader = crate::read::Reader::new(std::io::stdin().lines());
-    let mut eval = crate::eval::Eval::new(reader);
+    let reader = crate::read::Reader::new(std::io::stdin().lines());
+    let mut eval = crate::eval::Eval::new();
+    
 
     print!("> ");
     std::io::stdout().flush().unwrap();
 
-    for object in eval {
-        match object {
-            Ok(object) => println!("{:?}", object),
+    let mut env = crate::eval::Env::new();
+
+    for expr in reader {
+        match expr {
+            Ok(expr) => println!("{:?}", eval.eval(&expr, &mut env)),
             Err(err) => println!("{}", err),
         }
         print!("> ");

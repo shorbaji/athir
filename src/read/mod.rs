@@ -33,12 +33,6 @@ use std::iter::{once, from_fn};
 use lexer::{Lexer, Token};
 use crate::error::unexpected;
 
-#[doc(hidden)]
-pub type ParseResult = Result<Box<Expr>, Error>;
-
-#[doc(hidden)]
-type ParseVecResult = Result<Vec<Box<Expr>>, Error>;
-
 //
 // Public API
 //
@@ -53,19 +47,22 @@ type ParseVecResult = Result<Vec<Box<Expr>>, Error>;
 #[doc(inline)]
 pub use crate::object::{Keyword, Identifier, Expr}; 
 #[doc(inline)]
-pub use crate::error::Error;
+use crate::error::Error;
+use crate::{AthirResult, AthirVecResult};
 
 /// Parser struct
 /// 
 /// Parses into an [Expr]
 /// 
+
+#[derive(Debug)]
 pub struct Reader <T: Iterator<Item=Result<String, std::io::Error>>> {
     #[doc(hidden)]
     lexer: Lexer<T>,
 }
 
 impl<T> Iterator for Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
-    type Item = ParseResult;
+    type Item = AthirResult;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.expr(0) {
@@ -153,7 +150,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     // - does not check bytevector elements are bytes (i.e. 0-255)
     // - no error recovery
 
-    fn expr(&mut self, rdepth: usize) -> ParseResult {
+    fn expr(&mut self, rdepth: usize) -> AthirResult {
         // a left parenthesis indicates a compound expression
         // checks for an atom
 
@@ -172,7 +169,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn literal(&mut self, rdepth: usize) -> ParseResult {
+    fn literal(&mut self, rdepth: usize) -> AthirResult {
         // checks for a single-token literal, i.e. boolean, character, number or string
         match self.peek_or_eof()? {
             Token::Boolean(_)
@@ -194,7 +191,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
     
-    fn compound(&mut self, rdepth: usize) -> ParseResult {
+    fn compound(&mut self, rdepth: usize) -> AthirResult {
         
         // <compound expression> ::= <special form> | <procedure call>
         // we start with a left parenthesis
@@ -217,7 +214,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     }
     
-    fn special_form_handler(id: &str) -> Option<fn (&mut Reader<T>, usize) -> ParseResult> {
+    fn special_form_handler(id: &str) -> Option<fn (&mut Reader<T>, usize) -> AthirResult> {
         // we look up the keyword and return the handler
         match id {
             "begin" => Some(Reader::begin),
@@ -244,7 +241,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     ///
 
-    fn begin(&mut self, rdepth:usize) -> ParseResult {
+    fn begin(&mut self, rdepth:usize) -> AthirResult {
         // we look for the keyword begin 
         // then we look for a list of expressions
 
@@ -276,7 +273,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// - a parenthesized list of identifiers (i.e. a function definition)
     /// 
 
-    fn define(&mut self, rdepth: usize) -> ParseResult {
+    fn define(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("define", rdepth)?;
         match self.peek_or_eof()? {
             Token::Identifier(_) => { // variable definition
@@ -296,11 +293,11 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn def_formals(&mut self, rdepth:usize) -> ParseResult {
+    fn def_formals(&mut self, rdepth:usize) -> AthirResult {
         self.identifier_list_possible_dot(rdepth)
     }
 
-    fn define_values(&mut self, rdepth: usize) -> ParseResult {
+    fn define_values(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("define-values", rdepth)?;
         let formals = self.formals(rdepth)?;
         let exprs = self.body(rdepth)?;
@@ -308,7 +305,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, formals, exprs))
     }
 
-    fn define_record_type(&mut self, rdepth: usize) -> ParseResult {
+    fn define_record_type(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("define-record-type", rdepth)?;
         let id1 = self.identifier(rdepth)?;
         let constructor = self.constructor(rdepth)?;
@@ -318,7 +315,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, id1, constructor, id2, field_specs))
     }
 
-    fn constructor(&mut self, rdepth: usize) -> ParseResult {
+    fn constructor(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         let id = self.identifier(rdepth + 1)?;
         let field_names = self.field_names(rdepth + 1)?;
@@ -327,17 +324,17 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(id, field_names))
     }
 
-    fn field_names(&mut self, rdepth: usize) -> ParseResult {
+    fn field_names(&mut self, rdepth: usize) -> AthirResult {
         let names = self.zero_or_more(Reader::identifier, rdepth)?;
         Expr::list(names)
     }
 
-    fn field_specs(&mut self, rdepth: usize) -> ParseResult {
+    fn field_specs(&mut self, rdepth: usize) -> AthirResult {
         let specs = self.zero_or_more(Reader::field_spec, rdepth)?;
         Expr::list(specs)
     }
 
-    fn field_spec(&mut self, rdepth: usize) -> ParseResult {
+    fn field_spec(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
 
         let field_name = self.identifier(rdepth + 1)?;
@@ -353,7 +350,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec)
     }
 
-    fn define_syntax(&mut self, rdepth: usize) -> ParseResult {
+    fn define_syntax(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("define-syntax", rdepth)?;
         let id = self.identifier(rdepth)?;
         let expr = self.transformer_spec(rdepth)?;
@@ -367,30 +364,30 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     ///
 
-    fn define_library(&mut self, rdepth: usize) -> ParseResult {
+    fn define_library(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("define-library", rdepth)?;
         let name = self.library_name(rdepth)?;
         let declarations = self.library_declarations(rdepth)?;
         Expr::list(vec!(keyword, name, declarations))
     }
 
-    fn library_declarations(&mut self, rdepth: usize) -> ParseResult {
+    fn library_declarations(&mut self, rdepth: usize) -> AthirResult {
         let declarations = self.zero_or_more(Reader::library_declaration, rdepth)?;
         Expr::list(declarations)
     }
 
-    fn library_name(&mut self, rdepth: usize) -> ParseResult {
+    fn library_name(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         let name = self.library_name_after_open(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
         Ok(name)
     }
 
-    fn library_name_after_open(&mut self, rdepth: usize) -> ParseResult {
+    fn library_name_after_open(&mut self, rdepth: usize) -> AthirResult {
         Expr::list(self.one_or_more(Reader::library_name_part, rdepth)?)
     }
 
-    fn library_name_part(&mut self, rdepth: usize) -> ParseResult {
+    fn library_name_part(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::Number(_) => self.uinteger10(rdepth),
@@ -398,7 +395,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn library_declaration(&mut self, rdepth: usize) -> ParseResult {
+    fn library_declaration(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         let declaration = match self.peek_or_eof()? {
             Token::Identifier(id) => 
@@ -419,19 +416,19 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Ok(declaration)
     }
 
-    fn export(&mut self, rdepth: usize) -> ParseResult {
+    fn export(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("export", rdepth)?;
         let specs = self.export_specs(rdepth)?;
 
         Expr::list(vec!(keyword, specs))
     }
 
-    fn export_specs(&mut self, rdepth: usize) -> ParseResult {
+    fn export_specs(&mut self, rdepth: usize) -> AthirResult {
         let specs = self.zero_or_more(Reader::export_spec, rdepth)?;
         Expr::list(specs)
     }
 
-    fn export_spec(&mut self, rdepth: usize) -> ParseResult {
+    fn export_spec(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.export_spec_id(rdepth),
             Token::ParenLeft => self.export_spec_rename(rdepth),
@@ -439,11 +436,11 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn export_spec_id(&mut self, rdepth: usize) -> ParseResult {
+    fn export_spec_id(&mut self, rdepth: usize) -> AthirResult {
         self.identifier(rdepth)
     }
 
-    fn export_spec_rename(&mut self, rdepth: usize) -> ParseResult {
+    fn export_spec_rename(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         self.keyword("rename", rdepth + 1)?;
 
@@ -454,19 +451,19 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(id1, id2))
     }
 
-    fn import(&mut self, rdepth: usize) -> ParseResult {
+    fn import(&mut self, rdepth: usize) -> AthirResult {
         let keyword= self.keyword("import", rdepth)?;
         let sets = self.import_sets(rdepth)?;
 
         Expr::list(vec!(keyword, sets))
     }
 
-    fn import_sets(&mut self, rdepth: usize) -> ParseResult {
+    fn import_sets(&mut self, rdepth: usize) -> AthirResult {
         let sets = self.zero_or_more(Reader::import_set, rdepth)?;
         Expr::list(sets)
     }
 
-    fn import_set(&mut self, rdepth: usize) -> ParseResult {
+    fn import_set(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         let import_set = match self.peek_or_eof()? {
             Token::Identifier(id) => 
@@ -485,7 +482,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Ok(import_set)
     }
 
-    fn only(&mut self, rdepth: usize) -> ParseResult {
+    fn only(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("only", rdepth)?;
         let set = self.import_set(rdepth)?;
         let ids = self.import_set_ids(rdepth)?;
@@ -493,12 +490,12 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, set, ids))
     }
 
-    fn import_set_ids(&mut self, rdepth: usize) -> ParseResult {
+    fn import_set_ids(&mut self, rdepth: usize) -> AthirResult {
         Expr::list(self.one_or_more(Reader::identifier, rdepth)?)
     }
 
 
-    fn except(&mut self, rdepth: usize) -> ParseResult {
+    fn except(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("except", rdepth)?;
         let set = self.import_set(rdepth)?;
         let ids = self.import_set_ids(rdepth)?;
@@ -506,7 +503,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, set, ids))
     }
 
-    fn prefix(&mut self, rdepth: usize) -> ParseResult {
+    fn prefix(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("prefix", rdepth)?;
         let set = self.import_set(rdepth)?;
         let id = self.identifier(rdepth)?;
@@ -514,7 +511,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, set, id))
     }
 
-    fn rename(&mut self, rdepth: usize) -> ParseResult {
+    fn rename(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("rename", rdepth)?;
         let set = self.import_set(rdepth)?;
 
@@ -523,23 +520,23 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, set, pairs))
     }
 
-    fn rename_pairs(&mut self, rdepth: usize) -> ParseResult {
+    fn rename_pairs(&mut self, rdepth: usize) -> AthirResult {
         Expr::list(self.one_or_more(Reader::identifier_pair, rdepth)?)
     }
 
 
-    fn cond_expand(&mut self, rdepth: usize) -> ParseResult {
+    fn cond_expand(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("cond-expand", rdepth)?;
         let clauses = self.cond_expand_clauses(rdepth)?;
 
         Expr::list(vec!(keyword, clauses))
     }
 
-    fn cond_expand_clauses(&mut self, rdepth: usize) -> ParseResult {
+    fn cond_expand_clauses(&mut self, rdepth: usize) -> AthirResult {
         Expr::list(self.one_or_more(Reader::cond_clause, rdepth)?)
     }
 
-    fn cond_clause(&mut self, rdepth: usize) -> ParseResult {
+    fn cond_clause(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         let requirement = self.feature_requirement(rdepth + 1)?;
         let declarations = self.library_declarations(rdepth + 1)?;
@@ -555,7 +552,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec)
     }
 
-    fn cond_expand_else(&mut self, rdepth: usize) -> ParseResult {
+    fn cond_expand_else(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         let keyword = self.keyword("else", rdepth + 1)?;
         let declarations = self.library_declarations(rdepth + 1)?;
@@ -564,12 +561,12 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, declarations))
     }
 
-    fn feature_requirements(&mut self, rdepth: usize) -> ParseResult {
+    fn feature_requirements(&mut self, rdepth: usize) -> AthirResult {
         let requirements = self.zero_or_more(Reader::feature_requirement, rdepth)?;
         Expr::list(requirements)
     }
 
-    fn feature_requirement(&mut self, rdepth: usize) -> ParseResult {
+    fn feature_requirement(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::ParenLeft => self.feature_requirement_with_paren(rdepth),
@@ -577,7 +574,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn feature_requirement_with_paren(&mut self, rdepth: usize) -> ParseResult {
+    fn feature_requirement_with_paren(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
 
         let requirement = match self.peek_or_eof()? {
@@ -596,26 +593,26 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         requirement
     }
 
-    fn and(&mut self, rdepth: usize) -> ParseResult {
+    fn and(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("and", rdepth)?;
         let requirements = self.feature_requirements(rdepth)?; 
         Expr::list(vec!(keyword, requirements))
     }
 
-    fn or(&mut self, rdepth: usize) -> ParseResult {
+    fn or(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("or", rdepth)?;
         let requirements = self.feature_requirements(rdepth)?;
         Expr::list(vec!(keyword, requirements))
     }
 
-    fn not(&mut self, rdepth: usize) -> ParseResult {
+    fn not(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("not", rdepth)?;
         let requirement = self.feature_requirement(rdepth)?;
 
         Expr::list(vec!(keyword, requirement))
     }
 
-    fn include_library_declarations(&mut self, rdepth: usize) -> ParseResult {
+    fn include_library_declarations(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("include-library-declarations", rdepth)?;
         let strings = self.strings(rdepth)?;
 
@@ -627,7 +624,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     /// 
     ///
-    fn iff(&mut self, rdepth: usize) -> ParseResult {
+    fn iff(&mut self, rdepth: usize) -> AthirResult {
         let iff = self.keyword("if", rdepth)?;
         let test = self.expr(rdepth)?;
         let consequent = self.expr(rdepth)?;
@@ -647,7 +644,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     //
     //
 
-    fn include(&mut self, rdepth: usize) -> ParseResult {
+    fn include(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword_box_leaf_from_next(rdepth)?;
         let paths = self.strings(rdepth)?;
         Expr::list(vec!(keyword, paths))
@@ -659,7 +656,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     ///
 
-    fn lambda(&mut self, rdepth: usize) -> ParseResult {
+    fn lambda(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("lambda", rdepth)?;
         let formals = self.formals(rdepth)?;
 
@@ -668,7 +665,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, formals, body))
     }
 
-    fn formals(&mut self, rdepth: usize) -> ParseResult {   
+    fn formals(&mut self, rdepth: usize) -> AthirResult {   
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::ParenLeft => {
@@ -685,7 +682,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// body can have defintions and expressions
     /// body cannot have definitions after any expression
     
-    fn body(&mut self, rdepth: usize) -> ParseResult {       
+    fn body(&mut self, rdepth: usize) -> AthirResult {       
         let exprs = self.one_or_more(Reader::expr, rdepth)?;
         let mut defs = true;
 
@@ -707,7 +704,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     ///
 
-    fn macro_block(&mut self, rdepth: usize) -> ParseResult {
+    fn macro_block(&mut self, rdepth: usize) -> AthirResult {
         // we look for the keywords let-syntax or letrec-syntax
         match self.peek_or_eof()? {
             token @ Token::Identifier(id) => 
@@ -726,12 +723,12 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn syntax_specs (&mut self, rdepth: usize) -> ParseResult {
+    fn syntax_specs (&mut self, rdepth: usize) -> AthirResult {
         let syntax_specs = self.zero_or_more(Reader::syntax_spec, rdepth)?;
         Expr::list(syntax_specs)
     }
 
-    fn syntax_spec(&mut self, rdepth: usize) -> ParseResult {
+    fn syntax_spec(&mut self, rdepth: usize) -> AthirResult {
         // ( <keyword> <transformer spec> )
         self.paren_left(rdepth)?;
         let keyword = self.identifier(rdepth + 1)?;
@@ -746,7 +743,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     //
     //
 
-    fn quasiquotation(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn quasiquotation(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         let keyword = self.keyword("quasiquote", rdepth)?;
 
         let template = self.qq_template(rdepth, qqdepth)?;
@@ -755,14 +752,14 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     }
 
-    fn quasiquotation_short(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn quasiquotation_short(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         self.quasiquote(rdepth)?;
         let keyword = Box::new(Expr::Identifier(Identifier::Keyword(Keyword::from("quasiquote".to_string()))));
         let template = self.qq_template(rdepth, qqdepth)?;
         Expr::list(vec!(keyword, template))
     }
 
-    fn qq_template(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn qq_template(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         match qqdepth {
             0 => self.expr(rdepth),
             _ => match self.peek_or_eof()? {
@@ -797,30 +794,30 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn qq_template_or_splice(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn qq_template_or_splice(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         match self.peek_or_eof()? {
             Token::CommaAt => self.qq_splice_unquotation(rdepth, qqdepth),
             _ => self.qq_template(rdepth, qqdepth),
         }
     }
 
-    fn qq_template_or_splice_list(&mut self, rdepth: usize, qqdepth: u32) -> ParseVecResult {
+    fn qq_template_or_splice_list(&mut self, rdepth: usize, qqdepth: u32) -> AthirVecResult {
         Ok(from_fn(|| self.qq_template_or_splice(rdepth, qqdepth).ok()).collect::<Vec<Box<Expr>>>())
     }
 
-    fn qq_splice_unquotation(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn qq_splice_unquotation(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         self.comma_at(rdepth)?;
         self.qq_template(rdepth, qqdepth - 1)
     }
 
-    fn qq_template_unquotation_short(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn qq_template_unquotation_short(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         let keyword = self.comma(rdepth)?;
         let template = self.qq_template(rdepth, qqdepth - 1)?;
 
         Expr::list(vec!(keyword, template))
     }
 
-    fn qq_template_unquotation(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn qq_template_unquotation(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         let keyword = self.keyword("unquote", rdepth)?;
         let template = self.qq_template(rdepth, qqdepth - 1)?;
         self.paren_right(rdepth)?;
@@ -828,7 +825,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, template))
     }
 
-    fn qq_template_vector(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn qq_template_vector(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         let keyword = self.sharpopen(rdepth)?;
         self.keyword("vector", rdepth + 1)?;
         let qq_templates = self.qq_templates(rdepth + 1, qqdepth)?;
@@ -837,12 +834,12 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(keyword, qq_templates))
     }
 
-    fn qq_templates(&mut self, rdepth: usize, qqdepth: u32) -> ParseResult {
+    fn qq_templates(&mut self, rdepth: usize, qqdepth: u32) -> AthirResult {
         let templates = self.qq_template_list(rdepth, qqdepth)?;
         Expr::list(templates)
     }
 
-    fn qq_template_list(&mut self, rdepth: usize, qqdepth: u32) -> ParseVecResult {
+    fn qq_template_list(&mut self, rdepth: usize, qqdepth: u32) -> AthirVecResult {
         Ok(from_fn(|| self.qq_template(rdepth, qqdepth).ok()).collect::<Vec<Box<Expr>>>())
     }
 
@@ -852,7 +849,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     ///
 
-    fn quotation(&mut self, rdepth: usize) -> ParseResult {
+    fn quotation(&mut self, rdepth: usize) -> AthirResult {
         let _keyword = self.keyword("quote", rdepth)?;
         let datum = self.datum(rdepth)?;
 
@@ -861,7 +858,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         // Expr::list(vec!(keyword, datum))
     }
 
-    fn quotation_short(&mut self, rdepth: usize) -> ParseResult {
+    fn quotation_short(&mut self, rdepth: usize) -> AthirResult {
         // Implements '<datum> (i.e. single quote followed by datum)
         let _quote = self.quote(rdepth)?;
         let datum = self.datum(rdepth)?;
@@ -875,7 +872,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     ///
 
-    fn assignment(&mut self, rdepth: usize) -> ParseResult {
+    fn assignment(&mut self, rdepth: usize) -> AthirResult {
         let keyword = self.keyword("set!", rdepth)?;
         
         let id = self.identifier(rdepth)?;
@@ -890,14 +887,14 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     ///
     /// 
 
-    fn procedure_call(&mut self, rdepth: usize) -> ParseResult {
+    fn procedure_call(&mut self, rdepth: usize) -> AthirResult {
         let operator = self.expr(rdepth)?;
         let operands = self.operands(rdepth)?;
 
         Expr::list(vec!(operator, operands))
     }
 
-    fn operands(&mut self, rdepth: usize) -> ParseResult {
+    fn operands(&mut self, rdepth: usize) -> AthirResult {
         let operands = self.zero_or_more(Reader::expr, rdepth)?;
         Expr::list(operands)
     }
@@ -907,7 +904,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// [INCOMPLETE]
     /// 
     
-    fn transformer_spec(&mut self, rdepth: usize) -> ParseResult {
+    fn transformer_spec(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         self.keyword("syntax-rules", rdepth + 1)?;
 
@@ -929,17 +926,17 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(children)
     }
 
-    fn transformer_spec_ids(&mut self, rdepth: usize) -> ParseResult {
+    fn transformer_spec_ids(&mut self, rdepth: usize) -> AthirResult {
         let ids = self.zero_or_more(Reader::identifier, rdepth)?;
         Expr::list(ids)
     }
 
-    fn syntax_rules(&mut self, rdepth: usize) -> ParseResult {
+    fn syntax_rules(&mut self, rdepth: usize) -> AthirResult {
         let syntax_rules = self.zero_or_more(Reader::syntax_rule, rdepth)?;
         Expr::list(syntax_rules)
     }
 
-    fn syntax_rule(&mut self, rdepth: usize) -> ParseResult {
+    fn syntax_rule(&mut self, rdepth: usize) -> AthirResult {
         // ( <pattern> <template> )
         self.paren_left(rdepth)?;
         let pattern = self.pattern(rdepth + 1)?;
@@ -948,7 +945,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(pattern, template))
     }
 
-    fn pattern(&mut self, rdepth: usize) -> ParseResult {
+    fn pattern(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Identifier(id) => {
                 match id.as_str() {
@@ -966,11 +963,11 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn pattern_datum(&mut self, rdepth: usize) -> ParseResult {
+    fn pattern_datum(&mut self, rdepth: usize) -> AthirResult {
         self.datum(rdepth)
     }
 
-    fn pattern_identifier(&mut self, rdepth: usize) -> ParseResult {
+    fn pattern_identifier(&mut self, rdepth: usize) -> AthirResult {
         let token = self.peek_or_eof()?;
 
         match token {
@@ -979,12 +976,12 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn pattern_underscore(&mut self, rdepth: usize) -> ParseResult {
+    fn pattern_underscore(&mut self, rdepth: usize) -> AthirResult {
         self.keyword("_", rdepth)
     }
 
 
-    fn pattern_with_paren(&mut self, rdepth: usize) -> ParseResult {
+    fn pattern_with_paren(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         let patterns = self.pattern_with_paren_a(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
@@ -993,7 +990,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
 
-    fn pattern_with_paren_a(&mut self, rdepth: usize) -> ParseResult {
+    fn pattern_with_paren_a(&mut self, rdepth: usize) -> AthirResult {
         // | <pattern>*
         // | <pattern>+ . <pattern>
         // | <pattern>* <pattern> <ellipsis> <pattern>*
@@ -1065,7 +1062,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn pattern_with_sharp_paren(&mut self, rdepth: usize) -> ParseResult {
+    fn pattern_with_sharp_paren(&mut self, rdepth: usize) -> AthirResult {
         //  #( <pattern>* )
         // | #( <pattern>* <pattern> <ellipsis> <pattern>* )
 
@@ -1076,7 +1073,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(patterns))
     }
 
-    fn pattern_with_sharp_paren_a(&mut self, rdepth: usize) -> ParseResult {
+    fn pattern_with_sharp_paren_a(&mut self, rdepth: usize) -> AthirResult {
         // initially we have not seen an ellipse or any patterns before or after ellipse
         let mut pre_ellipse_patterns : Vec<Box<Expr>> = vec!();
         let mut post_ellipse_patterns: Vec<Box<Expr>> = vec!();
@@ -1108,7 +1105,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec)
     }
 
-    fn template(&mut self, rdepth: usize) -> ParseResult {
+    fn template(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.template_identifier(rdepth),
             Token::ParenLeft => self.template_with_paren(rdepth),
@@ -1121,11 +1118,11 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn template_identifier(&mut self, rdepth: usize) -> ParseResult {
+    fn template_identifier(&mut self, rdepth: usize) -> AthirResult {
         self.pattern_identifier(rdepth)
     }
 
-    fn template_with_paren(&mut self, rdepth: usize) -> ParseResult {
+    fn template_with_paren(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
 
         let template = match self.peek_or_eof()? {
@@ -1149,7 +1146,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(template)        
     }
 
-    fn template_element(&mut self, rdepth: usize) -> ParseResult {
+    fn template_element(&mut self, rdepth: usize) -> AthirResult {
         let template = self.template(rdepth)?;
         
         match self.peek_or_eof()? {
@@ -1161,7 +1158,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn template_with_sharp_paren(&mut self, rdepth: usize) -> ParseResult {
+    fn template_with_sharp_paren(&mut self, rdepth: usize) -> AthirResult {
         self.sharpopen(rdepth)?;
         let elements = self.zero_or_more(Reader::template_element, rdepth + 1)?;
         self.paren_right(rdepth)?;
@@ -1169,7 +1166,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(elements)
     }
 
-    fn template_datum(&mut self, rdepth: usize) -> ParseResult {
+    fn template_datum(&mut self, rdepth: usize) -> AthirResult {
         self.datum(rdepth)
     }
 
@@ -1178,7 +1175,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// 
     /// 
     /// 
-    fn datum(&mut self, rdepth: usize) -> ParseResult {
+    fn datum(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.symbol(rdepth),
             Token::ParenLeft => self.datum_list(rdepth),
@@ -1196,7 +1193,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn simple_datum(&mut self, rdepth: usize) -> ParseResult {
+    fn simple_datum(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.symbol(rdepth),
             Token::Boolean(_)
@@ -1208,11 +1205,11 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn symbol(&mut self, rdepth: usize) -> ParseResult {
+    fn symbol(&mut self, rdepth: usize) -> AthirResult {
         self.identifier(rdepth)
     }
 
-    fn abbreviation(&mut self, rdepth: usize) -> ParseResult {
+    fn abbreviation(&mut self, rdepth: usize) -> AthirResult {
         let prefix = match self.peek_or_eof()? {
             Token::Quote => self.quote(rdepth),
             Token::Quasiquote => self.quasiquote(rdepth),
@@ -1226,7 +1223,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(prefix, expr))
     }
 
-    fn datum_list(&mut self, rdepth: usize) -> ParseResult {
+    fn datum_list(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
 
 
@@ -1266,22 +1263,22 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.peek().ok_or(Error::EOF)
     }
 
-    fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> ParseResult, rdepth: usize) -> ParseVecResult {
+    fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> AthirResult, rdepth: usize) -> AthirVecResult {
         Ok(from_fn(|| closure(self, rdepth).ok()).collect())
     }
 
-    fn one_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> ParseResult, rdepth: usize) -> ParseVecResult {
+    fn one_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> AthirResult, rdepth: usize) -> AthirVecResult {
         Ok(once(closure(self, rdepth)?).chain(from_fn(|| closure(self, rdepth).ok())).collect())
     }
 
-    fn keyword(&mut self, keyword: &str, rdepth: usize) -> ParseResult {
+    fn keyword(&mut self, keyword: &str, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Identifier(s) if keyword == s => self.keyword_box_leaf_from_next(rdepth),
             token @ _ => Err(unexpected(rdepth, token.to_string(), "a keyword".to_string()))
         }
     }
 
-    fn keyword_box_leaf_from_next(&mut self, rdepth: usize) -> ParseResult {
+    fn keyword_box_leaf_from_next(&mut self, rdepth: usize) -> AthirResult {
 
         match self.lexer.next() {
             Some(Token::Identifier(s)) => Ok(Box::new(Expr::Identifier(Identifier::Keyword(Keyword::from(s))))),
@@ -1290,7 +1287,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
     
-    fn punctuation(&mut self, rdepth: usize, expected: Token, s: &'static str) -> ParseResult {
+    fn punctuation(&mut self, rdepth: usize, expected: Token, s: &'static str) -> AthirResult {
         match self.peek_or_eof()? {
             t if t == &expected => {
                 self.lexer.next();
@@ -1300,47 +1297,47 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }   
     }
 
-    fn comma(&mut self, rdepth: usize) -> ParseResult {
+    fn comma(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::Comma, ",")
     }
 
-    fn comma_at(&mut self, rdepth: usize) -> ParseResult {
+    fn comma_at(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::CommaAt, ",@")
     }
 
-    fn dot(&mut self, rdepth: usize) -> ParseResult {
+    fn dot(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::Dot, ".")
     }
 
-    fn paren_right(&mut self, rdepth: usize) -> ParseResult {
+    fn paren_right(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::ParenRight, ")")
     }
     
-    fn paren_left(&mut self, rdepth: usize) -> ParseResult {
+    fn paren_left(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::ParenLeft, "(")
     }
 
-    fn quasiquote(&mut self, rdepth: usize) -> ParseResult {
+    fn quasiquote(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::Quasiquote, "`")
     }
 
-    fn quote(&mut self, rdepth: usize) -> ParseResult {
+    fn quote(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::Quote, "'")
     }
 
-    fn sharpopen(&mut self, rdepth: usize) -> ParseResult {
+    fn sharpopen(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::SharpOpen, "#(")
     }
 
-    fn sharpu8open(&mut self, rdepth: usize) -> ParseResult {
+    fn sharpu8open(&mut self, rdepth: usize) -> AthirResult {
         self.punctuation(rdepth, Token::SharpU8Open, "#u8(")
     }
 
-    fn strings(&mut self, rdepth: usize) -> ParseResult {
+    fn strings(&mut self, rdepth: usize) -> AthirResult {
         Expr::list(self.one_or_more(Reader::string, rdepth)?)
     }
 
-    fn string(&mut self, rdepth: usize) -> ParseResult {
+    fn string(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::String(_) => {
                 let next = self.lexer.next();
@@ -1356,9 +1353,9 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn identifier(&mut self, rdepth: usize) -> ParseResult {        
+    fn identifier(&mut self, rdepth: usize) -> AthirResult {        
         match self.peek_or_eof()? {
-            Token::Identifier(id) => {
+            Token::Identifier(_) => {
                 if let Some(Token::Identifier(id)) = self.lexer.next() {
                     Ok(Box::new(Expr::Identifier(Identifier::Variable(id.clone()))))
                 } else {
@@ -1369,7 +1366,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }        
     }
     
-    fn identifier_pair(&mut self, rdepth: usize) -> ParseResult {
+    fn identifier_pair(&mut self, rdepth: usize) -> AthirResult {
         self.paren_left(rdepth)?;
         let id1 = self.identifier(rdepth + 1)?;
         let id2 = self.identifier(rdepth + 1)?;
@@ -1379,7 +1376,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Expr::list(vec!(id1, id2))
     }
 
-    fn identifier_list_possible_dot(&mut self, rdepth: usize) -> ParseResult {
+    fn identifier_list_possible_dot(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::ParenRight => Expr::list(vec!()),
             _ => {
@@ -1395,7 +1392,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
     
-    fn uinteger10(&mut self, rdepth: usize) -> ParseResult {
+    fn uinteger10(&mut self, rdepth: usize) -> AthirResult {
         match self.peek_or_eof()? {
             Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => {
                 match self.lexer.next() {
@@ -1407,14 +1404,14 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn vector(&mut self, rdepth: usize) -> ParseResult {
+    fn vector(&mut self, rdepth: usize) -> AthirResult {
         self.sharpopen(rdepth)?;
         let data = self.zero_or_more(Reader::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
         Ok(Box::new(Expr::Vector(data)))
     }
 
-    fn bytevector(&mut self, rdepth: usize) -> ParseResult {
+    fn bytevector(&mut self, rdepth: usize) -> AthirResult {
         self.sharpu8open(rdepth)?;
         let data = self.zero_or_more(Reader::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
