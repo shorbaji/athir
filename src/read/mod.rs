@@ -23,9 +23,7 @@
 //! - derived expressions not implemented
 //!
 
-mod error;
 mod lexer; // lexical analyzer
-mod expr; // abstract syntax tree node
 
 #[cfg(test)]
 mod tests;
@@ -33,13 +31,13 @@ mod tests;
 use std::iter::{once, from_fn};
 
 use lexer::{Lexer, Token};
-use error::unexpected;
+use crate::error::unexpected;
 
 #[doc(hidden)]
-type ParseResult = Result<Box<Expr>, SyntaxError>;
+pub type ParseResult = Result<Box<Expr>, Error>;
 
 #[doc(hidden)]
-type ParseVecResult = Result<Vec<Box<Expr>>, SyntaxError>;
+type ParseVecResult = Result<Vec<Box<Expr>>, Error>;
 
 //
 // Public API
@@ -53,9 +51,9 @@ type ParseVecResult = Result<Vec<Box<Expr>>, SyntaxError>;
 // - Keyword
 
 #[doc(inline)]
-pub use expr::{Keyword, Identifier, Expr}; 
+pub use crate::object::{Keyword, Identifier, Expr}; 
 #[doc(inline)]
-pub use error::{SyntaxError, SyntaxErrorKind};
+pub use crate::error::Error;
 
 /// Parser struct
 /// 
@@ -72,7 +70,7 @@ impl<T> Iterator for Reader<T> where T: Iterator<Item = Result<String, std::io::
     fn next(&mut self) -> Option<Self::Item> {
         match self.expr(0) {
             Ok(expr) => Some(Ok(expr)),
-            Err(SyntaxError{ kind: SyntaxErrorKind::EOF, child: None }) => None,
+            Err(Error::EOF) => None,
             Err(err) => {
                 self.recover(&err);
                 Some(Err(err))
@@ -94,9 +92,9 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
 #[doc(hidden)]
 impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {    
-    fn recover(&mut self, err: &SyntaxError) {
-        match &err.kind {
-            SyntaxErrorKind::UnexpectedToken{depth, unexpected: _, expected: _} => {
+    fn recover(&mut self, err: &Error) {
+        match &err {
+            Error::UnexpectedToken{depth, unexpected: _, expected: _} => {
                 if *depth == 0 {
                     // unexpected token at top level
                     // skip to next line
@@ -170,7 +168,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             Token::Quote => self.quotation_short(rdepth),
             Token::Quasiquote => self.quasiquotation_short(rdepth, 1),
             Token::SharpOpen => self.vector(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "expression".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "expression".to_string())),
         }
     }
 
@@ -187,12 +185,12 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                             Token::Character(c) => Ok(Box::new(Expr::Character(c))),
                             Token::Number(n) => Ok(Box::new(Expr::Number(n))),
                             Token::String(s) => Ok(Box::new(Expr::String(s))),
-                            _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string(), None)),
+                            _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string())),
                         },
-                    None => Err(SyntaxError{kind: SyntaxErrorKind::EOF, child: None}),
+                    None => Err(Error::EOF),
                 }
             }
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string())),
         }
     }
     
@@ -294,7 +292,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 let body = self.body(rdepth)?;
                 Expr::list(vec!(keyword, var, formals, body))
             },
-            token @ _ => Err(unexpected(1, token.to_string(), "identifier or open paren".to_string(), None)),
+            token @ _ => Err(unexpected(1, token.to_string(), "identifier or open paren".to_string())),
         }
     }
 
@@ -396,7 +394,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::Number(_) => self.uinteger10(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or uinteger10".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or uinteger10".to_string())),
         }
     }
 
@@ -412,9 +410,9 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                     "include-ci" => self.include(rdepth + 1),
                     "include-library-declarations" => self.include_library_declarations(rdepth + 1),
                     "cond-expand" => self.cond_expand(rdepth + 1),
-                    token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string(), None)),
+                    token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string())),
                 },
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string())),
             
         }?;
         self.paren_right(rdepth + 1)?;
@@ -437,7 +435,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.export_spec_id(rdepth),
             Token::ParenLeft => self.export_spec_rename(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or export-spec-list".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or export-spec-list".to_string())),
         }
     }
 
@@ -575,7 +573,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::ParenLeft => self.feature_requirement_with_paren(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or open parenthesis".to_string(), None))
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or open parenthesis".to_string()))
         }
     }
 
@@ -679,7 +677,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 self.paren_right(rdepth + 1)?;
                 Ok(ids)
             }
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or open parenthesis".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or open parenthesis".to_string())),
         }
     }
 
@@ -694,7 +692,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         for expr in exprs.iter() {
             if expr.is_definition_expr() {
                 if defs == false {
-                    return Err(SyntaxError{kind: SyntaxErrorKind::DefinitionsBeforeExpressionsinLambda, child: None });
+                    return Err(Error::DefinitionsBeforeExpressionsinLambda);
                 }
             } else {
                 defs = false;
@@ -722,9 +720,9 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                         let body = self.body(rdepth)?;
                         Expr::list(vec!(keyword, syntax_specs, body))
                     }
-                     _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string(), None)),
+                     _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string())),
                 },
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string())),
         }
     }
 
@@ -794,7 +792,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                         },
                     }
                 },
-                token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string(), None)),
+                token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string())),
             }    
         }
     }
@@ -964,7 +962,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::Number(_) => self.pattern_datum(rdepth),
             Token::ParenLeft => self.pattern_with_paren(rdepth),
             Token::SharpOpen => self.pattern_with_sharp_paren(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string())),
         }
     }
 
@@ -976,7 +974,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let token = self.peek_or_eof()?;
 
         match token {
-            Token::Identifier(s) if s.as_str() == "..." => Err(unexpected(rdepth, "...".to_string(), "identifier".to_string(), None)),
+            Token::Identifier(s) if s.as_str() == "..." => Err(unexpected(rdepth, "...".to_string(), "identifier".to_string())),
             _ => self.identifier(rdepth),
         }
     }
@@ -1119,7 +1117,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::Character(_)
             | Token::String(_)
             | Token::Number(_) => self.template_datum(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string(), None))
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
     }
 
@@ -1141,7 +1139,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                         elements.push(self.template_element(rdepth + 1)?);
                         Ok(elements)
                     },
-                    token @ _ => Err(unexpected(rdepth, token.to_string(), "close parenthesis or dot".to_string(), None)),
+                    token @ _ => Err(unexpected(rdepth, token.to_string(), "close parenthesis or dot".to_string())),
                 }
             }
         }?;
@@ -1194,7 +1192,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::Quasiquote
             | Token::Comma
             | Token::CommaAt => self.abbreviation(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string(), None))
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
     }
 
@@ -1206,7 +1204,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::String(_)
             | Token::Number(_) => self.literal(rdepth),
             Token::SharpU8Open => self.bytevector(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string(), None))
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
     }
 
@@ -1220,7 +1218,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             Token::Quasiquote => self.quasiquote(rdepth),
             Token::Comma => self.comma(rdepth),
             Token::CommaAt => self.comma_at(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "quote, quasiquote, comma or comma-at".to_string(), None))
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "quote, quasiquote, comma or comma-at".to_string()))
         }?;
 
         let expr = self.datum(rdepth)?;
@@ -1264,8 +1262,8 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.lexer.peek()
     }
     
-    fn peek_or_eof(&mut self) -> Result<&Token, SyntaxError> {
-        self.peek().ok_or(SyntaxError{kind: SyntaxErrorKind::EOF, child: None})
+    fn peek_or_eof(&mut self) -> Result<&Token, Error> {
+        self.peek().ok_or(Error::EOF)
     }
 
     fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> ParseResult, rdepth: usize) -> ParseVecResult {
@@ -1279,7 +1277,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     fn keyword(&mut self, keyword: &str, rdepth: usize) -> ParseResult {
         match self.peek_or_eof()? {
             Token::Identifier(s) if keyword == s => self.keyword_box_leaf_from_next(rdepth),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "a keyword".to_string(), None))
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "a keyword".to_string()))
         }
     }
 
@@ -1287,8 +1285,8 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         match self.lexer.next() {
             Some(Token::Identifier(s)) => Ok(Box::new(Expr::Identifier(Identifier::Keyword(Keyword::from(s))))),
-            None => Err(SyntaxError{kind: SyntaxErrorKind::EOF, child: None}),
-            token @ _ => Err(unexpected(rdepth, token.unwrap().to_string(), "a keyword".to_string(), None)),
+            None => Err(Error::EOF),
+            token @ _ => Err(unexpected(rdepth, token.unwrap().to_string(), "a keyword".to_string())),
         }
     }
     
@@ -1298,7 +1296,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 self.lexer.next();
                 Ok(Box::new(Expr::Identifier(Identifier::Variable(s.to_string()))))
             },
-            token @ _ => Err(unexpected(rdepth, token.to_string(), s.to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), s.to_string())),
         }   
     }
 
@@ -1349,19 +1347,19 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 match next {
                     Some(token) => match token {
                             Token::String(s) => Ok(Box::new(Expr::String(s))),
-                            _ => Err(unexpected(rdepth, token.to_string(), "string".to_string(), None)),
+                            _ => Err(unexpected(rdepth, token.to_string(), "string".to_string())),
                         },
-                    None => Err(SyntaxError{kind: SyntaxErrorKind::EOF, child: None}),
+                    None => Err(Error::EOF),
                 }
             },
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "string".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "string".to_string())),
         }
     }
 
     fn identifier(&mut self, rdepth: usize) -> ParseResult {        
         match self.peek_or_eof()? {
-            Token::Identifier(_) => Ok(Box::new(Expr::Identifier(Identifier::from(&self.lexer.next().unwrap())))),
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier".to_string(), None)),
+            Token::Identifier(id) => Ok(Box::new(Expr::Identifier(Identifier::Variable(id.clone())))),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier".to_string())),
         }        
     }
     
@@ -1396,10 +1394,10 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => {
                 match self.lexer.next() {
                     Some(Token::Number(n)) => Ok(Box::new(Expr::Number(n.clone()))),
-                    _ => return Err(SyntaxError{kind: SyntaxErrorKind::EOF, child: None}),
+                    _ => return Err(Error::EOF),
                 }
             },
-            token @ _ => Err(unexpected(rdepth, token.to_string(), "uninteger10".to_string(), None)),
+            token @ _ => Err(unexpected(rdepth, token.to_string(), "uninteger10".to_string())),
         }
     }
 

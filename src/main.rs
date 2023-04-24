@@ -10,8 +10,11 @@
 //! - a repl
 //! - tools including a lexeme generator and a regex generator
 
-mod read;
+
+mod error;
 mod eval;
+mod object;
+mod read;
 mod repl;
 
 use repl::repl;
@@ -21,10 +24,6 @@ use repl::repl;
 /// At the moment, the main function simply prints a welcome message and calls the REPL.
 /// This will evolve into launching a server and listening for connections or setting up a remote REPL to a server
 fn main() -> std::io::Result<()> {
-
-
-    env_logger::init();
-
     println!("athir (c) 2023 Athir LLC");
     repl();
     Ok(())

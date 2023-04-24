@@ -6,16 +6,17 @@
 
 use std::io::Write;
 
-use crate::read::Reader;
-use crate::eval::eval;
-
 pub fn repl() {
+
+    let mut reader = crate::read::Reader::new(std::io::stdin().lines());
+    let mut eval = crate::eval::Eval::new(reader);
+
     print!("> ");
     std::io::stdout().flush().unwrap();
 
-    for expr in Reader::new(std::io::stdin().lines()) {
-        match expr {
-            Ok(expr) => println!("{:?}", eval(&expr)),
+    for object in eval {
+        match object {
+            Ok(object) => println!("{:?}", object),
             Err(err) => println!("{}", err),
         }
         print!("> ");
