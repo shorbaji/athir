@@ -61,6 +61,10 @@ impl Eval{
         self.heap.len() - 1
     }
 
+    fn update(&mut self, object_ptr: ObjectPtr, object: Box<Object>) {
+        self.heap[object_ptr] = object.deref().clone();
+    }
+    
     pub fn eval(&mut self, expr: &Box<Expr>, env: &mut Env) -> AthirResult {
         match expr.deref() {
             Expr::Identifier(identifier) => self.eval_identifier(identifier, env),
@@ -126,10 +130,21 @@ impl Eval{
 
         env.set(symbol.clone(), ptr);
 
-        Ok(Box::new(Expr::Null))
+        Ok(UNSPECIFIED.clone())
     }
     
     fn eval_assignment(&mut self, expr: &Box<Expr>, env: &mut Env) -> AthirResult {
+        let symbol = match expr.car()?.deref() {
+            Object::Identifier(Identifier::Variable(symbol)) => Ok(symbol),
+            _ => Err(Error::EvalError("unknown error".to_string())),
+        }?;
+
+        let ptr = env.lookup(symbol).and_then(|ptr| Some(*ptr)).ok_or(Error::EvalError("symbol not found".to_string()))?;
+
+        let value = self.eval(expr.cadr()?, env)?;
+
+        self.update(ptr, value);
+
         Ok(Box::new(Expr::Null))
     }
     
