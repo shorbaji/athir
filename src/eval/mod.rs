@@ -38,7 +38,7 @@ impl Env {
         }
     }
 
-    pub fn set(&mut self, key: String, value: ObjectPtr) {
+    pub fn insert(&mut self, key: String, value: ObjectPtr) {
         self.hashmap.insert(key, value);
     }
 
@@ -64,7 +64,7 @@ impl Eval{
     fn update(&mut self, object_ptr: ObjectPtr, object: Box<Object>) {
         self.heap[object_ptr] = object.deref().clone();
     }
-    
+
     pub fn eval(&mut self, expr: &Box<Expr>, env: &mut Env) -> AthirResult {
         match expr.deref() {
             Expr::Identifier(identifier) => self.eval_identifier(identifier, env),
@@ -128,7 +128,7 @@ impl Eval{
 
         let ptr = self.alloc(value);
 
-        env.set(symbol.clone(), ptr);
+        env.insert(symbol.clone(), ptr);
 
         Ok(UNSPECIFIED.clone())
     }
