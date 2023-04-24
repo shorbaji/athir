@@ -6,7 +6,7 @@
 
 // pub mod env;
 
-use crate::object::{Object, Expr};
+use crate::object::{Object, Expr, UNSPECIFIED, NULL};
 use std::collections::HashMap;
 use crate::read::{Identifier, Keyword};
 use crate::error::Error;
@@ -77,6 +77,7 @@ impl Eval{
                         Keyword::Set => self.eval_assignment(cdr, env),
                         Keyword::Begin => self.eval_begin(cdr, env),
                         Keyword::Quote => self.eval_quotation(cdr, env),
+                        Keyword::If => self.eval_if(cdr, env),
                         _ => Err(Error::EvalError("not implemented".to_string())),
                     }
                     _ =>self. eval_procedure_call(car, cdr, env), }
@@ -85,6 +86,16 @@ impl Eval{
         }
     }
     
+    fn eval_if(&mut self, expr: &Box<Expr>, env: &mut Env) -> AthirResult {
+        if self.eval(expr.car()?, env)?.is_true() {
+            self.eval(expr.cadr()?, env)
+        } else {
+            expr.caddr()
+            .and_then(|expr| self.eval(expr, env))
+            .or_else(|_| Ok(UNSPECIFIED.clone()))
+        }        
+    }
+
     fn eval_procedure_call(&mut self, _operator: &Box<Expr>, _operands: &Box<Expr>, env: &mut Env) -> AthirResult {
         // let children = node.children().unwrap();
         // let operator = eval(&children[0])?;

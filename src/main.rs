@@ -10,6 +10,10 @@
 //! - a repl
 //! - tools including a lexeme generator and a regex generator
 
+#[macro_use]
+extern crate lazy_static;
+
+
 
 mod error;
 mod eval;
