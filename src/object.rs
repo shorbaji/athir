@@ -9,10 +9,12 @@ pub enum Object {
     Boolean(bool),
     Bytevector(Vec<Box<Object>>),
     Character(char),
+    _Eof,
     Identifier(Identifier),
     Null,
     Number(String),
     Pair(Box<Object>, Box<Object>),
+    _Port,
     Procedure(Procedure),
     Quotation(Box<Object>),
     String(String),
@@ -92,6 +94,10 @@ impl Object {
         Ok(result)
     }
 
+    pub fn cons(&self, object: Object) -> AthirResult {
+        Ok(Box::new(Object::Pair(Box::new(self.clone()), Box::new(object))))
+    }
+
     pub fn car(&self) -> Result<&Box<Object>, Error> {
         match self {
             Object::Pair(car, _) => Ok(car),
@@ -122,15 +128,63 @@ impl Object {
         self.cadr()?.cdr()
     }
 
-    pub fn _is_null(&self) -> bool {
+    pub fn is_null(&self) -> bool {
         match self {
             Object::Null => true,
             _ => false,
         }
     }
 
-    fn _cons(&self, object: Object) -> Object {
-        Object::Pair(Box::new(self.clone()), Box::new(object))
+    pub fn is_false(&self) -> bool {
+        matches!(self, Object::Boolean(false) | Object::Null)
+    }
+    
+    pub fn is_true(&self) -> bool {
+        !self.is_false()
+    }
+
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, Object::Boolean(_))
+    }
+
+    pub fn is_bytevector(&self) -> bool {
+        matches!(self, Object::Bytevector(_))
+    }
+
+    pub fn is_char(&self) -> bool {
+        matches!(self, Object::Character(_))
+    }
+
+    pub fn is_eof_object(&self) -> bool {
+        matches!(self, Object::_Eof)
+    }
+
+    pub fn is_number(&self) -> bool {
+        matches!(self, Object::Number(_))
+    }
+
+    pub fn is_pair(&self) -> bool {
+        matches!(self, Object::Pair(_, _))
+    }
+
+    pub fn is_procedure(&self) -> bool {
+        matches!(self, Object::Procedure(_))
+    }
+
+    pub fn is_string(&self) -> bool {
+        matches!(self, Object::String(_))
+    }
+
+    pub fn is_symbol(&self) -> bool {
+        matches!(self, Object::Identifier(_))
+    }
+
+    pub fn is_vector(&self) -> bool {
+        matches!(self, Object::Vector(_))
+    }
+
+    pub fn is_port(&self) -> bool {
+        matches!(self, Object::_Port)
     }
 
 }
@@ -180,14 +234,6 @@ impl Object {
             Ok(object) => matches!(&**object, Object::Boolean(true)),
             Err(_) => false,
         }
-    }
-
-    pub fn is_false(&self) -> bool {
-        matches!(self, Object::Boolean(false) | Object::Null)
-    }
-    
-    pub fn is_true(&self) -> bool {
-        !self.is_false()
     }
 
 }

@@ -34,7 +34,6 @@ impl<T> Eval<T> where T: GC {
 
         vm.init();
 
-        println!("env: {:?}", vm.global_env);
         vm
     }
 
@@ -62,13 +61,13 @@ impl<T> Eval<T> where T: GC {
             | Object::Number(_)
             | Object::String(_)
             | Object::Vector(_) => Ok(expr.clone()),
+            Object::Quotation(expr) => Ok(expr.clone()),
             Object::Pair(car, cdr) => {
                 match &**car {
                     Object::Identifier(Identifier::Keyword(keyword)) => match keyword {
                         Keyword::Define => self.eval_define(cdr, env),
                         Keyword::Set => self.eval_assignment(cdr, env),
                         Keyword::Begin => self.eval_begin(cdr, env),
-                        Keyword::Quote => self.eval_quotation(cdr, env),
                         Keyword::If => self.eval_if(cdr, env),
                         Keyword::Lambda => self.eval_lambda(cdr, env),
                         _ => Err(Error::EvalError("not implemented".to_string())),
@@ -212,11 +211,7 @@ impl<T> Eval<T> where T: GC {
     fn eval_begin(&mut self, _expr: &Box<Object>, _env: Rc<RefCell<Env>>) -> AthirResult {
         Ok(Box::new(Object::Null))
     }
-    
-    fn eval_quotation(&mut self, _expr: &Box<Object>, _env: Rc<RefCell<Env>>) -> AthirResult {
-        Ok(Box::new(Object::Null))
-    }
-    
+        
     fn eval_identifier(&mut self, id: &Identifier, env: Rc<RefCell<Env>>) -> AthirResult {
         if let Identifier::Variable(s) = id {
             if let Some(ptr) = env.borrow().lookup(s) {
