@@ -112,6 +112,14 @@ impl Object {
         }
     }
 
+    pub fn caar(&self) -> Result<&Box<Object>, Error> {
+        self.car()?.car()
+    }
+
+    pub fn cdar(&self) -> Result<&Box<Object>, Error> {
+        self.car()?.cdr()
+    }
+
     pub fn cadr(&self) -> Result<&Box<Object>, Error> {
         self.cdr()?.car()
     }
@@ -322,3 +330,23 @@ pub enum Identifier {
     Variable(String),
 }
 
+
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
+        if self.is_number() && other.is_number()  {
+            let a = match self {
+                Object::Number(n) => n,
+                _ => panic!("Cannot compare non-number object"),
+            };
+
+            let b = match other {
+                Object::Number(n) => n,
+                _ => panic!("Cannot compare non-number object"),
+            };
+
+            a == b
+        } else {
+            false
+        }
+    }
+}

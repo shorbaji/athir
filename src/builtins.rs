@@ -8,6 +8,7 @@ pub fn builtins() -> Vec<Builtin> {
         Builtin::new("+", Some(2), None, plus),
         Builtin::new("-", Some(2), None, minus),
         Builtin::new("*", Some(2), None, multiply),
+        Builtin::new("=", Some(2), None, equal),
         Builtin::new("car", Some(1), Some(1), car),
         Builtin::new("cdr", Some(1), Some(1), cdr),
         Builtin::new("cadr", Some(1), Some(1), cadr),
@@ -91,11 +92,11 @@ fn cadr(args: &[Box<Object>]) -> AthirResult {
 }
 
 fn caar(args: &[Box<Object>]) -> AthirResult {
-    Ok(Box::new(*args[0].car()?.car()?.clone()))
+    Ok(Box::new(*args[0].caar()?.clone()))
 }
 
 fn cdar(args: &[Box<Object>]) -> AthirResult {
-    Ok(Box::new(*args[0].car()?.cdr()?.clone()))
+    Ok(Box::new(*args[0].cdar()?.clone()))
 }
 
 fn cons(args: &[Box<Object>]) -> AthirResult {
@@ -153,4 +154,11 @@ fn minus(args: &[Box<Object>]) -> AthirResult {
     }
 
     Ok(Box::new(Object::Number(result.to_string())))
+}
+
+fn equal(args: &[Box<Object>]) -> AthirResult {
+    let a = &*args[0];
+    let b = &*args[1];
+
+    Ok(Box::new(Object::Boolean(a == b)))
 }

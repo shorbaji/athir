@@ -86,10 +86,16 @@ impl<T> Eval<T> where T: GC {
         // if false check if there is an alternative and evaluate it, otherwise return unspecified
 
         match self.eval(test, Rc::clone(&env)) {
-            Ok(expr) if expr.is_true() => self.eval(expr.cadr()?, env),
-            _ => expr.caddr()
-                    .and_then(|expr| self.eval(expr, env))
-                    .or_else(|_| Ok(Box::new(Object::Unspecified)))    
+            Ok(e) if e.is_true() => {
+                self.eval(expr.cadr()?, env)
+                // Err(Error::EvalError("not implemented".to_string()))
+            }
+            _ => {
+                match expr.caddr() {
+                    Ok(expr) => self.eval(expr, env),
+                    _ => Ok(Box::new(Object::Unspecified)),
+                }
+            }
         }
     }
 
@@ -109,6 +115,7 @@ impl<T> Eval<T> where T: GC {
     }
 
     fn eval_procedure_call(&mut self, operator: &Box<Object>, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
+        // println!("eval_procedure_call \n {:?} \n {:?}", operator, operands);
         let operator = self.eval(operator, Rc::clone(&env))?;
         let operands = self.evlis(operands, Rc::clone(&env))?;
 
@@ -178,21 +185,41 @@ impl<T> Eval<T> where T: GC {
     }
 
     fn eval_define(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
+        // println!("evaluating define {:?}", expr.cadr()?);
+        match &**expr.cadr()? {
+            Object::Pair(_,_) => self.eval_define_function(expr, env),
+            _ => self.eval_define_variable(expr, env),
+        }
+    }
+
+    fn eval_define_variable(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let symbol = match &**expr.car()? {
-            Object::Pair(_, _) => Err(Error::EvalError("not implemented".to_string())),
-            Object::Identifier(Identifier::Variable(symbol)) => Ok(symbol),
-            _ => Err(Error::EvalError("unknown error".to_string())),
-        }?;
+            Object::Identifier(Identifier::Variable(symbol)) => symbol,
+            _ => return Err(Error::EvalError("unknown error".to_string())),
+        };
 
         let value = self.eval(expr.cadr()?, env.clone())?;
-
         let ptr = self.heap.alloc(value);
-
         env.clone().borrow_mut().insert(symbol.clone(), ptr);
 
         Ok(Box::new(Object::Unspecified))
     }
     
+    fn eval_define_function(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
+        let symbol = match &**expr.car()? {
+            Object::Identifier(Identifier::Variable(symbol)) => symbol,
+            _ => return Err(Error::EvalError("unknown error".to_string())),
+        };
+
+        let formals = expr.cadr()?;
+        let body = expr.cddr()?;
+        let lambda = self.eval_lambda(&formals.cons(*body.clone())?, env.clone())?;
+        let ptr = self.heap.alloc(lambda);
+        env.clone().borrow_mut().insert(symbol.clone(), ptr);
+
+        Ok(Box::new(Object::Unspecified))
+    }
+
     fn eval_assignment(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let symbol = match &**expr.car()? {
             Object::Identifier(Identifier::Variable(symbol)) => Ok(symbol),
