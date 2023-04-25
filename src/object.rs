@@ -23,12 +23,20 @@ pub enum Object {
 use std::rc::Rc;
 use std::cell::RefCell;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Procedure {
-    Builtin,
+    Builtin(usize, fn(&[Box<Object>], &mut Env) -> AthirResult),
     Lambda(Rc<RefCell<Env>>, Box<Object>, Box<Object>),
 }
 
+impl std::fmt::Debug for Procedure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Procedure::Builtin(_, _) => write!(f, "Builtin"),
+            Procedure::Lambda(_, _, _) => write!(f, "Lambda"),
+        }
+    }
+}
 // public methods
 
 impl Object {
