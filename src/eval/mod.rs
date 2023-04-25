@@ -4,57 +4,17 @@
 /// [Currently a work in progress]
 /// 
 
-// pub mod env;
+pub mod env; // Environment module - pub so lambda objects can use it
 
-use crate::object::{Object, Expr, Procedure};
-use std::collections::HashMap;
-use crate::read::{Identifier, Keyword};
-use crate::error::Error;
-use crate::AthirResult;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-type ObjectPtr = usize;
-
-#[derive(Debug, Clone)]
-pub struct Env {
-    hashmap: HashMap<String, ObjectPtr>,
-    parent: Option<Rc<RefCell<Env>>>,
-}
-
-impl Env {
-    pub fn new() -> Env {
-        Env {
-            hashmap: HashMap::new(),
-            parent: None,
-        }
-    }
-
-    pub fn new_with_parent(parent: Rc<RefCell<Env>>) -> Env {
-        Env {
-            hashmap: HashMap::new(),
-            parent: Some(parent),
-        }
-    }
-
-    pub fn lookup(&self, key: &str) -> Option<ObjectPtr> {
-        match self.hashmap.get(key) {
-            Some(value) => Some(*value),
-            None => match self.parent {
-                Some(ref parent) => {
-                    parent.borrow().lookup(key).map(|value| value.clone())
-                },
-                None => None,
-            },
-        }
-    }
-
-    pub fn insert(&mut self, key: String, value: ObjectPtr) {
-        self.hashmap.insert(key, value);
-    }
-
-}
+use crate::error::Error;
+use crate::object::{Object, Expr, Procedure};
+use crate::read::{Identifier, Keyword};
+use crate::AthirResult;
+use crate::eval::env::{Env, ObjectPtr};
 
 #[derive(Debug)]
 pub struct Eval {
@@ -71,12 +31,12 @@ impl Eval{
     }
 
     fn alloc(&mut self, object: Box<Object>) -> ObjectPtr {
-        self.heap.push(object.deref().clone());
+        self.heap.push(*object.clone());
         self.heap.len() - 1
     }
 
     fn write(&mut self, object_ptr: ObjectPtr, object: Box<Object>) {
-        self.heap[object_ptr] = object.deref().clone();
+        self.heap[object_ptr] = *object.clone();
     }
 
     fn read(&self, object_ptr: ObjectPtr) -> &Object {
@@ -88,7 +48,7 @@ impl Eval{
     }
 
     pub fn eval(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
-        match expr.deref() {
+        match &**expr {
             Expr::Identifier(identifier) => self.eval_identifier(identifier, env),
             Expr::Boolean(_) 
             | Expr::Bytevector(_)

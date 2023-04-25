@@ -3,7 +3,7 @@
 
 use crate::AthirResult;
 use crate::error::Error;
-use crate::eval::Env;
+use crate::eval::env::Env;
 #[derive(Debug, Clone)]
 pub enum Object {
     Boolean(bool),

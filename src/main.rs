@@ -22,10 +22,10 @@ use object::Object;
 use error::Error;
 
 #[doc(hidden)]
-pub type AthirResult = Result<Box<Object>, Error>;
+pub type AthirResult = std::result::Result<Box<Object>, Error>;
 
 #[doc(hidden)]
-pub type AthirVecResult = Result<Vec<Box<Object>>, Error>;
+pub type AthirVecResult = std::result::Result<Vec<Box<Object>>, Error>;
 
 /// Main entry point
 ///
