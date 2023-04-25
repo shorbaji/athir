@@ -55,7 +55,7 @@ impl<T> Eval<T> where T: GC {
                         Keyword::Lambda => self.eval_lambda(cdr, env),
                         _ => Err(Error::EvalError("not implemented".to_string())),
                     }
-                    _ =>self. eval_procedure_call(car, cdr, env), }
+                    _ =>self. eval_procedure_call(car, cdr.car()?, env), }
             }
             _ => Ok(Box::new(Object::Null)),
         }
@@ -91,35 +91,61 @@ impl<T> Eval<T> where T: GC {
         let operator = self.eval(operator, Rc::clone(&env))?;
         let operands = self.evlis(operands, Rc::clone(&env))?;
 
-        match *operator {
+        self.apply(&operator, &operands, env)
+    }
+    
+    fn apply(&mut self, operator: &Box<Object>, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
+        match &**operator {
             Object::Procedure(procedure) => match procedure {
-                Procedure::Lambda(env, formals, body) => {
-                    let mut new_env = Env::new_with_parent(Rc::clone(&env));
-                    let mut formals = formals;
-                    let mut operands = operands;
-
-                    while !formals.is_null() {
-                        let formal = match &**formals.car()? {
-                            Object::Identifier(Identifier::Variable(formal)) => formal,
-                            _ => return Err(Error::EvalError("not implemented".to_string())),
-                        };
-
-                        let operand = operands.car()?;
-                        let ptr = self.heap.alloc(operand.clone());
-                        new_env.insert(formal.clone(), ptr);
-                        formals = formals.cdr()?.clone();
-                        operands = operands.cdr()?.clone();
-                    }
-
-                    self.eval(body.car()?, Rc::new(RefCell::new(new_env)))
-                }
-                _ => Err(Error::EvalError("not implemented".to_string())),
+                Procedure::Lambda(env, formals, body) => self.apply_lambda(formals, body, operands, env.clone()),
+                Procedure::Builtin(arity, f) => self.apply_builtin(*arity, *f, operands),
             }
             _ => Err(Error::EvalError("not implemented".to_string())),
         }
-
     }
-    
+
+    fn apply_builtin(&mut self, arity: usize, f: fn(&[Box<Object>]) -> AthirResult, operands: &Box<Object>) -> AthirResult {
+        Err(Error::EvalError("not implemented".to_string()))
+    }
+
+    fn apply_lambda(&mut self, formals: &Box<Object>, body: &Box<Object>, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
+
+
+        // we check that formals and operands have the same length
+        // otherwise we return an error
+        let formals = formals.as_list()?;
+        let operands = operands.as_list()?;
+
+        if formals.len() != operands.len() {
+            return Err(Error::EvalError("arity does not match".to_string()));
+        }
+
+        // we create a new environment with the current environment as parent
+        // we then bind the formals to the operands in the new environment
+        let mut new_env = Env::new_with_parent(Rc::clone(&env));
+        for (formal, operand) in formals.iter().zip(operands) {
+            let formal = match &**formal {
+                Object::Identifier(Identifier::Variable(formal)) => formal,
+                _ => return Err(Error::EvalError("not implemented".to_string())),
+            };
+
+            let ptr = self.heap.alloc(operand.clone());
+            new_env.insert(formal.clone(), ptr);
+        }
+
+        // we evaluate the body in the new environment
+        // we evaluate all but the last expression in the body
+        // we return the result of the last expression
+        let body = body.as_list()?;
+        let iter = body.iter();
+       
+        for expr in iter.take(body.len() - 1) {
+            self.eval(expr, Rc::new(RefCell::new(new_env.clone())))?;
+        }
+
+        self.eval(body.last().unwrap(), Rc::new(RefCell::new(new_env)))
+    }
+
     fn eval_define(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let symbol = match &**expr.car()? {
             Object::Pair(_, _) => Err(Error::EvalError("not implemented".to_string())),

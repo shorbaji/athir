@@ -1,7 +1,7 @@
 //! Node
 //!
 
-use crate::result::AthirResult;
+use crate::result::{AthirResult, VecResult};
 use crate::error::Error;
 use crate::eval::env::Env;
 #[derive(Debug, Clone)]
@@ -25,7 +25,7 @@ use std::cell::RefCell;
 
 #[derive(Clone)]
 pub enum Procedure {
-    Builtin(usize, fn(&[Box<Object>], &mut Env) -> AthirResult),
+    Builtin(usize, fn(&[Box<Object>]) -> AthirResult),
     Lambda(Rc<RefCell<Env>>, Box<Object>, Box<Object>),
 }
 
@@ -40,7 +40,7 @@ impl std::fmt::Debug for Procedure {
 // public methods
 
 impl Object {
-    /// Creates an Objectession from a Vec of Objectessions
+    /// Creates an Objects from a Vec of Objects
     pub fn list(nodes: Vec<Box<Object>>) -> AthirResult {
         let mut result = Object::Null;
         for node in nodes.into_iter().rev() {
@@ -57,6 +57,22 @@ impl Object {
         }
 
         Ok(Box::new(result))
+    }
+
+    pub fn as_list(&self) -> VecResult {
+        let mut result = Vec::new();
+        let mut current = self;
+        loop {
+            match current {
+                Object::Pair(car, cdr) => {
+                    result.push(car.clone());
+                    current = &**cdr;
+                }
+                _ => break,
+            }
+        }
+
+        Ok(result)
     }
 
     pub fn car(&self) -> Result<&Box<Object>, Error> {
@@ -100,7 +116,66 @@ impl Object {
         Object::Pair(Box::new(self.clone()), Box::new(object))
     }
 
+}
 
+
+impl Object {
+    /// Checks if the Objectession is a define Objectession, i.e 
+    /// (define ...), (define-values ...), (define-record-type ...), (define-syntax ...)
+    /// or (begin (define ...) ...))
+    pub fn is_definition_expr(&self) -> bool {
+        let is_definition_keyword = match self.car() {
+            Ok(node) => node.is_definition_keyword(),
+            Err(_) => false,
+        };
+        
+        is_definition_keyword || self.is_begin_definition_expr()
+    }
+
+}
+// private methods
+
+#[doc(hidden)]
+impl Object {
+    fn is_definition_keyword(&self) -> bool {
+        matches!(self, 
+            Object::Identifier(Identifier::Keyword(Keyword::Define))
+            | Object::Identifier(Identifier::Keyword(Keyword::DefineValues))
+            | Object::Identifier(Identifier::Keyword(Keyword::DefineRecordType))
+            | Object::Identifier(Identifier::Keyword(Keyword::DefineSyntax))
+        )
+    }
+
+    fn is_begin_keyword(&self) -> bool {
+        matches!(self, Object::Identifier(Identifier::Keyword(Keyword::Begin)))
+    }
+
+    fn is_begin_expr(&self) -> bool {
+        match self.car() {
+            Ok(node) => node.is_begin_keyword(),
+            Err(_) => false,
+        }
+    }
+
+    fn is_begin_definition_expr(&self) -> bool {    
+        self.is_begin_expr() && 
+        match self.cdadr() {
+            Ok(object) => matches!(&**object, Object::Boolean(true)),
+            Err(_) => false,
+        }
+    }
+
+    pub fn is_false(&self) -> bool {
+        matches!(self, Object::Boolean(false) | Object::Null)
+    }
+    
+    pub fn is_true(&self) -> bool {
+        !self.is_false()
+    }
+
+    pub fn is_null(&self) -> bool {
+        matches!(self, Object::Null)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -187,61 +262,3 @@ pub enum Identifier {
     Variable(String),
 }
 
-impl Object {
-    /// Checks if the Objectession is a define Objectession, i.e 
-    /// (define ...), (define-values ...), (define-record-type ...), (define-syntax ...)
-    /// or (begin (define ...) ...))
-    pub fn is_definition_expr(&self) -> bool {
-        let is_definition_keyword = match self.car() {
-            Ok(node) => node.is_definition_keyword(),
-            Err(_) => false,
-        };
-        
-        is_definition_keyword || self.is_begin_definition_expr()
-    }
-
-}
-// private methods
-
-#[doc(hidden)]
-impl Object {
-    fn is_definition_keyword(&self) -> bool {
-        matches!(self, 
-            Object::Identifier(Identifier::Keyword(Keyword::Define))
-            | Object::Identifier(Identifier::Keyword(Keyword::DefineValues))
-            | Object::Identifier(Identifier::Keyword(Keyword::DefineRecordType))
-            | Object::Identifier(Identifier::Keyword(Keyword::DefineSyntax))
-        )
-    }
-
-    fn is_begin_keyword(&self) -> bool {
-        matches!(self, Object::Identifier(Identifier::Keyword(Keyword::Begin)))
-    }
-
-    fn is_begin_expr(&self) -> bool {
-        match self.car() {
-            Ok(node) => node.is_begin_keyword(),
-            Err(_) => false,
-        }
-    }
-
-    fn is_begin_definition_expr(&self) -> bool {    
-        self.is_begin_expr() && 
-        match self.cdadr() {
-            Ok(object) => matches!(&**object, Object::Boolean(true)),
-            Err(_) => false,
-        }
-    }
-
-    pub fn is_false(&self) -> bool {
-        matches!(self, Object::Boolean(false) | Object::Null)
-    }
-    
-    pub fn is_true(&self) -> bool {
-        !self.is_false()
-    }
-
-    pub fn is_null(&self) -> bool {
-        matches!(self, Object::Null)
-    }
-}
