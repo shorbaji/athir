@@ -7,17 +7,18 @@
 use std::io::Write;
 
 pub fn repl() {
+    use crate::gc::NoGC;
 
     let reader = crate::read::Reader::new(std::io::stdin().lines());
-    let mut eval = crate::eval::Eval::new();
     
-
+    let mut vm = NoGC::new_vm();
+    
     print!("> ");
     std::io::stdout().flush().unwrap();
 
     for expr in reader {
         match expr {
-            Ok(expr) => println!("{:?}", eval.eval_in_global_env(&expr)),
+            Ok(expr) => println!("{:?}", vm.eval_in_global_env(&expr)),
             Err(err) => println!("{}", err),
         }
         print!("> ");

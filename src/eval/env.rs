@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-pub type ObjectPtr = usize;
+use crate::gc::ObjectPtr;
 
 #[derive(Debug, Clone)]
 pub struct Env {

@@ -13,33 +13,22 @@ use crate::error::Error;
 use crate::object::{Object, Expr, Procedure};
 use crate::read::{Identifier, Keyword};
 use crate::result::AthirResult;
-use crate::eval::env::{Env, ObjectPtr};
+use crate::eval::env::Env;
+use crate::gc::GC;
+
 
 #[derive(Debug)]
-pub struct Eval {
-    heap: Vec<Object>,
+pub struct Eval<T: GC> {
+    heap: T,
     global_env: Rc<RefCell<Env>>,
 }
 
-impl Eval{
-    pub fn new() -> Eval {
+impl<T> Eval<T> where T: GC {
+    pub fn new() -> Eval<T> {
         Eval {
-            heap: Vec::new(),
+            heap: T::new(),
             global_env: Rc::new(RefCell::new(Env::new())),
         }
-    }
-
-    fn alloc(&mut self, object: Box<Object>) -> ObjectPtr {
-        self.heap.push(*object.clone()); // currently no garbage collection
-        self.heap.len() - 1
-    }
-
-    fn write(&mut self, object_ptr: ObjectPtr, object: Box<Object>) {
-        self.heap[object_ptr] = *object.clone();
-    }
-
-    fn read(&self, object_ptr: ObjectPtr) -> &Object {
-        &self.heap[object_ptr]
     }
 
     pub fn eval_in_global_env(&mut self, expr: &Box<Expr>) -> AthirResult {
@@ -94,16 +83,41 @@ impl Eval{
         Ok(Box::new(Object::Procedure(Procedure::Lambda(env, formals.clone(), body.clone()))))
     }
 
-    fn eval_procedure_call(&mut self, _operator: &Box<Expr>, _operands: &Box<Expr>, _env: Rc<RefCell<Env>>) -> AthirResult {
-        // let children = node.children().unwrap();
-        // let operator = eval(&children[0])?;
-        // let operands = &children[1..].into_iter().map(eval);
-    
-        // println!("operator: {:?}", operator);
-        // println!("operands: {:?}", operands);
-    
-        // apply(operator, operands)
-        Err(Error::EvalError("eval error".to_string()))
+    fn evlis(&mut self, operands: &Box<Expr>, _env: Rc<RefCell<Env>>) -> AthirResult {
+        Ok(operands.clone())
+    }
+
+    fn eval_procedure_call(&mut self, operator: &Box<Expr>, operands: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
+        let operator = self.eval(operator, Rc::clone(&env))?;
+        let operands = self.evlis(operands, Rc::clone(&env))?;
+
+        match *operator {
+            Object::Procedure(procedure) => match procedure {
+                Procedure::Lambda(env, formals, body) => {
+                    let mut new_env = Env::new_with_parent(Rc::clone(&env));
+                    let mut formals = formals;
+                    let mut operands = operands;
+
+                    while !formals.is_null() {
+                        let formal = match &**formals.car()? {
+                            Object::Identifier(Identifier::Variable(formal)) => formal,
+                            _ => return Err(Error::EvalError("not implemented".to_string())),
+                        };
+
+                        let operand = operands.car()?;
+                        let ptr = self.heap.alloc(operand.clone());
+                        new_env.insert(formal.clone(), ptr);
+                        formals = formals.cdr()?.clone();
+                        operands = operands.cdr()?.clone();
+                    }
+
+                    self.eval(body.car()?, Rc::new(RefCell::new(new_env)))
+                }
+                _ => Err(Error::EvalError("not implemented".to_string())),
+            }
+            _ => Err(Error::EvalError("not implemented".to_string())),
+        }
+
     }
     
     // fn apply(operator: Expr, operands: impl Iterator<Item = Result<Expr, Error>>) -> Result<Expr, Error> {
@@ -120,7 +134,7 @@ impl Eval{
 
         let value = self.eval(expr.cadr()?, env.clone())?;
 
-        let ptr = self.alloc(value);
+        let ptr = self.heap.alloc(value);
 
         env.clone().borrow_mut().insert(symbol.clone(), ptr);
 
@@ -137,7 +151,7 @@ impl Eval{
 
         let value = self.eval(expr.cadr()?, env)?;
 
-        self.write(ptr, value);
+        self.heap.write(ptr, value);
 
         Ok(Box::new(Object::Null))
     }
@@ -153,7 +167,7 @@ impl Eval{
     fn eval_identifier(&mut self, id: &Identifier, env: Rc<RefCell<Env>>) -> AthirResult {
         if let Identifier::Variable(s) = id {
             if let Some(ptr) = env.borrow().lookup(s) {
-                return Ok(Box::new(self.read(ptr).clone()));
+                return Ok(Box::new(self.heap.read(ptr).clone()));
             } else {
                 return Err(Error::EvalError("unknown".to_string()));
             }

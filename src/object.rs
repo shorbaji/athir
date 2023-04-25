@@ -33,7 +33,7 @@ impl std::fmt::Debug for Procedure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Procedure::Builtin(_, _) => write!(f, "Builtin"),
-            Procedure::Lambda(_, _, _) => write!(f, "Lambda"),
+            Procedure::Lambda(a, b, c) => write!(f, "Lambda {:?} {:?} {:?}", a, b, c),
         }
     }
 }
@@ -244,4 +244,7 @@ impl Expr {
         !self.is_false()
     }
 
+    pub fn is_null(&self) -> bool {
+        matches!(self, Object::Null)
+    }
 }
