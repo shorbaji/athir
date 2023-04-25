@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use crate::error::Error;
-use crate::object::{Object, Expr, Procedure};
+use crate::object::{Object, Procedure};
 use crate::read::{Identifier, Keyword};
 use crate::result::AthirResult;
 use crate::eval::env::Env;
@@ -31,22 +31,22 @@ impl<T> Eval<T> where T: GC {
         }
     }
 
-    pub fn eval_in_global_env(&mut self, expr: &Box<Expr>) -> AthirResult {
+    pub fn eval_in_global_env(&mut self, expr: &Box<Object>) -> AthirResult {
         self.eval(expr, self.global_env.clone())
     }
 
-    pub fn eval(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
+    pub fn eval(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         match &**expr {
-            Expr::Identifier(identifier) => self.eval_identifier(identifier, env),
-            Expr::Boolean(_) 
-            | Expr::Bytevector(_)
-            | Expr::Character(_)
-            | Expr::Number(_)
-            | Expr::String(_)
-            | Expr::Vector(_) => Ok(expr.clone()),
-            Expr::Pair(car, cdr) => {
+            Object::Identifier(identifier) => self.eval_identifier(identifier, env),
+            Object::Boolean(_) 
+            | Object::Bytevector(_)
+            | Object::Character(_)
+            | Object::Number(_)
+            | Object::String(_)
+            | Object::Vector(_) => Ok(expr.clone()),
+            Object::Pair(car, cdr) => {
                 match &**car {
-                    Expr::Identifier(Identifier::Keyword(keyword)) => match keyword {
+                    Object::Identifier(Identifier::Keyword(keyword)) => match keyword {
                         Keyword::Define => self.eval_define(cdr, env),
                         Keyword::Set => self.eval_assignment(cdr, env),
                         Keyword::Begin => self.eval_begin(cdr, env),
@@ -61,7 +61,7 @@ impl<T> Eval<T> where T: GC {
         }
     }
     
-    fn eval_if(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
+    fn eval_if(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let test = expr.car()?;
 
         // check if test is true
@@ -76,18 +76,18 @@ impl<T> Eval<T> where T: GC {
         }
     }
 
-    fn eval_lambda(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
+    fn eval_lambda(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let formals = expr.car()?;
         let body = expr.cadr()?;
 
         Ok(Box::new(Object::Procedure(Procedure::Lambda(env, formals.clone(), body.clone()))))
     }
 
-    fn evlis(&mut self, operands: &Box<Expr>, _env: Rc<RefCell<Env>>) -> AthirResult {
+    fn evlis(&mut self, operands: &Box<Object>, _env: Rc<RefCell<Env>>) -> AthirResult {
         Ok(operands.clone())
     }
 
-    fn eval_procedure_call(&mut self, operator: &Box<Expr>, operands: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
+    fn eval_procedure_call(&mut self, operator: &Box<Object>, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let operator = self.eval(operator, Rc::clone(&env))?;
         let operands = self.evlis(operands, Rc::clone(&env))?;
 
@@ -125,7 +125,7 @@ impl<T> Eval<T> where T: GC {
     //     Ok(Box::new(Object::Null))
     // }
     
-    fn eval_define(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
+    fn eval_define(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let symbol = match &**expr.car()? {
             Object::Pair(_, _) => Err(Error::EvalError("not implemented".to_string())),
             Object::Identifier(Identifier::Variable(symbol)) => Ok(symbol),
@@ -141,7 +141,7 @@ impl<T> Eval<T> where T: GC {
         Ok(Box::new(Object::Unspecified))
     }
     
-    fn eval_assignment(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
+    fn eval_assignment(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let symbol = match &**expr.car()? {
             Object::Identifier(Identifier::Variable(symbol)) => Ok(symbol),
             _ => Err(Error::EvalError("unknown error".to_string())),
@@ -156,11 +156,11 @@ impl<T> Eval<T> where T: GC {
         Ok(Box::new(Object::Null))
     }
     
-    fn eval_begin(&mut self, _expr: &Box<Expr>, _env: Rc<RefCell<Env>>) -> AthirResult {
+    fn eval_begin(&mut self, _expr: &Box<Object>, _env: Rc<RefCell<Env>>) -> AthirResult {
         Ok(Box::new(Object::Null))
     }
     
-    fn eval_quotation(&mut self, _expr: &Box<Expr>, _env: Rc<RefCell<Env>>) -> AthirResult {
+    fn eval_quotation(&mut self, _expr: &Box<Object>, _env: Rc<RefCell<Env>>) -> AthirResult {
         Ok(Box::new(Object::Null))
     }
     

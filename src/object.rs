@@ -187,10 +187,7 @@ pub enum Identifier {
     Variable(String),
 }
 
-
-pub type Expr = Object;
-
-impl Expr {
+impl Object {
     /// Checks if the Objectession is a define Objectession, i.e 
     /// (define ...), (define-values ...), (define-record-type ...), (define-syntax ...)
     /// or (begin (define ...) ...))
@@ -207,7 +204,7 @@ impl Expr {
 // private methods
 
 #[doc(hidden)]
-impl Expr {
+impl Object {
     fn is_definition_keyword(&self) -> bool {
         matches!(self, 
             Object::Identifier(Identifier::Keyword(Keyword::Define))
