@@ -10,12 +10,31 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use crate::error::Error;
-use crate::object::{Object, Procedure};
+use crate::object::{Object, Procedure, Builtin};
 use crate::read::{Identifier, Keyword};
 use crate::result::AthirResult;
 use crate::eval::env::Env;
 use crate::gc::GC;
 
+pub mod builtins {
+    use crate::object::Object;
+    use crate::result::AthirResult;
+    use crate::error::Error;
+
+    pub fn add(args: &[Box<Object>]) -> AthirResult {
+        let mut result = 0;
+        for arg in args {
+            match &**arg {
+                Object::Number(num) => {
+                    result += num.parse::<i64>().unwrap();
+                },
+                _ => return Err(Error::EvalError("error with add".to_string())),
+            }
+        }
+
+        Ok(Box::new(Object::Number(result.to_string())))
+    }
+}
 
 #[derive(Debug)]
 pub struct Eval<T: GC> {
@@ -25,10 +44,29 @@ pub struct Eval<T: GC> {
 
 impl<T> Eval<T> where T: GC {
     pub fn new() -> Eval<T> {
-        Eval {
+        let env = Env::new();
+        let mut vm = Eval {
             heap: T::new(),
-            global_env: Rc::new(RefCell::new(Env::new())),
-        }
+            global_env: Rc::new(RefCell::new(env))
+        };
+
+        vm.init();
+
+        println!("env: {:?}", vm.global_env);
+        vm
+    }
+
+    fn init(&mut self) {
+        let builtin = Object::Procedure(Procedure::Builtin(Builtin {
+            name: "+",
+            min_args: Some(2),
+            max_args: None,
+            func: builtins::add,
+        }));
+
+        let ptr = self.heap.alloc(Box::new(builtin));
+
+        self.global_env.borrow_mut().insert("+".to_string(), ptr );
     }
 
     pub fn eval_in_global_env(&mut self, expr: &Box<Object>) -> AthirResult {
@@ -83,8 +121,12 @@ impl<T> Eval<T> where T: GC {
         Ok(Box::new(Object::Procedure(Procedure::Lambda(env, formals.clone(), body.clone()))))
     }
 
-    fn evlis(&mut self, operands: &Box<Object>, _env: Rc<RefCell<Env>>) -> AthirResult {
-        Ok(operands.clone())
+    fn evlis(&mut self, operands: &Box<Object>, _env: Rc<RefCell<Env>>) -> crate::result::VecResult {
+        operands
+        .as_list()?
+        .iter()
+        .map(|operand| self.eval(operand, Rc::clone(&_env)))
+        .collect::<crate::result::VecResult>()
     }
 
     fn eval_procedure_call(&mut self, operator: &Box<Object>, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
@@ -94,27 +136,37 @@ impl<T> Eval<T> where T: GC {
         self.apply(&operator, &operands, env)
     }
     
-    fn apply(&mut self, operator: &Box<Object>, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
+    fn apply(&mut self, operator: &Box<Object>, operands: &Vec<Box<Object>>, env: Rc<RefCell<Env>>) -> AthirResult {
         match &**operator {
             Object::Procedure(procedure) => match procedure {
                 Procedure::Lambda(env, formals, body) => self.apply_lambda(formals, body, operands, env.clone()),
-                Procedure::Builtin(arity, f) => self.apply_builtin(*arity, *f, operands),
+                Procedure::Builtin(proc) => self.apply_builtin(proc, operands),
             }
             _ => Err(Error::EvalError("not implemented".to_string())),
         }
     }
 
-    fn apply_builtin(&mut self, arity: usize, f: fn(&[Box<Object>]) -> AthirResult, operands: &Box<Object>) -> AthirResult {
-        Err(Error::EvalError("not implemented".to_string()))
+    fn apply_builtin(&mut self, proc: &Builtin, operands: &Vec<Box<Object>>) -> AthirResult {
+        if let Some(min_args) = proc.min_args {
+            if operands.len() < min_args {
+                return Err(Error::EvalError("not enough arguments".to_string()));
+            }
+        }
+
+        if let Some(max_args) = proc.max_args {
+            if operands.len() > max_args {
+                return Err(Error::EvalError("too many arguments".to_string()));
+            }
+        }
+
+        (proc.func)(&operands[..])
     }
 
-    fn apply_lambda(&mut self, formals: &Box<Object>, body: &Box<Object>, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
-
+    fn apply_lambda(&mut self, formals: &Box<Object>, body: &Box<Object>, operands: &Vec<Box<Object>>, env: Rc<RefCell<Env>>) -> AthirResult {
 
         // we check that formals and operands have the same length
         // otherwise we return an error
         let formals = formals.as_list()?;
-        let operands = operands.as_list()?;
 
         if formals.len() != operands.len() {
             return Err(Error::EvalError("arity does not match".to_string()));

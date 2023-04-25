@@ -24,19 +24,25 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 #[derive(Clone)]
+pub struct Builtin {
+    pub name: &'static str,
+    pub min_args: Option<usize>,
+    pub max_args: Option<usize>,
+    pub func: fn(&[Box<Object>]) -> AthirResult,
+}
+
+impl std::fmt::Debug for Builtin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Builtin: {:?} min: {:?} max {:?}", self.name, self.min_args, self.max_args)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum Procedure {
-    Builtin(usize, fn(&[Box<Object>]) -> AthirResult),
+    Builtin(Builtin),
     Lambda(Rc<RefCell<Env>>, Box<Object>, Box<Object>),
 }
 
-impl std::fmt::Debug for Procedure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Procedure::Builtin(_, _) => write!(f, "Builtin"),
-            Procedure::Lambda(a, b, c) => write!(f, "Lambda {:?} {:?} {:?}", a, b, c),
-        }
-    }
-}
 // public methods
 
 impl Object {
