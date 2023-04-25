@@ -8,10 +8,12 @@ use std::io::Write;
 
 pub fn repl() {
     use crate::gc::NoGC;
+    use crate::eval::Eval;
+    use crate::read::Reader;
 
-    let reader = crate::read::Reader::new(std::io::stdin().lines());
-    
-    let mut vm = NoGC::new_vm();
+
+    let mut vm: Eval<NoGC> = Eval::new();
+    let reader = Reader::new(std::io::stdin().lines());
     
     print!("> ");
     std::io::stdout().flush().unwrap();

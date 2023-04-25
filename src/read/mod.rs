@@ -48,7 +48,7 @@ use crate::error::unexpected;
 pub use crate::object::{Keyword, Identifier, Object}; 
 #[doc(inline)]
 use crate::error::Error;
-use crate::result::{AthirResult, AthirVecResult};
+use crate::result::{AthirResult, VecResult};
 
 /// Parser struct
 /// 
@@ -801,7 +801,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         }
     }
 
-    fn qq_template_or_splice_list(&mut self, rdepth: usize, qqdepth: u32) -> AthirVecResult {
+    fn qq_template_or_splice_list(&mut self, rdepth: usize, qqdepth: u32) -> VecResult {
         Ok(from_fn(|| self.qq_template_or_splice(rdepth, qqdepth).ok()).collect::<Vec<Box<Object>>>())
     }
 
@@ -839,7 +839,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         Object::list(templates)
     }
 
-    fn qq_template_list(&mut self, rdepth: usize, qqdepth: u32) -> AthirVecResult {
+    fn qq_template_list(&mut self, rdepth: usize, qqdepth: u32) -> VecResult {
         Ok(from_fn(|| self.qq_template(rdepth, qqdepth).ok()).collect::<Vec<Box<Object>>>())
     }
 
@@ -1263,11 +1263,11 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.peek().ok_or(Error::EOF)
     }
 
-    fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> AthirResult, rdepth: usize) -> AthirVecResult {
+    fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> AthirResult, rdepth: usize) -> VecResult {
         Ok(from_fn(|| closure(self, rdepth).ok()).collect())
     }
 
-    fn one_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> AthirResult, rdepth: usize) -> AthirVecResult {
+    fn one_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> AthirResult, rdepth: usize) -> VecResult {
         Ok(once(closure(self, rdepth)?).chain(from_fn(|| closure(self, rdepth).ok())).collect())
     }
 

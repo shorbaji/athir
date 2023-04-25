@@ -120,11 +120,6 @@ impl<T> Eval<T> where T: GC {
 
     }
     
-    // fn apply(operator: Expr, operands: impl Iterator<Item = Result<Expr, Error>>) -> Result<Expr, Error> {
-    //     println!("apply");
-    //     Ok(Box::new(Object::Null))
-    // }
-    
     fn eval_define(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let symbol = match &**expr.car()? {
             Object::Pair(_, _) => Err(Error::EvalError("not implemented".to_string())),

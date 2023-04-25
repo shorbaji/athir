@@ -38,13 +38,13 @@ pub use token::Token;
 /// It also holds a source which is an iterator over strings of input.
 
 #[derive(Debug)]
-pub struct Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>> {
+pub struct Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Error>> {
     inner: Peekable<std::vec::IntoIter<Token>>,
     source: T,
 }
 
 
-impl<T> Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>>{
+impl<T> Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Error>>{
     pub fn new(source: T) -> Self {
         Self {
             inner: vec!().into_iter().peekable(), 
@@ -62,7 +62,7 @@ impl<T> Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>>{
     /// - wraps the iterator in a Peekable iterator
     /// - returns the iterator
 
-    fn refresh(&mut self) -> Result<Peekable<std::vec::IntoIter<Token>>, std::io::Error> {
+    fn refresh(&mut self) -> std::result::Result<Peekable<std::vec::IntoIter<Token>>, std::io::Error> {
         match self.source.next() {
             Some(Ok(line)) => {
                 let lexer = DelimitedLexer::new(&line);
@@ -101,7 +101,7 @@ impl<T> Lexer<T> where T: Iterator<Item=Result<String, std::io::Error>>{
 }
 
 impl<T> Iterator for Lexer<T> 
-    where T: Iterator<Item=Result<String, std::io::Error>> {
+    where T: Iterator<Item=std::result::Result<String, std::io::Error>> {
     type Item = Token;
 
     /// next
