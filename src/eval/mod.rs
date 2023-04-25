@@ -31,7 +31,7 @@ impl Eval{
     }
 
     fn alloc(&mut self, object: Box<Object>) -> ObjectPtr {
-        self.heap.push(*object.clone());
+        self.heap.push(*object.clone()); // currently no garbage collection
         self.heap.len() - 1
     }
 
@@ -74,13 +74,18 @@ impl Eval{
     }
     
     fn eval_if(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
-        if self.eval(expr.car()?, env.clone())?.is_true() {
-            self.eval(expr.cadr()?, env.clone())
-        } else {
-            expr.caddr()
-            .and_then(|expr| self.eval(expr, env))
-            .or_else(|_| Ok(Box::new(Object::Unspecified)))
-        }        
+        let test = expr.car()?;
+
+        // check if test is true
+        // if true, evaluate consequent
+        // if false check if there is an alternative and evaluate it, otherwise return unspecified
+        
+        match self.eval(test, Rc::clone(&env)) {
+            Ok(expr) if expr.is_true() => self.eval(expr.cadr()?, env),
+            _ => expr.caddr()
+                    .and_then(|expr| self.eval(expr, env))
+                    .or_else(|_| Ok(Box::new(Object::Unspecified)))    
+        }
     }
 
     fn eval_lambda(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
