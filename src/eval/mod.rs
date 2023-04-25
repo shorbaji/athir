@@ -6,14 +6,13 @@
 
 pub mod env; // Environment module - pub so lambda objects can use it
 
-use std::ops::Deref;
 use std::rc::Rc;
 use std::cell::RefCell;
 
 use crate::error::Error;
 use crate::object::{Object, Expr, Procedure};
 use crate::read::{Identifier, Keyword};
-use crate::AthirResult;
+use crate::result::AthirResult;
 use crate::eval::env::{Env, ObjectPtr};
 
 #[derive(Debug)]
@@ -79,7 +78,7 @@ impl Eval{
         // check if test is true
         // if true, evaluate consequent
         // if false check if there is an alternative and evaluate it, otherwise return unspecified
-        
+
         match self.eval(test, Rc::clone(&env)) {
             Ok(expr) if expr.is_true() => self.eval(expr.cadr()?, env),
             _ => expr.caddr()
@@ -113,7 +112,7 @@ impl Eval{
     // }
     
     fn eval_define(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
-        let symbol = match expr.car()?.deref() {
+        let symbol = match &**expr.car()? {
             Object::Pair(_, _) => Err(Error::EvalError("not implemented".to_string())),
             Object::Identifier(Identifier::Variable(symbol)) => Ok(symbol),
             _ => Err(Error::EvalError("unknown error".to_string())),
@@ -129,7 +128,7 @@ impl Eval{
     }
     
     fn eval_assignment(&mut self, expr: &Box<Expr>, env: Rc<RefCell<Env>>) -> AthirResult {
-        let symbol = match expr.car()?.deref() {
+        let symbol = match &**expr.car()? {
             Object::Identifier(Identifier::Variable(symbol)) => Ok(symbol),
             _ => Err(Error::EvalError("unknown error".to_string())),
         }?;

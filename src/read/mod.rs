@@ -48,7 +48,7 @@ use crate::error::unexpected;
 pub use crate::object::{Keyword, Identifier, Expr}; 
 #[doc(inline)]
 use crate::error::Error;
-use crate::{AthirResult, AthirVecResult};
+use crate::result::{AthirResult, AthirVecResult};
 
 /// Parser struct
 /// 

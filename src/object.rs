@@ -1,7 +1,7 @@
 //! Node
 //!
 
-use crate::AthirResult;
+use crate::result::AthirResult;
 use crate::error::Error;
 use crate::eval::env::Env;
 #[derive(Debug, Clone)]
