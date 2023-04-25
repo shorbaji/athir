@@ -31,6 +31,17 @@ pub struct Builtin {
     pub func: fn(&[Box<Object>]) -> AthirResult,
 }
 
+impl Builtin {
+    pub fn new(name: &'static str, min_args: Option<usize>, max_args: Option<usize>, func: fn(&[Box<Object>]) -> AthirResult) -> Builtin {
+        Builtin {
+            name,
+            min_args,
+            max_args,
+            func,
+        }
+    }
+}
+
 impl std::fmt::Debug for Builtin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Builtin: {:?} min: {:?} max {:?}", self.name, self.min_args, self.max_args)
@@ -179,9 +190,6 @@ impl Object {
         !self.is_false()
     }
 
-    pub fn is_null(&self) -> bool {
-        matches!(self, Object::Null)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

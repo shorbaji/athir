@@ -16,25 +16,7 @@ use crate::result::AthirResult;
 use crate::eval::env::Env;
 use crate::gc::GC;
 
-pub mod builtins {
-    use crate::object::Object;
-    use crate::result::AthirResult;
-    use crate::error::Error;
-
-    pub fn add(args: &[Box<Object>]) -> AthirResult {
-        let mut result = 0;
-        for arg in args {
-            match &**arg {
-                Object::Number(num) => {
-                    result += num.parse::<i64>().unwrap();
-                },
-                _ => return Err(Error::EvalError("error with add".to_string())),
-            }
-        }
-
-        Ok(Box::new(Object::Number(result.to_string())))
-    }
-}
+use crate::builtins;
 
 #[derive(Debug)]
 pub struct Eval<T: GC> {
@@ -57,16 +39,14 @@ impl<T> Eval<T> where T: GC {
     }
 
     fn init(&mut self) {
-        let builtin = Object::Procedure(Procedure::Builtin(Builtin {
-            name: "+",
-            min_args: Some(2),
-            max_args: None,
-            func: builtins::add,
-        }));
 
-        let ptr = self.heap.alloc(Box::new(builtin));
+        for builtin in builtins::builtins() {
+            let name = builtin.name.to_string();
+            let object = Object::Procedure(Procedure::Builtin(builtin));
+            let ptr = self.heap.alloc(Box::new(object));
 
-        self.global_env.borrow_mut().insert("+".to_string(), ptr );
+            self.global_env.borrow_mut().insert(name, ptr );
+        }
     }
 
     pub fn eval_in_global_env(&mut self, expr: &Box<Object>) -> AthirResult {
@@ -133,10 +113,10 @@ impl<T> Eval<T> where T: GC {
         let operator = self.eval(operator, Rc::clone(&env))?;
         let operands = self.evlis(operands, Rc::clone(&env))?;
 
-        self.apply(&operator, &operands, env)
+        self.apply(&operator, &operands)
     }
     
-    fn apply(&mut self, operator: &Box<Object>, operands: &Vec<Box<Object>>, env: Rc<RefCell<Env>>) -> AthirResult {
+    fn apply(&mut self, operator: &Box<Object>, operands: &Vec<Box<Object>>) -> AthirResult {
         match &**operator {
             Object::Procedure(procedure) => match procedure {
                 Procedure::Lambda(env, formals, body) => self.apply_lambda(formals, body, operands, env.clone()),
