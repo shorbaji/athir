@@ -3,31 +3,33 @@
 
 use crate::AthirResult;
 use crate::error::Error;
-
-#[derive(Debug, Clone, PartialEq)]
+use crate::eval::Env;
+#[derive(Debug, Clone)]
 pub enum Object {
-    Null,
     Boolean(bool),
-    Character(char),
-    String(String),
-    Number(String),
     Bytevector(Vec<Box<Object>>),
-    Vector(Vec<Box<Object>>),
-    Quotation(Box<Object>),
+    Character(char),
     Identifier(Identifier),
+    Null,
+    Number(String),
     Pair(Box<Object>, Box<Object>),
+    Procedure(Procedure),
+    Quotation(Box<Object>),
+    String(String),
+    Vector(Vec<Box<Object>>),
     Unspecified,
 }
 
+use std::rc::Rc;
+use std::cell::RefCell;
 
-lazy_static! {
-    pub static ref UNSPECIFIED: Box<Object> = Box::new(Object::Unspecified);
-    pub static ref NULL: Box<Object> = Box::new(Object::Null);
-
+#[derive(Debug, Clone)]
+pub enum Procedure {
+    Builtin,
+    Lambda(Rc<RefCell<Env>>, Box<Object>, Box<Object>),
 }
 
 // public methods
-
 
 impl Object {
     /// Creates an Objectession from a Vec of Objectessions

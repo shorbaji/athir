@@ -15,11 +15,9 @@ pub fn repl() {
     print!("> ");
     std::io::stdout().flush().unwrap();
 
-    let mut env = crate::eval::Env::new();
-
     for expr in reader {
         match expr {
-            Ok(expr) => println!("{:?}", eval.eval(&expr, &mut env)),
+            Ok(expr) => println!("{:?}", eval.eval_in_global_env(&expr)),
             Err(err) => println!("{}", err),
         }
         print!("> ");
