@@ -1,33 +1,33 @@
 use crate::object::Object;
 use crate::result::AthirResult;
 use crate::error::Error;
-use crate::object::Builtin;
 
-pub fn builtins() -> Vec<Builtin> {
+
+pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(&[Box<Object>]) -> AthirResult)> {
     vec![
-        Builtin::new("+", Some(2), None, plus),
-        Builtin::new("-", Some(2), None, minus),
-        Builtin::new("*", Some(2), None, multiply),
-        Builtin::new("=", Some(2), None, equal),
-        Builtin::new("car", Some(1), Some(1), car),
-        Builtin::new("cdr", Some(1), Some(1), cdr),
-        Builtin::new("cadr", Some(1), Some(1), cadr),
-        Builtin::new("caar", Some(1), Some(1), caar),
-        Builtin::new("cdar", Some(1), Some(1), cdar),
-        Builtin::new("cddr", Some(1), Some(1), cddr),
-        Builtin::new("cons", Some(2), Some(1), cons),
-        Builtin::new("boolean?", Some(1), Some(1), is_boolean),
-        Builtin::new("bytevector?", Some(1), Some(1), is_bytevector),
-        Builtin::new("char?", Some(1), Some(1), is_char),
-        Builtin::new("eof-object?", Some(1), Some(1), is_eof_object),
-        Builtin::new("null?", Some(1), Some(1), is_null),
-        Builtin::new("number?", Some(1), Some(1), is_number),
-        Builtin::new("pair?", Some(1), Some(1), is_pair),
-        Builtin::new("port?", Some(1), Some(1), is_port),
-        Builtin::new("procedure?", Some(1), Some(1), is_procedure),
-        Builtin::new("string?", Some(1), Some(1), is_string),
-        Builtin::new("symbol?", Some(1), Some(1), is_symbol),
-        Builtin::new("vector?", Some(1), Some(1), is_vector),
+        ("+", Some(2), None, plus),
+        ("-", Some(2), None, minus),
+        ("*", Some(2), None, multiply),
+        ("=", Some(2), None, equal),
+        ("car", Some(1), Some(1), car),
+        ("cdr", Some(1), Some(1), cdr),
+        ("cadr", Some(1), Some(1), cadr),
+        ("caar", Some(1), Some(1), caar),
+        ("cdar", Some(1), Some(1), cdar),
+        ("cddr", Some(1), Some(1), cddr),
+        ("cons", Some(2), Some(1), cons),
+        ("boolean?", Some(1), Some(1), is_boolean),
+        ("bytevector?", Some(1), Some(1), is_bytevector),
+        ("char?", Some(1), Some(1), is_char),
+        ("eof-object?", Some(1), Some(1), is_eof_object),
+        ("null?", Some(1), Some(1), is_null),
+        ("number?", Some(1), Some(1), is_number),
+        ("pair?", Some(1), Some(1), is_pair),
+        ("port?", Some(1), Some(1), is_port),
+        ("procedure?", Some(1), Some(1), is_procedure),
+        ("string?", Some(1), Some(1), is_string),
+        ("symbol?", Some(1), Some(1), is_symbol),
+        ("vector?", Some(1), Some(1), is_vector),
     ]
 }
 

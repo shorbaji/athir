@@ -1,9 +1,13 @@
 //! Node
 //!
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 use crate::result::{AthirResult, VecResult};
 use crate::error::Error;
 use crate::eval::env::Env;
+
 #[derive(Debug, Clone)]
 pub enum Object {
     Boolean(bool),
@@ -22,38 +26,33 @@ pub enum Object {
     Unspecified,
 }
 
-use std::rc::Rc;
-use std::cell::RefCell;
 
-#[derive(Clone)]
-pub struct Builtin {
-    pub name: &'static str,
-    pub min_args: Option<usize>,
-    pub max_args: Option<usize>,
-    pub func: fn(&[Box<Object>]) -> AthirResult,
-}
-
-impl Builtin {
-    pub fn new(name: &'static str, min_args: Option<usize>, max_args: Option<usize>, func: fn(&[Box<Object>]) -> AthirResult) -> Builtin {
-        Builtin {
-            name,
-            min_args,
-            max_args,
-            func,
+impl std::fmt::Debug for Procedure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Procedure::Builtin { name, min_args, max_args, .. } => {
+                write!(f, "Builtin: {:?} min: {:?} max {:?}", name, min_args, max_args)
+            },
+            Procedure::Lambda{env, formals, body} => {
+                write!(f, "Lambda: formals: {:?} body: {:?}, env {:?}", formals, body, env)
+            }
         }
     }
 }
 
-impl std::fmt::Debug for Builtin {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Builtin: {:?} min: {:?} max {:?}", self.name, self.min_args, self.max_args)
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Procedure {
-    Builtin(Builtin),
-    Lambda(Rc<RefCell<Env>>, Box<Object>, Box<Object>),
+    Builtin {
+        name: &'static str,
+        min_args: Option<usize>,
+        max_args: Option<usize>, 
+        func: fn(&[Box<Object>]) -> AthirResult
+    },
+    Lambda {
+        env: Rc<RefCell<Env>>,
+        formals: Box<Object>,
+        body: Box<Object>
+    },
 }
 
 // public methods

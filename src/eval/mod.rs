@@ -4,19 +4,17 @@
 /// [Currently a work in progress]
 /// 
 
+mod builtins;
 pub mod env; // Environment module - pub so lambda objects can use it
-
 use std::rc::Rc;
 use std::cell::RefCell;
 
 use crate::error::Error;
-use crate::object::{Object, Procedure, Builtin};
+use crate::object::{Object, Procedure};
 use crate::read::{Identifier, Keyword};
 use crate::result::AthirResult;
 use crate::eval::env::Env;
 use crate::gc::GC;
-
-use crate::builtins;
 
 #[derive(Debug)]
 pub struct Eval<T: GC> {
@@ -26,58 +24,57 @@ pub struct Eval<T: GC> {
 
 impl<T> Eval<T> where T: GC {
     pub fn new() -> Eval<T> {
-        let env = Env::new();
-        let mut vm = Eval {
-            heap: T::new(),
-            global_env: Rc::new(RefCell::new(env))
-        };
 
-        vm.init();
+        // start with an empty heap
+        let mut heap = T::new();
 
-        vm
-    }
-
-    fn init(&mut self) {
-
-        for builtin in builtins::builtins() {
-            let name = builtin.name.to_string();
-            let object = Object::Procedure(Procedure::Builtin(builtin));
-            let ptr = self.heap.alloc(Box::new(object));
-
-            self.global_env.borrow_mut().insert(name, ptr );
+        // initialize global environment with builtins
+        let env = Rc::new(RefCell::new(Env::new()));
+        for (name, min_args, max_args, func) in builtins::builtins() {
+            let object = Object::Procedure(Procedure::Builtin{name, min_args, max_args, func});
+            Eval::<T>::insert(&mut heap, env.clone(), name, object);
         }
+
+        Eval {
+            heap: heap,
+            global_env: env
+        }
+
     }
 
-    pub fn eval_in_global_env(&mut self, expr: &Box<Object>) -> AthirResult {
+    pub fn eval_global(&mut self, expr: &Box<Object>) -> AthirResult {
+        // evaluate an expression in the global environment
         self.eval(expr, self.global_env.clone())
     }
 
     pub fn eval(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         match &**expr {
-            Object::Identifier(identifier) => self.eval_identifier(identifier, env),
             Object::Boolean(_) 
             | Object::Bytevector(_)
             | Object::Character(_)
             | Object::Number(_)
             | Object::String(_)
             | Object::Vector(_) => Ok(expr.clone()),
+            Object::Identifier(identifier) => self.eval_identifier(identifier, env),
+            Object::Pair(car, cdr) => self.eval_pair(car, cdr, env),
             Object::Quotation(expr) => Ok(expr.clone()),
-            Object::Pair(car, cdr) => {
-                match &**car {
-                    Object::Identifier(Identifier::Keyword(keyword)) => match keyword {
-                        Keyword::Define => self.eval_define(cdr, env),
-                        Keyword::Set => self.eval_assignment(cdr, env),
-                        Keyword::Begin => self.eval_begin(cdr, env),
-                        Keyword::If => self.eval_if(cdr, env),
-                        Keyword::Lambda => self.eval_lambda(cdr, env),
-                        _ => Err(Error::EvalError("not implemented".to_string())),
-                    }
-                    _ =>self. eval_procedure_call(car, cdr.car()?, env), }
-            }
             _ => Ok(Box::new(Object::Null)),
         }
     }
     
+    fn eval_pair(&mut self, car: &Box<Object>, cdr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
+        match &**car {
+            Object::Identifier(Identifier::Keyword(keyword)) => match keyword {
+                Keyword::Define => self.eval_define(cdr, env),
+                Keyword::Set => self.eval_assignment(cdr, env),
+                Keyword::Begin => self.eval_begin(cdr, env),
+                Keyword::If => self.eval_if(cdr, env),
+                Keyword::Lambda => self.eval_lambda(cdr, env),
+                _ => Err(Error::EvalError("not implemented".to_string())),
+            }
+            _ =>self. eval_procedure_call(car, cdr.car()?, env), }
+    }
+
     fn eval_if(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         let test = expr.car()?;
 
@@ -85,7 +82,7 @@ impl<T> Eval<T> where T: GC {
         // if true, evaluate consequent
         // if false check if there is an alternative and evaluate it, otherwise return unspecified
 
-        match self.eval(test, Rc::clone(&env)) {
+        match self.eval(test, env.clone()) {
             Ok(e) if e.is_true() => {
                 self.eval(expr.cadr()?, env)
                 // Err(Error::EvalError("not implemented".to_string()))
@@ -100,24 +97,24 @@ impl<T> Eval<T> where T: GC {
     }
 
     fn eval_lambda(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
-        let formals = expr.car()?;
-        let body = expr.cadr()?;
+        let formals = expr.car()?.clone();
+        let body = expr.cadr()?.clone();
 
-        Ok(Box::new(Object::Procedure(Procedure::Lambda(env, formals.clone(), body.clone()))))
+        Ok(Box::new(Object::Procedure(Procedure::Lambda{env, formals, body})))
     }
 
-    fn evlis(&mut self, operands: &Box<Object>, _env: Rc<RefCell<Env>>) -> crate::result::VecResult {
+    fn evlis(&mut self, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> crate::result::VecResult {
         operands
         .as_list()?
         .iter()
-        .map(|operand| self.eval(operand, Rc::clone(&_env)))
+        .map(|operand| self.eval(operand, env.clone()))
         .collect::<crate::result::VecResult>()
     }
 
     fn eval_procedure_call(&mut self, operator: &Box<Object>, operands: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
         // println!("eval_procedure_call \n {:?} \n {:?}", operator, operands);
-        let operator = self.eval(operator, Rc::clone(&env))?;
-        let operands = self.evlis(operands, Rc::clone(&env))?;
+        let operator = self.eval(operator, env.clone())?;
+        let operands = self.evlis(operands, env.clone())?;
 
         self.apply(&operator, &operands)
     }
@@ -125,27 +122,28 @@ impl<T> Eval<T> where T: GC {
     fn apply(&mut self, operator: &Box<Object>, operands: &Vec<Box<Object>>) -> AthirResult {
         match &**operator {
             Object::Procedure(procedure) => match procedure {
-                Procedure::Lambda(env, formals, body) => self.apply_lambda(formals, body, operands, env.clone()),
-                Procedure::Builtin(proc) => self.apply_builtin(proc, operands),
+                Procedure::Lambda{env, formals, body} => self.apply_lambda(formals, body, operands, env.clone()),
+                Procedure::Builtin{name: _, min_args, max_args, func} => self.apply_builtin(min_args, max_args, func, operands),
             }
             _ => Err(Error::EvalError("not implemented".to_string())),
         }
     }
 
-    fn apply_builtin(&mut self, proc: &Builtin, operands: &Vec<Box<Object>>) -> AthirResult {
-        if let Some(min_args) = proc.min_args {
-            if operands.len() < min_args {
+    fn apply_builtin(&mut self, min_args: &Option<usize>, max_args: &Option<usize>, func: &fn(&[Box<Object>]) -> AthirResult, operands: &Vec<Box<Object>>) -> AthirResult {
+
+        if let Some(min_args) = min_args {
+            if operands.len() < *min_args {
                 return Err(Error::EvalError("not enough arguments".to_string()));
             }
         }
 
-        if let Some(max_args) = proc.max_args {
-            if operands.len() > max_args {
+        if let Some(max_args) = max_args {
+            if operands.len() > *max_args {
                 return Err(Error::EvalError("too many arguments".to_string()));
             }
         }
 
-        (proc.func)(&operands[..])
+        (func)(&operands[..])
     }
 
     fn apply_lambda(&mut self, formals: &Box<Object>, body: &Box<Object>, operands: &Vec<Box<Object>>, env: Rc<RefCell<Env>>) -> AthirResult {
@@ -160,15 +158,21 @@ impl<T> Eval<T> where T: GC {
 
         // we create a new environment with the current environment as parent
         // we then bind the formals to the operands in the new environment
-        let mut new_env = Env::new_with_parent(Rc::clone(&env));
+        let new_env = Rc::new(RefCell::new(Env::new_with_parent(env.clone())));
+
         for (formal, operand) in formals.iter().zip(operands) {
             let formal = match &**formal {
                 Object::Identifier(Identifier::Variable(formal)) => formal,
                 _ => return Err(Error::EvalError("not implemented".to_string())),
             };
 
-            let ptr = self.heap.alloc(operand.clone());
-            new_env.insert(formal.clone(), ptr);
+            Eval::<T>::insert(
+                &mut self.heap,
+                Rc::clone(&new_env),
+                &formal,
+                *operand.clone(),
+            );
+
         }
 
         // we evaluate the body in the new environment
@@ -178,10 +182,10 @@ impl<T> Eval<T> where T: GC {
         let iter = body.iter();
        
         for expr in iter.take(body.len() - 1) {
-            self.eval(expr, Rc::new(RefCell::new(new_env.clone())))?;
+            self.eval(expr, Rc::clone(&new_env))?;
         }
 
-        self.eval(body.last().unwrap(), Rc::new(RefCell::new(new_env)))
+        self.eval(body.last().unwrap(), new_env)
     }
 
     fn eval_define(&mut self, expr: &Box<Object>, env: Rc<RefCell<Env>>) -> AthirResult {
@@ -199,8 +203,8 @@ impl<T> Eval<T> where T: GC {
         };
 
         let value = self.eval(expr.cadr()?, env.clone())?;
-        let ptr = self.heap.alloc(value);
-        env.clone().borrow_mut().insert(symbol.clone(), ptr);
+
+        Eval::<T>::insert(&mut self.heap, env.clone(), &symbol, *value);
 
         Ok(Box::new(Object::Unspecified))
     }
@@ -214,8 +218,7 @@ impl<T> Eval<T> where T: GC {
         let formals = expr.cadr()?;
         let body = expr.cddr()?;
         let lambda = self.eval_lambda(&formals.cons(*body.clone())?, env.clone())?;
-        let ptr = self.heap.alloc(lambda);
-        env.clone().borrow_mut().insert(symbol.clone(), ptr);
+        Eval::<T>::insert(&mut self.heap, env.clone(), &symbol, *lambda);
 
         Ok(Box::new(Object::Unspecified))
     }
@@ -226,7 +229,11 @@ impl<T> Eval<T> where T: GC {
             _ => Err(Error::EvalError("unknown error".to_string())),
         }?;
 
-        let ptr = env.borrow().lookup(symbol).and_then(|ptr| Some(ptr)).ok_or(Error::EvalError("symbol not found".to_string()))?;
+        let ptr = env
+                .borrow()
+                .lookup(symbol)
+                .and_then(|ptr| Some(ptr)).ok_or(Error::EvalError("symbol not found".to_string())
+                )?;
 
         let value = self.eval(expr.cadr()?, env)?;
 
@@ -250,4 +257,10 @@ impl<T> Eval<T> where T: GC {
             return Err(Error::EvalError("unexpected keyword".to_string()));
         }
     }
+
+    fn insert(heap: &mut T, env: Rc<RefCell<Env>>, name: &str, object: Object) {
+        let ptr = heap.alloc(Box::new(object));
+        env.borrow_mut().insert(name.to_string(), ptr);
+    }
+
 }

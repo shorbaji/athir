@@ -20,7 +20,7 @@ pub fn repl() {
 
     for expr in reader {
         match expr {
-            Ok(expr) => println!("{:?}", vm.eval_in_global_env(&expr)),
+            Ok(expr) => println!("{:?}", vm.eval_global(&expr)),
             Err(err) => println!("{}", err),
         }
         print!("> ");
