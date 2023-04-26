@@ -2,13 +2,15 @@ use crate::object::*;
 use crate::result::EvalResult;
 use std::rc::Rc;
 use std::cell::RefCell;
+use crate::error::Error;
+use std::ops::Deref;
 
 pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(Rc<RefCell<Object>>) -> EvalResult)> {
     vec![
-        // ("+", Some(2), None, plus),
-        // ("-", Some(2), None, minus),
-        // ("*", Some(2), None, multiply),
-        // ("=", Some(2), None, equal),
+        ("+", Some(2), None, plus),
+        ("-", Some(2), None, minus),
+        ("*", Some(2), None, multiply),
+        ("=", Some(2), None, equal),
         ("car", Some(1), Some(1), car),
         ("cdr", Some(1), Some(1), cdr),
         ("cadr", Some(1), Some(1), cadr),
@@ -32,58 +34,66 @@ pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(Rc<RefC
 }
 
 
-// fn multiply(args: &[Box<Object>]) -> EvalResult {
-//     let mut result = 1;
-//     for arg in args {
-//         match &**arg {
-//             Object::Number(num) => {
-//                 result *= num.parse::<i64>().unwrap();
-//             },
-//             _ => return Err(Error::EvalError("error with multiply".to_string())),
-//         }
-//     }
-//     Ok(Box::new(Object::Number(result.to_string())))
-// }
+fn multiply(args: Rc<RefCell<Object>>) -> EvalResult {
+    let mut result = 1;
 
-// fn plus(args: &[Box<Object>]) -> EvalResult {
-//     let mut result = 0;
-//     for arg in args {
-//         match &**arg {
-//             Object::Number(num) => {
-//                 result += num.parse::<i64>().unwrap();
-//             },
-//             _ => return Err(Error::EvalError("error with plus".to_string())),
-//         }
-//     }
+    let args = args.deref().borrow().as_list()?;
+    for arg in args {
+        match arg.deref().borrow().deref() {
+            Object::Number(num) => {
+                result *= num.parse::<i64>().unwrap();
+            },
+            _ => return Err(Error::EvalError("error with multiply".to_string())),
+        }
+    }
 
-//     Ok(Box::new(Object::Number(result.to_string())))
-// }
+    Ok(Rc::new(RefCell::new(Object::Number(result.to_string()))))
+}
 
-// fn minus(args: &[Box<Object>]) -> EvalResult {
-//     let mut result;
+fn plus(args: Rc<RefCell<Object>>) -> EvalResult {
+    let mut result = 0;
 
-//     match &*args[0] {
-//         Object::Number(num) => {
-//             result = num.parse::<i64>().unwrap();
-//         },
-//         _ => return Err(Error::EvalError("error with minus".to_string())),
-//     }
+    let args = args.deref().borrow().as_list()?;
+    for arg in args {
+        match arg.deref().borrow().deref() {
+            Object::Number(num) => {
+                result += num.parse::<i64>().unwrap();
+            },
+            _ => return Err(Error::EvalError("error with plus".to_string())),
+        }
+    }
 
-//     for arg in &args[1..] {
-//         match &**arg {
-//             Object::Number(num) => {
-//                 result -= num.parse::<i64>().unwrap();
-//             },
-//             _ => return Err(Error::EvalError("error with minus".to_string())),
-//         }
-//     }
+    Ok(Rc::new(RefCell::new(Object::Number(result.to_string()))))
+}
 
-//     Ok(Box::new(Object::Number(result.to_string())))
-// }
+fn minus(args: Rc<RefCell<Object>>) -> EvalResult {
+    let mut result;
 
-// fn equal(args: &[Box<Object>]) -> EvalResult {
-//     let a = &*args[0];
-//     let b = &*args[1];
+    let args = args.deref().borrow().as_list()?;
+    match args[0].deref().borrow().deref() {
+        Object::Number(num) => {
+            result = num.parse::<i64>().unwrap();
+        },
+        _ => return Err(Error::EvalError("error with minus".to_string())),
+    }
 
-//     Ok(Box::new(Object::Boolean(a == b)))
-// }
+    for arg in &args[1..] {
+        match arg.deref().borrow().deref() {
+            Object::Number(num) => {
+                result -= num.parse::<i64>().unwrap();
+            },
+            _ => return Err(Error::EvalError("error with minus".to_string())),
+        }
+    }
+
+    Ok(Rc::new(RefCell::new(Object::Number(result.to_string()))))
+}
+
+fn equal(args: Rc<RefCell<Object>>) -> EvalResult {
+    let args = args.deref().borrow().as_list()?;
+
+    let a = &*args[0];
+    let b = &*args[1];
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(a == b))))
+}

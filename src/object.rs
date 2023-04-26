@@ -65,124 +65,124 @@ pub fn cons(args: Rc<RefCell<Object>>) -> EvalResult {
     Ok(Rc::new(RefCell::new(Object::Pair(a, b))))
 }
 
-pub fn car(pair: Rc<RefCell<Object>>) -> EvalResult {
-    match *pair.borrow() {
+pub fn car(args: Rc<RefCell<Object>>) -> EvalResult {
+    match *args.borrow() {
         Object::Pair(ref a, _) => Ok(a.clone()),
         _ => Err(Error::EvalError("car: expected pair".to_string())),
     }
 }
 
-pub fn cdr(pair: Rc<RefCell<Object>>) -> EvalResult {
-    match *pair.borrow() {
+pub fn cdr(args: Rc<RefCell<Object>>) -> EvalResult {
+    match *args.borrow() {
         Object::Pair(_, ref cdr) => Ok(cdr.clone()),
         _ => Err(Error::EvalError("cdr: expected pair".to_string())),
     }
 }
 
-pub fn caar(pair: Rc<RefCell<Object>>) -> EvalResult {
-    car(car(pair)?)
+pub fn caar(args: Rc<RefCell<Object>>) -> EvalResult {
+    car(car(args)?)
 }
 
-pub fn cadr(pair: Rc<RefCell<Object>>) -> EvalResult {
-    car(cdr(pair)?)
+pub fn cadr(args: Rc<RefCell<Object>>) -> EvalResult {
+    car(cdr(args)?)
 }
 
-pub fn cdar(pair: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(car(pair)?)
+pub fn cdar(args: Rc<RefCell<Object>>) -> EvalResult {
+    cdr(car(args)?)
 }
 
-pub fn cddr(pair: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(cdr(pair)?)
+pub fn cddr(args: Rc<RefCell<Object>>) -> EvalResult {
+    cdr(cdr(args)?)
 }
 
-pub fn caddr(pair: Rc<RefCell<Object>>) -> EvalResult {
-    car(cdr(cdr(pair)?)?)
+pub fn caddr(args: Rc<RefCell<Object>>) -> EvalResult {
+    car(cdr(cdr(args)?)?)
 }
 
-pub fn cdadr(pair: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(car(cdr(pair)?)?)
+pub fn cdadr(args: Rc<RefCell<Object>>) -> EvalResult {
+    cdr(car(cdr(args)?)?)
 }
 
-pub fn is_null(object: Rc<RefCell<Object>>) -> EvalResult {
-    match object.borrow().deref() {
+pub fn is_null(args:Rc<RefCell<Object>>) -> EvalResult {
+    match args.borrow().deref() {
         Object::Null => Ok(Rc::new(RefCell::new(Object::Boolean(true)))),
         _ => Ok(Rc::new(RefCell::new(Object::Boolean(false)))),
     }
 }
 
-pub fn is_false(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Boolean(false) | Object::Null);
+pub fn is_false(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Boolean(false) | Object::Null);
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 
 }
 
-pub fn is_true(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = !matches!(object.borrow().deref(), Object::Boolean(false) | Object::Null);
+pub fn is_true(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = !matches!(args.borrow().deref(), Object::Boolean(false) | Object::Null);
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_boolean(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Boolean(_));
+pub fn is_boolean(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Boolean(_));
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_bytevector(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Bytevector(_));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_char(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Character(_));
+pub fn is_bytevector(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Bytevector(_));
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_eof_object(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::_Eof);
+pub fn is_char(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Character(_));
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_number(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Number(_));
+pub fn is_eof_object(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::_Eof);
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_pair(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Pair(_, _));
+pub fn is_number(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Number(_));
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_procedure(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Procedure(_));
+pub fn is_pair(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Pair(_, _));
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_string(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::String(_));
+pub fn is_procedure(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Procedure(_));
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_symbol(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Identifier(_));
+pub fn is_string(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::String(_));
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_vector(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::Vector(_));
+pub fn is_symbol(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Identifier(_));
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
 
-pub fn is_port(object: Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(object.borrow().deref(), Object::_Port);
+pub fn is_vector(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::Vector(_));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_port(args:Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(args.borrow().deref(), Object::_Port);
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
 }
