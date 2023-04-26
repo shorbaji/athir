@@ -110,7 +110,7 @@ pub fn is_null(args:Rc<RefCell<Object>>) -> EvalResult {
     }
 }
 
-pub fn is_false(args:Rc<RefCell<Object>>) -> EvalResult {
+pub fn _is_false(args:Rc<RefCell<Object>>) -> EvalResult {
     let bool = matches!(args.borrow().deref(), Object::Boolean(false) | Object::Null);
 
     Ok(Rc::new(RefCell::new(Object::Boolean(bool))))

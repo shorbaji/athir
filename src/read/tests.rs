@@ -1,14 +1,14 @@
 use super::*;
 
 fn test_parse(goods: &[&str], bads: &[&str]) {
-    let parser = Reader::new(goods.iter().map(|s| Ok(s.to_string())));
+    let parser = Read::new(goods.iter().map(|s| Ok(s.to_string())));
 
     for result in parser {
         println!("{:?}", result);
         assert!(result.is_ok());
     }
 
-    let parser = Reader::new(bads.iter().map(|s| Ok(s.to_string())));
+    let parser = Read::new(bads.iter().map(|s| Ok(s.to_string())));
 
     for result in parser {
         println!("{:?}", result);

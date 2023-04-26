@@ -12,7 +12,6 @@
 
 mod error;
 mod object;
-mod gc;
 mod result;
 
 mod eval;

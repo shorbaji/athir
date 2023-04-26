@@ -17,18 +17,15 @@ use crate::object::*;
 use crate::read::{Identifier, Keyword};
 use crate::result::EvalResult;
 use crate::eval::env::Env;
-use crate::gc::GC;
 
 pub struct Eval {
     global_env: Rc<RefCell<Env>>,
-    heap: GC,
 }
 
 impl Eval {
     pub fn new() -> Self {
 
         // start with an empty heap & environment
-        let heap = GC::new();
         let env = Rc::new(RefCell::new(Env::new()));
 
         // initialize global environment with builtins
@@ -39,7 +36,6 @@ impl Eval {
         }
 
         Eval {
-            heap: heap,
             global_env: env
         }
 
@@ -94,7 +90,7 @@ impl Eval {
         } else {
             match caddr(expr) {
                 Ok(expr) => self.eval(expr, env),
-                _ => Ok(self.heap.alloc(&Object::Unspecified))
+                _ => Ok(Rc::new(RefCell::new(Object::Unspecified)))
             }
         }
     }
@@ -103,7 +99,7 @@ impl Eval {
         let formals = car(expr.clone())?;
         let body = cadr(expr)?;
 
-        Ok(self.heap.alloc(&Object::Procedure(Procedure::Lambda{env, formals, body})))
+        Ok(Rc::new(RefCell::new(Object::Procedure(Procedure::Lambda{env, formals, body}))))
     }
 
     fn evlis(&mut self, operands: Rc<RefCell<Object>>, env: Rc<RefCell<Env>>) -> crate::result::EvalResult {
@@ -187,8 +183,8 @@ impl Eval {
         // we evaluate the body in the new environment
         // we evaluate all but the last expression in the body
         // we return the result of the last expression
-        let body = self.heap.read(body);
-        let body = body.as_list()?;
+
+        let body = body.deref().borrow().as_list()?;
         let iter = body.iter();
        
         for expr in iter.take(body.len() - 1) {
@@ -222,7 +218,7 @@ impl Eval {
 
         env.borrow_mut().insert(symbol.clone(), value);
 
-        Ok(self.heap.alloc(&Object::Unspecified))
+        Ok(Rc::new(RefCell::new(Object::Unspecified)))
     }
     
     fn eval_define_function(&mut self, expr: Rc<RefCell<Object>>, env: Rc<RefCell<Env>>) -> EvalResult {
@@ -243,7 +239,7 @@ impl Eval {
 
         env.borrow_mut().insert(symbol.clone(), lambda);
 
-        Ok(self.heap.alloc(&Object::Unspecified))
+        Ok(Rc::new(RefCell::new(Object::Unspecified)))
     }
 
     fn eval_assignment(&mut self, expr: Rc<RefCell<Object>>, env: Rc<RefCell<Env>>) -> EvalResult {
@@ -255,22 +251,23 @@ impl Eval {
             _ => Err(Error::EvalError("unknown error".to_string())),
         }?;
 
-        let ptr = env
+        let _ = env
+                .clone()
                 .deref()
                 .borrow()
                 .lookup(symbol.as_str())
                 .and_then(|ptr| Some(ptr)).ok_or(Error::EvalError("symbol not found".to_string())
                 )?;
 
-        let value = self.eval(cadr(expr)?, env)?;
+        let value = self.eval(cadr(expr)?, env.clone())?;
 
-        self.heap.write(ptr, value.deref().borrow().deref());
+        env.borrow_mut().insert(symbol.clone(), value);
 
-        Ok(self.heap.alloc(&Object::Null))
+        Ok(Rc::new(RefCell::new(Object::Null)))
     }
     
     fn eval_begin(&mut self, _expr: Rc<RefCell<Object>>, _env: Rc<RefCell<Env>>) -> EvalResult {
-        Ok(self.heap.alloc(&Object::Null))
+        Ok(Rc::new(RefCell::new(Object::Null)))
     }
         
     fn eval_identifier(&mut self, id: &Identifier, env: Rc<RefCell<Env>>) -> EvalResult {

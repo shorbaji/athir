@@ -58,12 +58,12 @@ use crate::result::{EvalResult, VecEvalResult};
 /// 
 
 #[derive(Debug)]
-pub struct Reader <T: Iterator<Item=Result<String, std::io::Error>>> {
+pub struct Read <T: Iterator<Item=Result<String, std::io::Error>>> {
     #[doc(hidden)]
     lexer: Lexer<T>,
 }
 
-impl<T> Iterator for Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
+impl<T> Iterator for Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     type Item = EvalResult;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -79,7 +79,7 @@ impl<T> Iterator for Reader<T> where T: Iterator<Item = Result<String, std::io::
     }
 }
 
-impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
+impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     pub fn new(source: T) -> Self {
         Self { 
             lexer: Lexer::new(source),
@@ -90,7 +90,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 // private methods
 
 #[doc(hidden)]
-impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {    
+impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {    
     fn recover(&mut self, err: &Error) {
         match &err {
             Error::UnexpectedToken{depth, unexpected: _, expected: _} => {
@@ -204,9 +204,9 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.paren_left(rdepth)?;
 
         let handler = match self.peek_or_eof()? {
-            Token::Identifier(id) => Reader::<T>::special_form_handler(id.as_str())
-                                                    .unwrap_or(Reader::procedure_call),
-            _ => Reader::procedure_call,
+            Token::Identifier(id) => Read::<T>::special_form_handler(id.as_str())
+                                                    .unwrap_or(Read::procedure_call),
+            _ => Read::procedure_call,
         };
 
         let expr = handler(self, rdepth + 1)?;
@@ -216,23 +216,23 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     }
     
-    fn special_form_handler(id: &str) -> Option<fn (&mut Reader<T>, usize) -> EvalResult> {
+    fn special_form_handler(id: &str) -> Option<fn (&mut Read<T>, usize) -> EvalResult> {
         // we look up the keyword and return the handler
         match id {
-            "begin" => Some(Reader::begin),
-            "define" => Some(Reader::define),
-            "define-values" => Some(Reader::define_values),
-            "define-record-type" => Some(Reader::define_record_type),
-            "define-syntax" => Some(Reader::define_syntax),
-            "define-library" => Some(Reader::define_library),
-            "if" => Some(Reader::iff),
-            "include" => Some(Reader::include),
-            "include-ci" => Some(Reader::include),
-            "lambda" => Some(Reader::lambda),
-            "let-syntax" | "letrec-syntax" => Some(Reader::macro_block),
-            "quasiquote" => Some(|parser, rdepth| Reader::quasiquotation(parser, rdepth, 1)),
-            "quote" => Some(Reader::quotation),
-            "set!" => Some(Reader::assignment),
+            "begin" => Some(Read::begin),
+            "define" => Some(Read::define),
+            "define-values" => Some(Read::define_values),
+            "define-record-type" => Some(Read::define_record_type),
+            "define-syntax" => Some(Read::define_syntax),
+            "define-library" => Some(Read::define_library),
+            "if" => Some(Read::iff),
+            "include" => Some(Read::include),
+            "include-ci" => Some(Read::include),
+            "lambda" => Some(Read::lambda),
+            "let-syntax" | "letrec-syntax" => Some(Read::macro_block),
+            "quasiquote" => Some(|parser, rdepth| Read::quasiquotation(parser, rdepth, 1)),
+            "quote" => Some(Read::quotation),
+            "set!" => Some(Read::assignment),
             _ => None,
         }
     }
@@ -254,7 +254,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         // we return a list (exprs is_all_defs)
         // this is used by the evaluator to determine if the begin expression is itself a definition
 
-        let exprs = self.zero_or_more(Reader::expr, rdepth)?;
+        let exprs = self.zero_or_more(Read::expr, rdepth)?;
         
         let is_all_defs = exprs.iter().all(|node| is_definition_expr(node.clone()));
         let is_all_defs = Rc::new(RefCell::new(Object::Boolean(is_all_defs)));
@@ -327,12 +327,12 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn field_names(&mut self, rdepth: usize) -> EvalResult {
-        let names = self.zero_or_more(Reader::identifier, rdepth)?;
+        let names = self.zero_or_more(Read::identifier, rdepth)?;
         Object::list(names)
     }
 
     fn field_specs(&mut self, rdepth: usize) -> EvalResult {
-        let specs = self.zero_or_more(Reader::field_spec, rdepth)?;
+        let specs = self.zero_or_more(Read::field_spec, rdepth)?;
         Object::list(specs)
     }
 
@@ -374,7 +374,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn library_declarations(&mut self, rdepth: usize) -> EvalResult {
-        let declarations = self.zero_or_more(Reader::library_declaration, rdepth)?;
+        let declarations = self.zero_or_more(Read::library_declaration, rdepth)?;
         Object::list(declarations)
     }
 
@@ -386,7 +386,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn library_name_after_open(&mut self, rdepth: usize) -> EvalResult {
-        Object::list(self.one_or_more(Reader::library_name_part, rdepth)?)
+        Object::list(self.one_or_more(Read::library_name_part, rdepth)?)
     }
 
     fn library_name_part(&mut self, rdepth: usize) -> EvalResult {
@@ -426,7 +426,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn export_specs(&mut self, rdepth: usize) -> EvalResult {
-        let specs = self.zero_or_more(Reader::export_spec, rdepth)?;
+        let specs = self.zero_or_more(Read::export_spec, rdepth)?;
         Object::list(specs)
     }
 
@@ -461,7 +461,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn import_sets(&mut self, rdepth: usize) -> EvalResult {
-        let sets = self.zero_or_more(Reader::import_set, rdepth)?;
+        let sets = self.zero_or_more(Read::import_set, rdepth)?;
         Object::list(sets)
     }
 
@@ -493,7 +493,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn import_set_ids(&mut self, rdepth: usize) -> EvalResult {
-        Object::list(self.one_or_more(Reader::identifier, rdepth)?)
+        Object::list(self.one_or_more(Read::identifier, rdepth)?)
     }
 
 
@@ -523,7 +523,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn rename_pairs(&mut self, rdepth: usize) -> EvalResult {
-        Object::list(self.one_or_more(Reader::identifier_pair, rdepth)?)
+        Object::list(self.one_or_more(Read::identifier_pair, rdepth)?)
     }
 
 
@@ -535,7 +535,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn cond_expand_clauses(&mut self, rdepth: usize) -> EvalResult {
-        Object::list(self.one_or_more(Reader::cond_clause, rdepth)?)
+        Object::list(self.one_or_more(Read::cond_clause, rdepth)?)
     }
 
     fn cond_clause(&mut self, rdepth: usize) -> EvalResult {
@@ -564,7 +564,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn feature_requirements(&mut self, rdepth: usize) -> EvalResult {
-        let requirements = self.zero_or_more(Reader::feature_requirement, rdepth)?;
+        let requirements = self.zero_or_more(Read::feature_requirement, rdepth)?;
         Object::list(requirements)
     }
 
@@ -685,7 +685,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     /// body cannot have definitions after any expression
     
     fn body(&mut self, rdepth: usize) -> EvalResult {       
-        let exprs = self.one_or_more(Reader::expr, rdepth)?;
+        let exprs = self.one_or_more(Read::expr, rdepth)?;
         let mut defs = true;
 
         for expr in exprs.clone().into_iter() {
@@ -726,7 +726,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn syntax_specs (&mut self, rdepth: usize) -> EvalResult {
-        let syntax_specs = self.zero_or_more(Reader::syntax_spec, rdepth)?;
+        let syntax_specs = self.zero_or_more(Read::syntax_spec, rdepth)?;
         Object::list(syntax_specs)
     }
 
@@ -897,7 +897,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn operands(&mut self, rdepth: usize) -> EvalResult {
-        let operands = self.zero_or_more(Reader::expr, rdepth)?;
+        let operands = self.zero_or_more(Read::expr, rdepth)?;
         Object::list(operands)
     }
 
@@ -929,12 +929,12 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn transformer_spec_ids(&mut self, rdepth: usize) -> EvalResult {
-        let ids = self.zero_or_more(Reader::identifier, rdepth)?;
+        let ids = self.zero_or_more(Read::identifier, rdepth)?;
         Object::list(ids)
     }
 
     fn syntax_rules(&mut self, rdepth: usize) -> EvalResult {
-        let syntax_rules = self.zero_or_more(Reader::syntax_rule, rdepth)?;
+        let syntax_rules = self.zero_or_more(Read::syntax_rule, rdepth)?;
         Object::list(syntax_rules)
     }
 
@@ -1010,7 +1010,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 let mut ellipse = false;
 
                 // we look for patterns before ellipse
-                pre_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                pre_ellipse_patterns = self.zero_or_more(Read::pattern, rdepth)?;
 
                 match self.peek_or_eof()? {
                     Token::ParenRight => (), // no dot
@@ -1025,7 +1025,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                             {
                                 ellipse = true;
                                 let _ellipsis = self.identifier(rdepth)?;
-                                post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                                post_ellipse_patterns = self.zero_or_more(Read::pattern, rdepth)?;
 
                                 if !matches!(self.peek_or_eof()?, Token::ParenRight) { // dot with ellipse and dot 
                                     self.dot(rdepth)?;
@@ -1041,7 +1041,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                     {
                         ellipse = true;
                         let _ellipsis = self.identifier(rdepth)?;
-                        post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                        post_ellipse_patterns = self.zero_or_more(Read::pattern, rdepth)?;
 
                         if !matches!(self.peek_or_eof()?, Token::ParenRight) {
                             self.dot(rdepth)?;
@@ -1084,13 +1084,13 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::ParenRight => (), // empty
             _ => {
-                pre_ellipse_patterns = self.one_or_more(Reader::pattern, rdepth)?;
+                pre_ellipse_patterns = self.one_or_more(Read::pattern, rdepth)?;
                 match self.peek_or_eof()? {
                     Token::ParenRight => (),
                     Token::Identifier(id) if  id.as_str() == "..." => {
                         let _ellipsis = self.identifier(rdepth)?;
                         ellipse = true;
-                        post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                        post_ellipse_patterns = self.zero_or_more(Read::pattern, rdepth)?;
 
                     },
                     _ => ()
@@ -1130,7 +1130,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let template = match self.peek_or_eof()? {
             Token::ParenRight => Ok(vec!()), // empty list
             _ => {
-                let mut elements = self.one_or_more(Reader::template_element, rdepth + 1)?;
+                let mut elements = self.one_or_more(Read::template_element, rdepth + 1)?;
                 match self.peek_or_eof()? {
                     Token::ParenRight => Ok(elements),
                     Token::Dot => {
@@ -1162,7 +1162,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn template_with_sharp_paren(&mut self, rdepth: usize) -> EvalResult {
         self.sharpopen(rdepth)?;
-        let elements = self.zero_or_more(Reader::template_element, rdepth + 1)?;
+        let elements = self.zero_or_more(Read::template_element, rdepth + 1)?;
         self.paren_right(rdepth)?;
 
         Object::list(elements)
@@ -1232,7 +1232,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let data = match self.peek_or_eof()? {
             Token::ParenRight => Object::list(vec!()),
             _ => {
-                let data = self.one_or_more(Reader::datum, rdepth + 1)?;
+                let data = self.one_or_more(Read::datum, rdepth + 1)?;
 
                 match self.peek_or_eof()? {
                     Token::Dot => {
@@ -1336,7 +1336,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn strings(&mut self, rdepth: usize) -> EvalResult {
-        Object::list(self.one_or_more(Reader::string, rdepth)?)
+        Object::list(self.one_or_more(Read::string, rdepth)?)
     }
 
     fn string(&mut self, rdepth: usize) -> EvalResult {
@@ -1382,7 +1382,7 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::ParenRight => Object::list(vec!()),
             _ => {
-                let ids = self.one_or_more(Reader::identifier, rdepth)?;
+                let ids = self.one_or_more(Read::identifier, rdepth)?;
                 match self.peek_or_eof()? {
                     Token::Dot => {
                         self.dot(rdepth)?;
@@ -1408,14 +1408,14 @@ impl<T> Reader<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn vector(&mut self, rdepth: usize) -> EvalResult {
         self.sharpopen(rdepth)?;
-        let data = self.zero_or_more(Reader::expr, rdepth + 1)?;
+        let data = self.zero_or_more(Read::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
         Ok(Rc::new(RefCell::new(Object::Vector(data))))
     }
 
     fn bytevector(&mut self, rdepth: usize) -> EvalResult {
         self.sharpu8open(rdepth)?;
-        let data = self.zero_or_more(Reader::expr, rdepth + 1)?;
+        let data = self.zero_or_more(Read::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
         Ok(Rc::new(RefCell::new(Object::Bytevector(data))))
