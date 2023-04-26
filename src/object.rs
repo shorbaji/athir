@@ -28,14 +28,13 @@ pub enum Object {
     Unspecified,
 }
 
-
 impl std::fmt::Debug for Procedure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Procedure::Builtin { name, min_args, max_args, .. } => {
                 write!(f, "Builtin: {:?} min: {:?} max {:?}", name, min_args, max_args)
             },
-            Procedure::Lambda{env, formals, body} => {
+            Procedure::Lambda{env: _, formals, body} => {
                 write!(f, "Lambda: formals: {:?} body: {:?}", formals, body)
             }
         }
@@ -48,7 +47,7 @@ pub enum Procedure {
         name: &'static str,
         min_args: Option<usize>,
         max_args: Option<usize>, 
-        func: fn(&[Rc<RefCell<Object>>]) -> EvalResult
+        func: fn(Rc<RefCell<Object>>) -> EvalResult
     },
     Lambda {
         env: Rc<RefCell<Env>>,
@@ -59,13 +58,16 @@ pub enum Procedure {
 
 // public methods
 
-pub fn cons(car: Rc<RefCell<Object>>, cdr: Rc<RefCell<Object>>) -> EvalResult {
-    Ok(Rc::new(RefCell::new(Object::Pair(car, cdr))))
+pub fn cons(args: Rc<RefCell<Object>>) -> EvalResult {
+    let a = car(args.clone())?;
+    let b = cadr(args)?;
+
+    Ok(Rc::new(RefCell::new(Object::Pair(a, b))))
 }
 
 pub fn car(pair: Rc<RefCell<Object>>) -> EvalResult {
     match *pair.borrow() {
-        Object::Pair(ref car, _) => Ok(car.clone()),
+        Object::Pair(ref a, _) => Ok(a.clone()),
         _ => Err(Error::EvalError("car: expected pair".to_string())),
     }
 }
@@ -97,30 +99,93 @@ pub fn caddr(pair: Rc<RefCell<Object>>) -> EvalResult {
     car(cdr(cdr(pair)?)?)
 }
 
-pub fn cadddr(pair: Rc<RefCell<Object>>) -> EvalResult {
-    car(cdr(cdr(cdr(pair)?)?)?)
-}
-
-pub fn cdddr(pair: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(cdr(cdr(pair)?)?)
-}
-
-pub fn cddar(pair: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(cdr(car(pair)?)?)
-}
-
-pub fn caadr(pair: Rc<RefCell<Object>>) -> EvalResult {
-    car(car(cdr(pair)?)?)
-}
-
-pub fn cdaar(pair: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(car(car(pair)?)?)
-}
-
 pub fn cdadr(pair: Rc<RefCell<Object>>) -> EvalResult {
     cdr(car(cdr(pair)?)?)
 }
 
+pub fn is_null(object: Rc<RefCell<Object>>) -> EvalResult {
+    match object.borrow().deref() {
+        Object::Null => Ok(Rc::new(RefCell::new(Object::Boolean(true)))),
+        _ => Ok(Rc::new(RefCell::new(Object::Boolean(false)))),
+    }
+}
+
+pub fn is_false(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Boolean(false) | Object::Null);
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+
+}
+
+pub fn is_true(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = !matches!(object.borrow().deref(), Object::Boolean(false) | Object::Null);
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_boolean(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Boolean(_));
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_bytevector(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Bytevector(_));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_char(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Character(_));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_eof_object(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::_Eof);
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_number(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Number(_));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_pair(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Pair(_, _));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_procedure(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Procedure(_));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_string(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::String(_));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_symbol(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Identifier(_));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_vector(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::Vector(_));
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
+
+pub fn is_port(object: Rc<RefCell<Object>>) -> EvalResult {
+    let bool = matches!(object.borrow().deref(), Object::_Port);
+
+    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
+}
 
 impl Object {
     /// Creates an Objects from a Vec of Objects
@@ -160,145 +225,44 @@ impl Object {
         Ok(result)
     }
 
-    // pub fn cons(&self, object: T) -> EvalResult {
-    //     Ok(Box::new(Object::Pair(Box::new(self.clone()), Box::new(object))))
-    // }
-
-    // pub fn car(&self) -> EvalResult {
-    //     match self {
-    //         Object::Pair(car, _) => Ok(car),
-    //         _ => Err(Error::EvalError("car: not a pair".to_string())),
-    //     }
-    // }
-
-    // pub fn cdr(&self) -> EvalResult {
-    //     match self {
-    //         Object::Pair(_, cdr) => Ok(cdr),
-    //         _ => Err(Error::EvalError("car: not a pair".to_string())),
-    //     }
-    // }
-
-    // pub fn caar(&self) -> EvalResult {
-    //     self.car()?.car()
-    // }
-
-    // pub fn cdar(&self) -> EvalResult {
-    //     self.car()?.cdr()
-    // }
-
-    // pub fn cadr(&self) -> EvalResult {
-    //     self.cdr()?.car()
-    // }
-
-    // pub fn cddr(&self) -> EvalResult {
-    //     self.cdr()?.cdr()
-    // }
-
-    // pub fn caddr(&self) -> EvalResult {
-    //     self.cddr()?.car()
-    // }
-
-    // pub fn cdadr(&self) -> EvalResult {
-    //     self.cadr()?.cdr()
-    // }
-
-    pub fn is_null(&self) -> bool {
-        match self {
-            Object::Null => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_false(&self) -> bool {
-        matches!(self, Object::Boolean(false) | Object::Null)
-    }
-    
-    pub fn is_true(&self) -> bool {
-        !self.is_false()
-    }
-
-    pub fn is_boolean(&self) -> bool {
-        matches!(self, Object::Boolean(_))
-    }
-
-    pub fn is_bytevector(&self) -> bool {
-        matches!(self, Object::Bytevector(_))
-    }
-
-    pub fn is_char(&self) -> bool {
-        matches!(self, Object::Character(_))
-    }
-
-    pub fn is_eof_object(&self) -> bool {
-        matches!(self, Object::_Eof)
-    }
-
-    pub fn is_number(&self) -> bool {
-        matches!(self, Object::Number(_))
-    }
-
-    pub fn is_pair(&self) -> bool {
-        matches!(self, Object::Pair(_, _))
-    }
-
-    pub fn is_procedure(&self) -> bool {
-        matches!(self, Object::Procedure(_))
-    }
-
-    pub fn is_string(&self) -> bool {
-        matches!(self, Object::String(_))
-    }
-
-    pub fn is_symbol(&self) -> bool {
-        matches!(self, Object::Identifier(_))
-    }
-
-    pub fn is_vector(&self) -> bool {
-        matches!(self, Object::Vector(_))
-    }
-
-    pub fn is_port(&self) -> bool {
-        matches!(self, Object::_Port)
-    }
-
 }
 
-    pub fn is_definition_expr(expr: Rc<RefCell<Object>>) -> bool {
-        let is_definition_keyword = match car(expr.clone()) {
-            Ok(node) => is_definition_keyword(node),
-            Err(_) => false,
-        };
-        
-        is_definition_keyword || is_begin_definition_expr(expr)
-    }
+pub fn is_definition_expr(expr: Rc<RefCell<Object>>) -> bool {
+    let is_definition_keyword = match car(expr.clone()) {
+        Ok(node) => is_definition_keyword(node),
+        Err(_) => false,
+    };
+    
+    is_definition_keyword || is_begin_definition_expr(expr)
+}
 
-    fn is_definition_keyword(expr: Rc<RefCell<Object>>) -> bool {
-        matches!(*expr.borrow(), 
-            Object::Identifier(Identifier::Keyword(Keyword::Define))
-            | Object::Identifier(Identifier::Keyword(Keyword::DefineValues))
-            | Object::Identifier(Identifier::Keyword(Keyword::DefineRecordType))
-            | Object::Identifier(Identifier::Keyword(Keyword::DefineSyntax))
-        )
-    }
+fn is_definition_keyword(expr: Rc<RefCell<Object>>) -> bool {
+    matches!(*expr.borrow(), 
+        Object::Identifier(Identifier::Keyword(Keyword::Define))
+        | Object::Identifier(Identifier::Keyword(Keyword::DefineValues))
+        | Object::Identifier(Identifier::Keyword(Keyword::DefineRecordType))
+        | Object::Identifier(Identifier::Keyword(Keyword::DefineSyntax))
+    )
+}
 
-    fn is_begin_keyword(expr: Rc<RefCell<Object>>) -> bool {
-        matches!(*expr.borrow(), Object::Identifier(Identifier::Keyword(Keyword::Begin)))
-    }
+fn is_begin_keyword(expr: Rc<RefCell<Object>>) -> bool {
+    matches!(*expr.borrow(), Object::Identifier(Identifier::Keyword(Keyword::Begin)))
+}
 
-    fn is_begin_expr(expr: Rc<RefCell<Object>>) -> bool {
-        match car(expr) {
-            Ok(node) => is_begin_keyword(node),
-            Err(_) => false,
-        }
+fn is_begin_expr(expr: Rc<RefCell<Object>>) -> bool {
+    match car(expr) {
+        Ok(node) => is_begin_keyword(node),
+        Err(_) => false,
     }
+}
 
-    fn is_begin_definition_expr(expr: Rc<RefCell<Object>>) -> bool {    
-        is_begin_expr(expr.clone()) && 
-        match cdadr(expr) {
-            Ok(object) => matches!(*object.borrow(), Object::Boolean(true)),
-            Err(_) => false,
-        }
+fn is_begin_definition_expr(expr: Rc<RefCell<Object>>) -> bool {    
+    is_begin_expr(expr.clone()) && 
+    match cdadr(expr) {
+        Ok(object) => matches!(*object.borrow(), Object::Boolean(true)),
+        Err(_) => false,
     }
+}
 
 
 #[derive(Debug, Clone, PartialEq)]
@@ -388,20 +352,16 @@ pub enum Identifier {
 
 impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
-        if self.is_number() && other.is_number()  {
-            let a = match self {
-                Object::Number(n) => n,
-                _ => panic!("Cannot compare non-number object"),
-            };
+        let a = match self {
+            Object::Number(n) => n,
+            _ => panic!("Cannot compare non-number object"),
+        };
 
-            let b = match other {
-                Object::Number(n) => n,
-                _ => panic!("Cannot compare non-number object"),
-            };
+        let b = match other {
+            Object::Number(n) => n,
+            _ => panic!("Cannot compare non-number object"),
+        };
 
-            a == b
-        } else {
-            false
-        }
+        a == b
     }
 }

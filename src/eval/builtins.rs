@@ -1,21 +1,21 @@
-use crate::object::Object;
-use crate::result::AthirResult;
-use crate::error::Error;
+use crate::object::*;
+use crate::result::EvalResult;
+use std::rc::Rc;
+use std::cell::RefCell;
 
-
-pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(&[Box<Object>]) -> AthirResult<T>)> {
+pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(Rc<RefCell<Object>>) -> EvalResult)> {
     vec![
-        ("+", Some(2), None, plus),
-        ("-", Some(2), None, minus),
-        ("*", Some(2), None, multiply),
-        ("=", Some(2), None, equal),
+        // ("+", Some(2), None, plus),
+        // ("-", Some(2), None, minus),
+        // ("*", Some(2), None, multiply),
+        // ("=", Some(2), None, equal),
         ("car", Some(1), Some(1), car),
         ("cdr", Some(1), Some(1), cdr),
         ("cadr", Some(1), Some(1), cadr),
         ("caar", Some(1), Some(1), caar),
         ("cdar", Some(1), Some(1), cdar),
         ("cddr", Some(1), Some(1), cddr),
-        ("cons", Some(2), Some(1), cons),
+        ("cons", Some(2), Some(2), cons),
         ("boolean?", Some(1), Some(1), is_boolean),
         ("bytevector?", Some(1), Some(1), is_bytevector),
         ("char?", Some(1), Some(1), is_char),
@@ -31,134 +31,59 @@ pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(&[Box<O
     ]
 }
 
-fn is_boolean(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_boolean())))
-}
 
-fn is_bytevector(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_bytevector())))
-}
+// fn multiply(args: &[Box<Object>]) -> EvalResult {
+//     let mut result = 1;
+//     for arg in args {
+//         match &**arg {
+//             Object::Number(num) => {
+//                 result *= num.parse::<i64>().unwrap();
+//             },
+//             _ => return Err(Error::EvalError("error with multiply".to_string())),
+//         }
+//     }
+//     Ok(Box::new(Object::Number(result.to_string())))
+// }
 
-fn is_char(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_char())))
-}
+// fn plus(args: &[Box<Object>]) -> EvalResult {
+//     let mut result = 0;
+//     for arg in args {
+//         match &**arg {
+//             Object::Number(num) => {
+//                 result += num.parse::<i64>().unwrap();
+//             },
+//             _ => return Err(Error::EvalError("error with plus".to_string())),
+//         }
+//     }
 
-fn is_eof_object(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_eof_object())))
-}
+//     Ok(Box::new(Object::Number(result.to_string())))
+// }
 
-fn is_null(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_null())))
-}
+// fn minus(args: &[Box<Object>]) -> EvalResult {
+//     let mut result;
 
-fn is_number(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_number())))
-}
+//     match &*args[0] {
+//         Object::Number(num) => {
+//             result = num.parse::<i64>().unwrap();
+//         },
+//         _ => return Err(Error::EvalError("error with minus".to_string())),
+//     }
 
-fn is_pair(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_pair())))
-}
+//     for arg in &args[1..] {
+//         match &**arg {
+//             Object::Number(num) => {
+//                 result -= num.parse::<i64>().unwrap();
+//             },
+//             _ => return Err(Error::EvalError("error with minus".to_string())),
+//         }
+//     }
 
-fn is_port(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_port())))
-}
+//     Ok(Box::new(Object::Number(result.to_string())))
+// }
 
-fn is_procedure(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_procedure())))
-}
+// fn equal(args: &[Box<Object>]) -> EvalResult {
+//     let a = &*args[0];
+//     let b = &*args[1];
 
-fn is_string(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_string())))
-}
-
-fn is_symbol(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_symbol())))
-}
-
-fn is_vector(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(Object::Boolean(args[0].is_vector())))
-}
-
-fn car(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(*args[0].car()?.clone()))
-}
-
-fn cdr(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(*args[0].cdr()?.clone()))
-}
-
-fn cadr(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(*args[0].cadr()?.clone()))
-}
-
-fn caar(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(*args[0].caar()?.clone()))
-}
-
-fn cdar(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(*args[0].cdar()?.clone()))
-}
-
-fn cons(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(args[0].cons(*args[1].clone())?)
-}
-
-fn cddr(args: &[Box<Object>]) -> AthirResult<T> {
-    Ok(Box::new(*args[0].cdr()?.cdr()?.clone()))
-}
-
-fn multiply(args: &[Box<Object>]) -> AthirResult<T> {
-    let mut result = 1;
-    for arg in args {
-        match &**arg {
-            Object::Number(num) => {
-                result *= num.parse::<i64>().unwrap();
-            },
-            _ => return Err(Error::EvalError("error with multiply".to_string())),
-        }
-    }
-    Ok(Box::new(Object::Number(result.to_string())))
-}
-
-fn plus(args: &[Box<Object>]) -> AthirResult<T> {
-    let mut result = 0;
-    for arg in args {
-        match &**arg {
-            Object::Number(num) => {
-                result += num.parse::<i64>().unwrap();
-            },
-            _ => return Err(Error::EvalError("error with plus".to_string())),
-        }
-    }
-
-    Ok(Box::new(Object::Number(result.to_string())))
-}
-
-fn minus(args: &[Box<Object>]) -> AthirResult<T> {
-    let mut result;
-
-    match &*args[0] {
-        Object::Number(num) => {
-            result = num.parse::<i64>().unwrap();
-        },
-        _ => return Err(Error::EvalError("error with minus".to_string())),
-    }
-
-    for arg in &args[1..] {
-        match &**arg {
-            Object::Number(num) => {
-                result -= num.parse::<i64>().unwrap();
-            },
-            _ => return Err(Error::EvalError("error with minus".to_string())),
-        }
-    }
-
-    Ok(Box::new(Object::Number(result.to_string())))
-}
-
-fn equal(args: &[Box<Object>]) -> AthirResult<T> {
-    let a = &*args[0];
-    let b = &*args[1];
-
-    Ok(Box::new(Object::Boolean(a == b)))
-}
+//     Ok(Box::new(Object::Boolean(a == b)))
+// }
