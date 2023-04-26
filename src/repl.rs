@@ -4,21 +4,21 @@
 //! Currently, the REPL runs the lexer and prints the tokens it finds since the parser and evaluator are not yet implemented.
 //! 
 
-use crate::read::Read;
+use crate::read::StdinRead;
 use crate::eval::Eval; 
 use std::io::Write; // print
 
 pub fn repl() {
 
-    let mut evaluator: Eval = Eval::new();
-    let reader = Read::new(std::io::stdin().lines());
+    let mut eval: Eval = Eval::new();
+    let read = StdinRead::new();
     
     print!("> ");
     std::io::stdout().flush().unwrap();
 
-    for expr in reader {
+    for expr in read {
         match expr {
-            Ok(expr) => println!("{:?}", evaluator.eval_global(expr)),
+            Ok(expr) => println!("{:?}", eval.eval_global(expr)),
             Err(err) => println!("{}", err),
         }
         print!("> ");

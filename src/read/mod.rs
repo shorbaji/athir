@@ -5,11 +5,9 @@
 //! ```
 //!     // in this example we use stdin
 //!     
-//!     let source = std::io::stdin().lines());
 //!    
-//!     let reader = Reader::new(source);
+//!     let reader = StdinRead::new(source);
 //!     for expr in reader {
-//!         // expr is a Result<Box<Expr>, SyntaxError>
 //!         match expr { 
 //!             Ok(expr) => println!("{:?}", expr),
 //!             Err(err) => println!("{:?}", err),
@@ -51,6 +49,28 @@ pub use crate::object::*;
 #[doc(inline)]
 use crate::error::Error;
 use crate::result::{EvalResult, VecEvalResult};
+
+
+
+pub struct StdinRead {
+    read: Read<std::io::Lines<std::io::StdinLock<'static>>>,
+}
+
+impl StdinRead {
+    pub fn new() -> Self {
+        Self {
+            read: Read::new(std::io::stdin().lines()),
+        }
+    }
+}
+
+impl Iterator for StdinRead {
+    type Item = EvalResult;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.read.next()
+    }
+}
 
 /// Parser struct
 /// 

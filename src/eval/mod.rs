@@ -9,8 +9,7 @@ pub mod env;
 // Environment module - pub so lambda objects can use it
 use std::rc::Rc;
 use std::cell::RefCell;
-
-use lazy_static::__Deref;
+use std::ops::Deref;
 
 use crate::error::Error;
 use crate::object::*;
