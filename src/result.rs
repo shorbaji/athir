@@ -1,8 +1,10 @@
-use crate::object::Object;
 use crate::error::Error;
+use crate::object::Object;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[doc(hidden)]
-pub type AthirResult = Result<Box<Object>, Error>;
+pub type EvalResult = Result<Rc<RefCell<Object>>, Error>;
 
 #[doc(hidden)]
-pub type VecResult = Result<Vec<Box<Object>>, Error>;
+pub type VecEvalResult = Result<Vec<Rc<RefCell<Object>>>, Error>;

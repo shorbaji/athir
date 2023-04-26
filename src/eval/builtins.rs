@@ -3,7 +3,7 @@ use crate::result::AthirResult;
 use crate::error::Error;
 
 
-pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(&[Box<Object>]) -> AthirResult)> {
+pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(&[Box<Object>]) -> AthirResult<T>)> {
     vec![
         ("+", Some(2), None, plus),
         ("-", Some(2), None, minus),
@@ -31,83 +31,83 @@ pub fn builtins() -> Vec<(&'static str, Option<usize>, Option<usize>, fn(&[Box<O
     ]
 }
 
-fn is_boolean(args: &[Box<Object>]) -> AthirResult {
+fn is_boolean(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_boolean())))
 }
 
-fn is_bytevector(args: &[Box<Object>]) -> AthirResult {
+fn is_bytevector(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_bytevector())))
 }
 
-fn is_char(args: &[Box<Object>]) -> AthirResult {
+fn is_char(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_char())))
 }
 
-fn is_eof_object(args: &[Box<Object>]) -> AthirResult {
+fn is_eof_object(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_eof_object())))
 }
 
-fn is_null(args: &[Box<Object>]) -> AthirResult {
+fn is_null(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_null())))
 }
 
-fn is_number(args: &[Box<Object>]) -> AthirResult {
+fn is_number(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_number())))
 }
 
-fn is_pair(args: &[Box<Object>]) -> AthirResult {
+fn is_pair(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_pair())))
 }
 
-fn is_port(args: &[Box<Object>]) -> AthirResult {
+fn is_port(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_port())))
 }
 
-fn is_procedure(args: &[Box<Object>]) -> AthirResult {
+fn is_procedure(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_procedure())))
 }
 
-fn is_string(args: &[Box<Object>]) -> AthirResult {
+fn is_string(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_string())))
 }
 
-fn is_symbol(args: &[Box<Object>]) -> AthirResult {
+fn is_symbol(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_symbol())))
 }
 
-fn is_vector(args: &[Box<Object>]) -> AthirResult {
+fn is_vector(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(Object::Boolean(args[0].is_vector())))
 }
 
-fn car(args: &[Box<Object>]) -> AthirResult {
+fn car(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(*args[0].car()?.clone()))
 }
 
-fn cdr(args: &[Box<Object>]) -> AthirResult {
+fn cdr(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(*args[0].cdr()?.clone()))
 }
 
-fn cadr(args: &[Box<Object>]) -> AthirResult {
+fn cadr(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(*args[0].cadr()?.clone()))
 }
 
-fn caar(args: &[Box<Object>]) -> AthirResult {
+fn caar(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(*args[0].caar()?.clone()))
 }
 
-fn cdar(args: &[Box<Object>]) -> AthirResult {
+fn cdar(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(*args[0].cdar()?.clone()))
 }
 
-fn cons(args: &[Box<Object>]) -> AthirResult {
+fn cons(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(args[0].cons(*args[1].clone())?)
 }
 
-fn cddr(args: &[Box<Object>]) -> AthirResult {
+fn cddr(args: &[Box<Object>]) -> AthirResult<T> {
     Ok(Box::new(*args[0].cdr()?.cdr()?.clone()))
 }
 
-fn multiply(args: &[Box<Object>]) -> AthirResult {
+fn multiply(args: &[Box<Object>]) -> AthirResult<T> {
     let mut result = 1;
     for arg in args {
         match &**arg {
@@ -120,7 +120,7 @@ fn multiply(args: &[Box<Object>]) -> AthirResult {
     Ok(Box::new(Object::Number(result.to_string())))
 }
 
-fn plus(args: &[Box<Object>]) -> AthirResult {
+fn plus(args: &[Box<Object>]) -> AthirResult<T> {
     let mut result = 0;
     for arg in args {
         match &**arg {
@@ -134,7 +134,7 @@ fn plus(args: &[Box<Object>]) -> AthirResult {
     Ok(Box::new(Object::Number(result.to_string())))
 }
 
-fn minus(args: &[Box<Object>]) -> AthirResult {
+fn minus(args: &[Box<Object>]) -> AthirResult<T> {
     let mut result;
 
     match &*args[0] {
@@ -156,7 +156,7 @@ fn minus(args: &[Box<Object>]) -> AthirResult {
     Ok(Box::new(Object::Number(result.to_string())))
 }
 
-fn equal(args: &[Box<Object>]) -> AthirResult {
+fn equal(args: &[Box<Object>]) -> AthirResult<T> {
     let a = &*args[0];
     let b = &*args[1];
 
