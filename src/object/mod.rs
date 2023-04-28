@@ -3,6 +3,7 @@ pub mod bytevector;
 pub mod character;
 pub mod env;
 pub mod error;
+pub mod map;
 pub mod number;
 pub mod pair;
 pub mod port;
@@ -16,6 +17,7 @@ pub use crate::object::bytevector::Bytevector;
 pub use crate::object::character::Character;
 pub use crate::object::env::Env;
 pub use crate::object::error::AthirError;
+pub use crate::object::map::Map;
 pub use crate::object::number::Number;
 pub use crate::object::pair::Pair;
 pub use crate::object::port::Port;
@@ -83,7 +85,7 @@ impl Object {
         }
     }
 
-    pub fn null() -> Object {
+    pub fn new_null() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Null)),
         }
@@ -95,15 +97,9 @@ impl Object {
         }
     }
 
-    pub fn unspecified() -> Object {
+    pub fn new_unspecified() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Unspecified)),
-        }
-    }
-
-    pub fn new_map() -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Map(HashMap::new())))
         }
     }
 
@@ -216,6 +212,5 @@ impl From<String> for Keyword {
 impl Termination for Object {
     fn report(self) -> std::process::ExitCode {
         std::process::exit(0)
-        
     }
 }

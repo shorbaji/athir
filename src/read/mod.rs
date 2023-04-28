@@ -1269,7 +1269,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
 
         let data = match self.peek_or_eof()? {
-            Token::ParenRight => Ok(Object::null()),
+            Token::ParenRight => Ok(Object::new_null()),
             _ => {
                 let data = self.one_or_more(Read::datum, rdepth + 1)?;
 
