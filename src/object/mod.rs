@@ -52,13 +52,6 @@ impl Object {
         Ok(<Object as Boolean>::new(bool))
     }
 
-    pub fn as_variable_string(&self) -> Result<String, Object> {
-        match *self.borrow() {
-            Value::Symbol(ref value) => Ok(value.clone()),
-            _ => Err(<Object as AthirError>::new(format!("not a variable"))),
-        }
-    }
-
     pub fn is_eof(&self) -> bool {
         match *self.borrow() {
             Value::Eof => true,
