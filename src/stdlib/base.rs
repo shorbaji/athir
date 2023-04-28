@@ -1,4 +1,4 @@
-use crate::object::{Object, Value, ObjectExt, Procedure, env::Env};
+use crate::object::{Object, Value, ObjectExt};
 
 use std::rc::Rc;
 use std::cell::RefCell;

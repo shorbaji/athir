@@ -1,7 +1,7 @@
 use crate::print::print;
 use crate::read::read;
 use crate::eval::eval;
-use crate::object::{Port, env::Env, Object};
+use crate::object::{env::Env, Port, Object};
 
 pub fn repl() -> Result<Object, Object> {
     let env = <Object as Env>::new();
@@ -11,6 +11,7 @@ pub fn repl() -> Result<Object, Object> {
         read(port.clone())
         .and_then(|expr| eval(expr, env.clone()))
         .and_then(|val| print(val))
-        .or_else(|err| print(err));
+        .or_else(|err| print(err))?;
     }
+
 }

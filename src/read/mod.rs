@@ -7,21 +7,25 @@
 //! - derived expressions not implemented
 //!
 
-mod lexer; // lexical analyzer
-
 #[cfg(test)]
 mod tests;
+mod lexer;
 
 use std::iter::{once, from_fn};
-use lexer::{Lexer, Token};
 
 use crate::object::{Object, ObjectExt, Keyword};
-
+use crate::read::lexer::{Lexer, Token};
 use crate::stdlib::base::*;
+
+use std::io::Write;
+use std::io::Stdout;
 
 pub fn read(port: Object) -> Result<Object, Object> {
     match port {
         port if port.is_port() => {
+            print!("> ");
+            std::io::stdout().flush().unwrap();
+            
             let expr = StdinRead::new().next().unwrap();
             expr
         },
