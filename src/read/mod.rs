@@ -208,7 +208,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn operands(&mut self, rdepth: usize) -> Result<Object, Object> {
         let operands = self.zero_or_more(Read::expr, rdepth)?;
-        crate::eval::list(operands)
+        Self::list(operands)
     }
     
     fn special_form_handler(id: &str) -> Option<fn (&mut Read<T>, usize) -> Result<Object, Object>> {
@@ -244,7 +244,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         let body = self.body(rdepth)?;
 
-        crate::eval::list(vec!(keyword, formals, body))
+        Self::list(vec!(keyword, formals, body))
     }
 
     fn formals(&mut self, rdepth: usize) -> Result<Object, Object> {   
@@ -270,7 +270,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let mut defs = true;
 
         for expr in exprs.clone().into_iter() {
-            if crate::eval::is_definition_expr(&expr) {
+            if Self::is_definition_expr(&expr) {
                 if defs == false {
                     return Err(<Object as AthirError>::new("definitions must precede expressions".to_string()));
                 }
@@ -278,7 +278,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 defs = false;
             }
         }
-        crate::eval::list(exprs)
+        Self::list(exprs)
     }
 
     //
@@ -290,7 +290,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     fn include(&mut self, rdepth: usize) -> Result<Object, Object> {
         let keyword = self.keyword_box_leaf_from_next(rdepth)?;
         let paths = self.strings(rdepth)?;
-        crate::eval::list(vec!(keyword, paths))
+        Self::list(vec!(keyword, paths))
     }
 
 
@@ -313,17 +313,71 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         let exprs = self.zero_or_more(Read::expr, rdepth)?;
         
-        let is_all_defs = exprs.iter().all(|node| crate::eval::is_definition_expr(node));
+        let is_all_defs = exprs.iter().all(|node| Self::is_definition_expr(node));
         let is_all_defs = <Object as Boolean>::new(is_all_defs);
 
-        let exprs = crate::eval::list(exprs)?;
+        let exprs = Self::list(exprs)?;
 
         let tagged = exprs.cons(&is_all_defs)?;
 
-        crate::eval::list(vec!(begin, tagged))
+        Self::list(vec!(begin, tagged))
 
     }
 
+    pub fn list(objects: Vec<Object>) -> Result<Object, Object> {
+        let mut list = Object::new(Value::Null);
+        for object in objects.into_iter().rev() {
+            list = object.cons(&list)?;
+        }
+        Ok(list)
+    }
+    
+    pub fn list_not_null_terminated(objects: Vec<Object>, object: &Object) -> Result<Object, Object> {
+        let mut list = object.clone();
+    
+        for object in objects.into_iter().rev() {
+            list = object.cons(&list)?;
+        }
+    
+        Ok(list)
+    }
+    
+    pub fn is_definition_expr(expr: &Object) -> bool {
+        let is_definition_keyword = match expr.car() {
+            Ok(node) => Self::is_definition_keyword(&node),
+            Err(_) => false,
+        };
+        
+        is_definition_keyword || Self::is_begin_definition_expr(expr)
+    }
+    
+    fn is_definition_keyword(expr: &Object) -> bool {
+        matches!(*expr.borrow(), 
+            Value::Keyword(Keyword::Define)
+            | Value::Keyword(Keyword::DefineValues)
+            | Value::Keyword(Keyword::DefineRecordType)
+            | Value::Keyword(Keyword::DefineSyntax))
+    }
+    
+    fn is_begin_keyword(expr: &Object) -> bool {
+        matches!(*expr.borrow(), Value::Keyword(Keyword::Begin))
+    }
+    
+    fn is_begin_expr(expr: &Object) -> bool {
+        match expr.car() {
+            Ok(node) => Self::is_begin_keyword(&node),
+            Err(_) => false,
+        }
+    }
+    
+    fn is_begin_definition_expr(expr: &Object) -> bool {    
+        Self::is_begin_expr(expr) && 
+        match expr.cdadr() {
+            Ok(object) => matches!(*object.borrow(), Value::Boolean(true)),
+            Err(_) => false,
+        }
+    }
+    
     ///
     /// Definitions
     /// 
@@ -338,7 +392,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             Token::Identifier(_) => { // variable definition
                 let var = self.identifier(rdepth)?;
                 let expr = self.expr(rdepth)?;
-                crate::eval::list(vec!(keyword, var, expr))
+                Self::list(vec!(keyword, var, expr))
             },
             Token::ParenLeft => { // function definition
                 self.paren_left(rdepth)?;
@@ -346,7 +400,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 let formals = self.def_formals(rdepth + 1)?;
                 self.paren_right(rdepth + 1)?;
                 let body = self.body(rdepth)?;
-                crate::eval::list(vec!(keyword, var, formals, body))
+                Self::list(vec!(keyword, var, formals, body))
             },
             _ => Err(<Object as AthirError>::new("expected identifier or open parenthesis".to_string())),
             // token @ _ => Err(unexpected(1, token.to_string(), "identifier or open paren".to_string())),
@@ -362,7 +416,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let formals = self.formals(rdepth)?;
         let exprs = self.body(rdepth)?;
 
-        crate::eval::list(vec!(keyword, formals, exprs))
+        Self::list(vec!(keyword, formals, exprs))
     }
 
     fn define_record_type(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -372,7 +426,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let id2 = self.identifier(rdepth)?;
         let field_specs = self.field_specs(rdepth)?;
 
-        crate::eval::list(vec!(keyword, id1, constructor, id2, field_specs))
+        Self::list(vec!(keyword, id1, constructor, id2, field_specs))
     }
 
     fn constructor(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -381,17 +435,17 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let field_names = self.field_names(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        crate::eval::list(vec!(id, field_names))
+        Self::list(vec!(id, field_names))
     }
 
     fn field_names(&mut self, rdepth: usize) -> Result<Object, Object> {
         let names = self.zero_or_more(Read::identifier, rdepth)?;
-        crate::eval::list(names)
+        Self::list(names)
     }
 
     fn field_specs(&mut self, rdepth: usize) -> Result<Object, Object> {
         let specs = self.zero_or_more(Read::field_spec, rdepth)?;
-        crate::eval::list(specs)
+        Self::list(specs)
     }
 
     fn field_spec(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -407,7 +461,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         self.paren_right(rdepth + 1)?;
 
-        crate::eval::list(vec)
+        Self::list(vec)
     }
 
     fn define_syntax(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -415,7 +469,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let id = self.identifier(rdepth)?;
         let expr = self.transformer_spec(rdepth)?;
 
-        crate::eval::list(vec!(keyword, id, expr))
+        Self::list(vec!(keyword, id, expr))
     }
 
     ///
@@ -428,12 +482,12 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let keyword = self.keyword("define-library", rdepth)?;
         let name = self.library_name(rdepth)?;
         let declarations = self.library_declarations(rdepth)?;
-        crate::eval::list(vec!(keyword, name, declarations))
+        Self::list(vec!(keyword, name, declarations))
     }
 
     fn library_declarations(&mut self, rdepth: usize) -> Result<Object, Object> {
         let declarations = self.zero_or_more(Read::library_declaration, rdepth)?;
-        crate::eval::list(declarations)
+        Self::list(declarations)
     }
 
     fn library_name(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -444,7 +498,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn library_name_after_open(&mut self, rdepth: usize) -> Result<Object, Object> {
-        crate::eval::list(self.one_or_more(Read::library_name_part, rdepth)?)
+        Self::list(self.one_or_more(Read::library_name_part, rdepth)?)
     }
 
     fn library_name_part(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -483,12 +537,12 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let keyword = self.keyword("export", rdepth)?;
         let specs = self.export_specs(rdepth)?;
 
-        crate::eval::list(vec!(keyword, specs))
+        Self::list(vec!(keyword, specs))
     }
 
     fn export_specs(&mut self, rdepth: usize) -> Result<Object, Object> {
         let specs = self.zero_or_more(Read::export_spec, rdepth)?;
-        crate::eval::list(specs)
+        Self::list(specs)
     }
 
     fn export_spec(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -512,19 +566,19 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let id2 = self.identifier(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        crate::eval::list(vec!(id1, id2))
+        Self::list(vec!(id1, id2))
     }
 
     fn import(&mut self, rdepth: usize) -> Result<Object, Object> {
         let keyword= self.keyword("import", rdepth)?;
         let sets = self.import_sets(rdepth)?;
 
-        crate::eval::list(vec!(keyword, sets))
+        Self::list(vec!(keyword, sets))
     }
 
     fn import_sets(&mut self, rdepth: usize) -> Result<Object, Object> {
         let sets = self.zero_or_more(Read::import_set, rdepth)?;
-        crate::eval::list(sets)
+        Self::list(sets)
     }
 
     fn import_set(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -551,11 +605,11 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let set = self.import_set(rdepth)?;
         let ids = self.import_set_ids(rdepth)?;
 
-        crate::eval::list(vec!(keyword, set, ids))
+        Self::list(vec!(keyword, set, ids))
     }
 
     fn import_set_ids(&mut self, rdepth: usize) -> Result<Object, Object> {
-        crate::eval::list(self.one_or_more(Read::identifier, rdepth)?)
+        Self::list(self.one_or_more(Read::identifier, rdepth)?)
     }
 
 
@@ -564,7 +618,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let set = self.import_set(rdepth)?;
         let ids = self.import_set_ids(rdepth)?;
 
-        crate::eval::list(vec!(keyword, set, ids))
+        Self::list(vec!(keyword, set, ids))
     }
 
     fn prefix(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -572,7 +626,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let set = self.import_set(rdepth)?;
         let id = self.identifier(rdepth)?;
 
-        crate::eval::list(vec!(keyword, set, id))
+        Self::list(vec!(keyword, set, id))
     }
 
     fn rename(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -581,11 +635,11 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         let pairs = self.rename_pairs(rdepth)?;
 
-        crate::eval::list(vec!(keyword, set, pairs))
+        Self::list(vec!(keyword, set, pairs))
     }
 
     fn rename_pairs(&mut self, rdepth: usize) -> Result<Object, Object> {
-        crate::eval::list(self.one_or_more(Read::identifier_pair, rdepth)?)
+        Self::list(self.one_or_more(Read::identifier_pair, rdepth)?)
     }
 
 
@@ -593,11 +647,11 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let keyword = self.keyword("cond-expand", rdepth)?;
         let clauses = self.cond_expand_clauses(rdepth)?;
 
-        crate::eval::list(vec!(keyword, clauses))
+        Self::list(vec!(keyword, clauses))
     }
 
     fn cond_expand_clauses(&mut self, rdepth: usize) -> Result<Object, Object> {
-        crate::eval::list(self.one_or_more(Read::cond_clause, rdepth)?)
+        Self::list(self.one_or_more(Read::cond_clause, rdepth)?)
     }
 
     fn cond_clause(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -613,7 +667,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             vec.push(else_clause);
         }
 
-        crate::eval::list(vec)
+        Self::list(vec)
     }
 
     fn cond_expand_else(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -622,12 +676,12 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let declarations = self.library_declarations(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        crate::eval::list(vec!(keyword, declarations))
+        Self::list(vec!(keyword, declarations))
     }
 
     fn feature_requirements(&mut self, rdepth: usize) -> Result<Object, Object> {
         let requirements = self.zero_or_more(Read::feature_requirement, rdepth)?;
-        crate::eval::list(requirements)
+        Self::list(requirements)
     }
 
     fn feature_requirement(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -661,27 +715,27 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     fn and(&mut self, rdepth: usize) -> Result<Object, Object> {
         let keyword = self.keyword("and", rdepth)?;
         let requirements = self.feature_requirements(rdepth)?; 
-        crate::eval::list(vec!(keyword, requirements))
+        Self::list(vec!(keyword, requirements))
     }
 
     fn or(&mut self, rdepth: usize) -> Result<Object, Object> {
         let keyword = self.keyword("or", rdepth)?;
         let requirements = self.feature_requirements(rdepth)?;
-        crate::eval::list(vec!(keyword, requirements))
+        Self::list(vec!(keyword, requirements))
     }
 
     fn not(&mut self, rdepth: usize) -> Result<Object, Object> {
         let keyword = self.keyword("not", rdepth)?;
         let requirement = self.feature_requirement(rdepth)?;
 
-        crate::eval::list(vec!(keyword, requirement))
+        Self::list(vec!(keyword, requirement))
     }
 
     fn include_library_declarations(&mut self, rdepth: usize) -> Result<Object, Object> {
         let keyword = self.keyword("include-library-declarations", rdepth)?;
         let strings = self.strings(rdepth)?;
 
-        crate::eval::list(vec!(keyword, strings))
+        Self::list(vec!(keyword, strings))
     }
 
     ///
@@ -700,7 +754,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             vec.push(self.expr(rdepth)?);
         }
 
-        crate::eval::list(vec)
+        Self::list(vec)
     }
 
     ///
@@ -715,7 +769,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let id = self.identifier(rdepth)?;
         let expr = self.expr(rdepth)?;
 
-        crate::eval::list(vec!(keyword, id, expr))
+        Self::list(vec!(keyword, id, expr))
     }
 
 
@@ -760,7 +814,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                         let syntax_specs = self.syntax_specs(rdepth + 1)?;
                         self.paren_right(rdepth + 1)?;
                         let body = self.body(rdepth)?;
-                        crate::eval::list(vec!(keyword, syntax_specs, body))
+                        Self::list(vec!(keyword, syntax_specs, body))
                     }
                     _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
                     //  _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string())),
@@ -772,7 +826,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn syntax_specs (&mut self, rdepth: usize) -> Result<Object, Object> {
         let syntax_specs = self.zero_or_more(Read::syntax_spec, rdepth)?;
-        crate::eval::list(syntax_specs)
+        Self::list(syntax_specs)
     }
 
     fn syntax_spec(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -781,7 +835,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let keyword = self.identifier(rdepth + 1)?;
         let transformer_spec = self.transformer_spec(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        crate::eval::list(vec!(keyword, transformer_spec))
+        Self::list(vec!(keyword, transformer_spec))
     }
 
     //
@@ -795,7 +849,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         let template = self.qq_template(rdepth, qqdepth)?;
 
-        crate::eval::list(vec!(keyword, template))
+        Self::list(vec!(keyword, template))
 
     }
 
@@ -804,7 +858,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         // let keyword = Rc::new(RefCell::new(Object::Identifier(Identifier::Keyword(Keyword::from("quasiquote".to_string())))));
         let keyword = Object::new(Value::Keyword(Keyword::Quasiquote));
         let template = self.qq_template(rdepth, qqdepth)?;
-        crate::eval::list(vec!(keyword, template))
+        Self::list(vec!(keyword, template))
     }
 
     fn qq_template(&mut self, rdepth: usize, qqdepth: u32) -> Result<Object, Object> {
@@ -833,7 +887,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                         _ => {
                             let list = self.qq_template_or_splice_list(rdepth + 1, qqdepth)?;
                             self.paren_right(rdepth + 1)?;
-                            crate::eval::list(list)
+                            Self::list(list)
                         },
                     }
                 },
@@ -863,7 +917,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let keyword = self.comma(rdepth)?;
         let template = self.qq_template(rdepth, qqdepth - 1)?;
 
-        crate::eval::list(vec!(keyword, template))
+        Self::list(vec!(keyword, template))
     }
 
     fn qq_template_unquotation(&mut self, rdepth: usize, qqdepth: u32) -> Result<Object, Object> {
@@ -871,7 +925,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let template = self.qq_template(rdepth, qqdepth - 1)?;
         self.paren_right(rdepth)?;
 
-        crate::eval::list(vec!(keyword, template))
+        Self::list(vec!(keyword, template))
     }
 
     fn qq_template_vector(&mut self, rdepth: usize, qqdepth: u32) -> Result<Object, Object> {
@@ -880,12 +934,12 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let qq_templates = self.qq_templates(rdepth + 1, qqdepth)?;
         self.paren_right(rdepth + 1, )?;
 
-        crate::eval::list(vec!(keyword, qq_templates))
+        Self::list(vec!(keyword, qq_templates))
     }
 
     fn qq_templates(&mut self, rdepth: usize, qqdepth: u32) -> Result<Object, Object> {
         let templates = self.qq_template_list(rdepth, qqdepth)?;
-        crate::eval::list(templates)
+        Self::list(templates)
     }
 
     fn qq_template_list(&mut self, rdepth: usize, qqdepth: u32) -> Result<Vec<Object>, Object> {
@@ -916,15 +970,15 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
     fn identifier_list_possible_dot(&mut self, rdepth: usize) -> Result<Object, Object> {
         match self.peek_or_eof()? {
-            Token::ParenRight => crate::eval::list(vec!()),
+            Token::ParenRight => Self::list(vec!()),
             _ => {
                 let ids = self.one_or_more(Read::identifier, rdepth)?;
                 match self.peek_or_eof()? {
                     Token::Dot => {
                         self.dot(rdepth)?;
-                        crate::eval::list_not_null_terminated(ids, &self.identifier(rdepth)?)
+                        Self::list_not_null_terminated(ids, &self.identifier(rdepth)?)
                     },
-                    _ => crate::eval::list(ids),
+                    _ => Self::list(ids),
                 }
             }
         }
@@ -955,17 +1009,17 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             Err(_) => vec!(ids, syntax_rules),
         };
 
-        crate::eval::list(children)
+        Self::list(children)
     }
 
     fn transformer_spec_ids(&mut self, rdepth: usize) -> Result<Object, Object> {
         let ids = self.zero_or_more(Read::identifier, rdepth)?;
-        crate::eval::list(ids)
+        Self::list(ids)
     }
 
     fn syntax_rules(&mut self, rdepth: usize) -> Result<Object, Object> {
         let syntax_rules = self.zero_or_more(Read::syntax_rule, rdepth)?;
-        crate::eval::list(syntax_rules)
+        Self::list(syntax_rules)
     }
 
     fn syntax_rule(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -974,7 +1028,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let pattern = self.pattern(rdepth + 1)?;
         let template = self.template(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        crate::eval::list(vec!(pattern, template))
+        Self::list(vec!(pattern, template))
     }
 
     fn pattern(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1033,7 +1087,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         match self.peek_or_eof()? {
             
-            Token::ParenRight => crate::eval::list(vec!()), // empty
+            Token::ParenRight => Self::list(vec!()), // empty
 
             _ => {
 
@@ -1085,13 +1139,13 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                     _ => ()
                 }
 
-                let mut vec = vec!(crate::eval::list(pre_ellipse_patterns)?);
+                let mut vec = vec!(Self::list(pre_ellipse_patterns)?);
 
                 if ellipse {
-                    vec.push(crate::eval::list(post_ellipse_patterns)?);
+                    vec.push(Self::list(post_ellipse_patterns)?);
                 }
 
-                crate::eval::list(vec)
+                Self::list(vec)
 
             }
         }
@@ -1105,7 +1159,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let patterns = self.pattern_with_sharp_paren_a(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        crate::eval::list(vec!(patterns))
+        Self::list(vec!(patterns))
     }
 
     fn pattern_with_sharp_paren_a(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1131,13 +1185,13 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             }
         }
 
-        let mut vec = vec!(crate::eval::list(pre_ellipse_patterns)?);
+        let mut vec = vec!(Self::list(pre_ellipse_patterns)?);
 
         if ellipse {
-            vec.push(crate::eval::list(post_ellipse_patterns)?);
+            vec.push(Self::list(post_ellipse_patterns)?);
         }
 
-        crate::eval::list(vec)
+        Self::list(vec)
     }
 
     fn template(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1180,7 +1234,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         self.paren_right(rdepth + 1)?;
 
-        crate::eval::list(template)        
+        Self::list(template)        
     }
 
     fn template_element(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1189,9 +1243,9 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Identifier(id) if id.as_str() == "..." => { 
                 let ellipsis = Object::new(Value::Keyword(Keyword::Ellipsis));
-                crate::eval::list(vec!(template, ellipsis))
+                Self::list(vec!(template, ellipsis))
             }
-            _ => crate::eval::list(vec!(template))
+            _ => Self::list(vec!(template))
         }
     }
 
@@ -1200,7 +1254,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let elements = self.zero_or_more(Read::template_element, rdepth + 1)?;
         self.paren_right(rdepth)?;
 
-        crate::eval::list(elements)
+        Self::list(elements)
     }
 
     fn template_datum(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1261,7 +1315,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         let expr = self.datum(rdepth)?;
 
-        crate::eval::list(vec!(prefix, expr))
+        Self::list(vec!(prefix, expr))
     }
 
     fn datum_list(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1276,9 +1330,9 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 match self.peek_or_eof()? {
                     Token::Dot => {
                         self.dot(rdepth + 1)?;
-                        crate::eval::list_not_null_terminated(data, &self.datum(rdepth + 1)?)
+                        Self::list_not_null_terminated(data, &self.datum(rdepth + 1)?)
                     },
-                    _ => crate::eval::list(data),
+                    _ => Self::list(data),
                 }
             }
         };
@@ -1306,7 +1360,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.sharpopen(rdepth)?;
         let data = self.zero_or_more(Read::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        Ok(<Object as Vector>::new(crate::eval::list(data)?))
+        Ok(<Object as Vector>::new(Self::list(data)?))
     }
 
     fn bytevector(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1314,7 +1368,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let data = self.zero_or_more(Read::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        Ok(<Object as Bytevector>::new(crate::eval::list(data)?))
+        Ok(<Object as Bytevector>::new(Self::list(data)?))
     }
 
     fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> Result<Object, Object>, rdepth: usize) -> Result<Vec<Object>, Object> {
@@ -1391,7 +1445,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn strings(&mut self, rdepth: usize) -> Result<Object, Object> {
-        crate::eval::list(self.one_or_more(Read::string, rdepth)?)
+        Self::list(self.one_or_more(Read::string, rdepth)?)
     }
 
     fn string(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1433,7 +1487,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         self.paren_right(rdepth + 1)?;
 
-        crate::eval::list(vec!(id1, id2))
+        Self::list(vec!(id1, id2))
     }
 
     fn peek_or_eof(&mut self) -> Result<&Token, Object> {
