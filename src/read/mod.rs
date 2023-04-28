@@ -13,13 +13,13 @@ mod lexer;
 
 use std::iter::{once, from_fn};
 
-use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector};
+use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector, port::Port, Value};
 use crate::read::lexer::{Lexer, Token};
 use std::io::Write;
 
 pub fn read(port: Object) -> Result<Object, Object> {
     match port {
-        port if port.is_port() => {
+        port if matches!(*port.is_port()?.borrow(), Value::Null) => {
             print!("> ");
             std::io::stdout().flush().unwrap();
             

@@ -20,7 +20,7 @@ impl Object {
     }
 
     pub fn cons(&self, cdr: &Object) -> Result<Object, Object> {
-        Ok(Object::new_pair(self.clone(), cdr.clone()))
+        Ok(<Object as Pair>::new(self.clone(), cdr.clone()))
     }
 
     pub fn car(&self) -> Result<Object, Object> { 
@@ -368,6 +368,31 @@ impl Pair for Object {
     }
 }
 
+pub trait  AthirError {
+    fn new(value: String) -> Object;
+    fn is_error(&self) -> Result<Object, Object>;
+    fn as_error(&self) -> Result<String, Object>;    
+}
+
+impl AthirError for Object {
+    fn new(value: String) -> Object {
+        Object {
+            value: Rc::new(RefCell::new(Value::Error(<Object as AthirString>::new(value)))),
+        }
+    }
+
+    fn as_error(&self) -> Result<String, Object> {
+        match *self.borrow() {
+            Value::Error(ref value) => Ok(value.as_string().unwrap()),
+            _ => Err(Object::new_error(format!("not an error"))),
+        }
+    }
+
+    fn is_error(&self) -> Result<Object, Object> {
+        Ok(<Object as Boolean>::new(self.as_error().is_ok()))
+    }
+}
+
 impl Object {
 
     pub fn as_variable_string(&self) -> Result<String, Object> {
@@ -384,73 +409,10 @@ impl Object {
         }
     }
 
-    pub fn is_error(&self) -> bool {
-        match *self.borrow() {
-            Value::Error(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_keyword(&self) -> bool {
-        match *self.borrow() {
-            Value::Keyword(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_map(&self) -> bool {
-        match *self.borrow() {
-            Value::Map(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_env(&self) -> bool {
-        match *self.borrow() {
-            Value::Env(_, _) => true,
-            _ => false,
-        }
-    }
-
     pub fn is_null(&self) -> Result<Object, Object> {
         match *self.borrow() {
             Value::Null => Ok(<Object as Boolean>::new(true)),
             _ => Ok(<Object as Boolean>::new(false)),
-        }
-    }
-
-    pub fn is_port(&self) -> bool {
-        match *self.borrow() {
-            Value::Port => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_procedure(&self) -> bool {
-        match *self.borrow() {
-            Value::Procedure(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_quotation(&self) -> bool {
-        match *self.borrow() {
-            Value::Quotation(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_unspecified(&self) -> bool {
-        match *self.borrow() {
-            Value::Unspecified => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_variable(&self) -> bool {
-        match *self.borrow() {
-            Value::Variable(_) => true,
-            _ => false,
         }
     }
 
@@ -478,12 +440,6 @@ impl Object {
         }
     }
 
-    pub fn new_pair(car: Object, cdr: Object) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Pair(car, cdr))),
-        }
-    }
-    
     pub fn new_procedure(value: Procedure) -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Procedure(value))),
