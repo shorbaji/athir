@@ -23,7 +23,6 @@ mod object;
 mod print;
 mod read;
 mod repl;
-mod stdlib;
 
 fn main() -> Result<(), ()> {
     println!("athir (c) 2023 Athir LLC");

@@ -87,6 +87,7 @@ impl Env for Object {
             ("*", Procedure::Variadic(Object::multiply)),
             ("-", Procedure::Variadic(Object::subtract)),
             ("boolean?", Procedure::Unary(Object::is_boolean)),
+            ("len", Procedure::Unary(Object::len)),
         );
 
         for (symbol, proc) in pairs.into_iter() {

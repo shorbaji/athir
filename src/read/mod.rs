@@ -15,8 +15,6 @@ use std::iter::{once, from_fn};
 
 use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector};
 use crate::read::lexer::{Lexer, Token};
-use crate::stdlib::base::*;
-
 use std::io::Write;
 
 pub fn read(port: Object) -> Result<Object, Object> {

@@ -65,11 +65,26 @@ impl Object {
         self.cadr()?.cdr()
     }
     
-    pub fn len(&self) -> Result<usize, Object> {
+    pub fn len(&self) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Null => Ok(0),
-            Value::Pair(_, ref cdr) => Ok(cdr.len()? + 1),
+            Value::Null => Ok(<Object as Number>::new("0".to_string())),
+            Value::Pair(_, ref cdr) => cdr.len()?.plus(&<Object as Number>::new("1".to_string())),
             _ => Err(Object::new_error(format!("Not a pair"))),
+        }
+    }
+
+    pub fn plus(&self, other: &Object) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Number(ref num) => {
+                match *other.borrow() {
+                    Value::Number(ref other_num) => {
+                        let result = num.parse::<i64>().unwrap() + other_num.parse::<i64>().unwrap();
+                        Ok(<Object as Number>::new(result.to_string()))
+                    },
+                    _ => Err(Object::new_error(format!("Not a number"))),
+                }
+            },
+            _ => Err(Object::new_error(format!("Not a number"))),
         }
     }
     
