@@ -3,6 +3,7 @@ mod bytevector;
 mod character;
 mod error;
 mod keyword;
+mod lambda;
 mod map;
 mod number;
 mod pair;
@@ -21,6 +22,7 @@ pub use crate::object::character::Character;
 pub use crate::object::env::Env;
 pub use crate::object::error::AthirError;
 pub use crate::object::keyword::Keyword;
+pub use crate::object::lambda::Lambda;
 pub use crate::object::map::Map;
 pub use crate::object::number::Number;
 pub use crate::object::pair::Pair;
@@ -55,6 +57,7 @@ pub enum Value {
     Pair(Object, Object),
     Port,
     Procedure(ProcedureKind), 
+    Lambda(Object, Object, Object),
     Quotation(Object),
     String(String),
     Symbol(String),

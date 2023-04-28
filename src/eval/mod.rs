@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::object::{Value, Object, Procedure, procedure::ProcedureKind, Keyword, Env, Pair, AthirError };
+use crate::object::{Value, Object, Procedure, Lambda, Keyword, Env, Pair, AthirError };
 
 pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
     match *expr.borrow() {
@@ -22,61 +22,19 @@ pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
                 _ => {
                     let operator = eval(&car, env)?;
                     let operands = evlis(&cdr, env)?;
-                    apply(&operator, &operands)
+
+                    let borrow = operator.borrow();
+                    match *borrow {
+                        Value::Procedure(_) => <Object as Procedure>::apply(&operator, &operands),
+                        Value::Lambda(_, _, _) => <Object as Procedure>::apply(&operator, &operands),
+                        _ => Err(<Object as AthirError>::new(format!("not a procedure"))),
+                    }
                 }
             }
         },
         | Value::Quotation(ref quoted) => Ok(quoted.clone()),
         _ => Err(<Object as AthirError>::new(format!("Malformed expression"))),
     }
-}
-
-fn apply(proc: &Object, args: &Object) -> Result<Object, Object> {
-    match *proc.borrow() {
-        Value::Procedure(ProcedureKind::Unary(f)) => f(&args.car()?),
-        Value::Procedure(ProcedureKind::Binary(f)) => f(&args.car()?, &args.cadr()?),
-        Value::Procedure(ProcedureKind::Variadic(f)) => f(args),
-        Value::Procedure(ProcedureKind::Lambda(ref formals, ref body, ref parent)) => apply_lambda(&formals, &body, &parent, args),
-        _ => Err(<Object as AthirError>::new(format!("not a procedure"))),
-    }
-}
-
-fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object> {
-
-    if args.len()? == formals.len()? {
-        let new_env = <Object as Env>::new_env_with_parent(parent);
-
-        let mut args = args.clone();
-        let mut formal:Object;
-        let mut formals = formals.clone();
-
-        while !matches!(*formals.borrow(), Value::Null) {
-            formal = formals.car()?;
-            let arg = args.car()?;
-
-            new_env.insert(&formal, &arg)?;
-
-            formals = formals.cdr()?;
-
-            args = args.cdr()?;
-
-        };
-
-        let mut body = body.clone();
-        let mut expr: Object;
-        let mut result = Object::new(Value::Unspecified);
-
-        while !matches!(*body.borrow(), Value::Null) {
-            expr = formals.car()?;
-            result = eval(&expr, &new_env)?;
-            body = body.cdr()?;
-        };
-
-        Ok(result)
-    } else {
-        Err(<Object as AthirError>::new(format!("Wrong number of arguments")))
-    }
-
 }
 
 fn evlis(args: &Object, env: &Object) -> Result<Object, Object> {
@@ -102,7 +60,7 @@ fn lambda(expr: &Object, env: &Object) -> Result<Object, Object> {
     let formals = expr.car()?;
     let body = expr.cadr()?;
 
-    Ok(<Object as Procedure>::new_lambda(formals, body, env.clone()))
+    Ok(<Object as Lambda>::new(formals, body, env.clone()))
 }
 
 fn define(expr: &Object, env: &Object) -> Result<Object, Object> {
