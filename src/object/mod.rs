@@ -1,5 +1,28 @@
+pub mod boolean;
+pub mod bytevector;
+pub mod character;
 pub mod env;
+pub mod error;
+pub mod number;
+pub mod pair;
 pub mod port;
+pub mod procedure;
+pub mod string;
+pub mod symbol;
+pub mod vector;
+
+pub use crate::object::boolean::Boolean;
+pub use crate::object::bytevector::Bytevector;
+pub use crate::object::character::Character;
+pub use crate::object::env::Env;
+pub use crate::object::error::AthirError;
+pub use crate::object::number::Number;
+pub use crate::object::pair::Pair;
+pub use crate::object::port::Port;
+pub use crate::object::procedure::{Procedure, ProcedureKind};
+pub use crate::object::string::AthirString;
+pub use crate::object::symbol::Symbol;
+pub use crate::object::vector::Vector;
 
 use std::cell::{Ref, RefMut, RefCell};
 use std::collections::HashMap;
@@ -26,390 +49,10 @@ impl Object {
     
         Ok(<Object as Boolean>::new(bool))
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Value {
-    Eof,
-    Null,
-
-    Boolean(bool),
-    Character(char),
-    Number(String),
-    String(String),
-    Variable(String),
-
-    Bytevector(Object),
-    Vector(Object),
-
-    Pair(Object, Object),
-    Port,
-    Procedure(Procedure), 
-
-    Error(Object),
-    Keyword(Keyword),
-    Map(HashMap<String, Object>),
-    Env(Object, Object),
-    Quotation(Object),
-    Unspecified,
-}
-
-pub trait Boolean {
-    fn new(value: bool) -> Object;
-    fn is_boolean(&self) -> Result<Object, Object>;
-    fn as_boolean(&self) -> Result<bool, Object>;
-}
-
-impl Boolean for Object {
-    fn new(value: bool) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Boolean(value))),
-        }
-    }
-
-    fn is_boolean(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_boolean().is_ok()))
-    }
-
-    fn as_boolean(&self) -> Result<bool, Object> {
-        match *(self.borrow()) {
-            Value::Boolean(ref value) => Ok(*value),
-            _ => Err(Object::new_error(format!("not a boolean"))),
-        }
-    }
-
-}
-
-pub trait Character {
-    fn new(value: char) -> Object;
-    fn is_character(&self) -> Result<Object, Object>;
-    fn as_character(&self) -> Result<char, Object>;
-}
-
-impl Character for Object {
-    fn new(value: char) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Character(value))),
-        }
-    }
-
-    fn is_character(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_character().is_ok()))
-    }
-
-    fn as_character(&self) -> Result<char, Object> {
-        match *self.borrow() {
-            Value::Character(ref value) => Ok(*value),
-            _ => Err(Object::new_error(format!("not a character"))),
-        }
-    }
-}
-
-pub trait Number {
-    fn new(value: String) -> Object;
-    fn is_number(&self) -> Result<Object, Object>;
-    fn as_number(&self) -> Result<String, Object>;
-    fn plus(&self, other: &Object) -> Result<Object, Object>;
-    fn add(args: &Object) -> Result<Object, Object>;
-    fn multiply(args: &Object) -> Result<Object, Object>;
-    fn subtract(args: &Object) -> Result<Object, Object>;
-}
-
-impl Number for Object {
-    fn new(value: String) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Number(value))),
-        }
-    }
-
-    fn is_number(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_number().is_ok()))
-    }
-
-    fn as_number(&self) -> Result<String, Object> {
-        match *self.borrow() {
-            Value::Number(ref value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a number"))),
-        }
-    }
-
-    fn plus(&self, other: &Object) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Number(ref num) => {
-                match *other.borrow() {
-                    Value::Number(ref other_num) => {
-                        let result = num.parse::<i64>().unwrap() + other_num.parse::<i64>().unwrap();
-                        Ok(<Object as Number>::new(result.to_string()))
-                    },
-                    _ => Err(Object::new_error(format!("Not a number"))),
-                }
-            },
-            _ => Err(Object::new_error(format!("Not a number"))),
-        }
-    }
-    
-    fn add(args: &Object) -> Result<Object, Object> {
-        let mut result = 0;
-    
-        let mut args = args.clone();
-    
-        while !matches!(*args.borrow(), Value::Null) {
-            match *args.car()?.borrow() {
-                Value::Number(ref num) => {
-                    result += num.parse::<i64>().unwrap();
-                },
-                _ => return Err(Object::new_error("error with plus".to_string())),
-            }
-            args = args.cdr()?;
-        }
-        Ok(<Object as Number>::new(result.to_string()))
-    }
-    
-    fn multiply(args: &Object) -> Result<Object, Object> {
-        let mut result = 1;
-    
-        let mut args = args.clone();
-    
-        while !matches!(*args.borrow(), Value::Null) {
-            match *args.car()?.borrow() {
-                Value::Number(ref num) => {
-                    result *= num.parse::<i64>().unwrap();
-                },
-                _ => return Err(Object::new_error("error with multiply".to_string())),
-            }
-            args = args.cdr()?;
-        }
-    
-        Ok(<Object as Number>::new(result.to_string()))
-    }
-    
-    fn subtract(args: &Object) -> Result<Object, Object> {
-        let mut result;
-    
-        let first = args.car()?;
-        match *first.borrow() {
-            Value::Number(ref num) => {
-                result = num.parse::<i64>().unwrap();
-            },
-            _ => return Err(Object::new_error("error with minus".to_string())),
-        }
-    
-        let mut args = args.cdr()?;
-    
-        while !matches!(*args.borrow(), Value::Null) {
-            match *args.car()?.borrow() {
-                Value::Number(ref num) => {
-                    result -= num.parse::<i64>().unwrap();
-                },
-                _ => return Err(Object::new_error("error with minus".to_string())),
-            }
-            args = args.cdr()?;
-        }
-    
-        Ok(<Object as Number>::new(result.to_string()))
-    }
-    
-}
-
-pub trait AthirString {
-    fn new(value: String) -> Object;
-    fn is_string(&self) -> Result<Object, Object>;
-    fn as_string(&self) -> Result<String, Object>;
-}
-
-impl AthirString for Object {
-    fn new(value: String) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::String(value))),
-        }
-    }
-
-    fn as_string(&self) -> Result<String, Object> {
-        match *self.borrow() {
-            Value::String(ref value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a string"))),
-        }
-    }
-    fn is_string(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_string().is_ok()))
-    }
-}
-
-pub trait Variable {
-    fn new(value: String) -> Object;
-    fn is_variable(&self) -> Result<Object, Object>;
-    fn as_variable_string(&self) -> Result<String, Object>;
-}
-
-impl Variable for Object {
-    fn new(value: String) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Variable(value))),
-        }
-    }
-
-    fn as_variable_string(&self) -> Result<String, Object> {
-        match *self.borrow() {
-            Value::Variable(ref value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a variable"))),
-        }
-    }
-    fn is_variable(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_variable_string().is_ok()))
-    }
-}
-
-pub trait Bytevector {
-    fn new(value: Object) -> Object;
-    fn is_bytevector(&self) -> Result<Object, Object>;
-    fn as_bytevector(&self) -> Result<Object, Object>;
-}
-
-impl Bytevector for Object {
-    fn new(value: Object) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Bytevector(value))),
-        }
-    }
-
-    fn as_bytevector(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Bytevector(ref value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a bytevector"))),
-        }
-    }
-
-    fn is_bytevector(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_bytevector().is_ok()))
-    }
-}
-
-pub trait Vector {
-    fn new(value: Object) -> Object;
-    fn is_vector(&self) -> Result<Object, Object>;
-    fn as_vector(&self) -> Result<Object, Object>;
-}
-
-impl Vector for Object {
-    fn new(value: Object) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Vector(value))),
-        }
-    }
-
-    fn as_vector(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Vector(ref value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a vector"))),
-        }
-    }
-
-    fn is_vector(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_vector().is_ok()))
-    }
-}
-
-pub trait Pair {
-    fn new(car: Object, cdr: Object) -> Object;
-    fn is_pair(&self) -> Result<Object, Object>;
-    fn as_pair(&self) -> Result<Object, Object>;
-    fn cons(&self, cdr: &Object) -> Result<Object, Object>;
-    fn car(&self) -> Result<Object, Object>;
-    fn cdr(&self) -> Result<Object, Object>;
-    fn caar(&self) -> Result<Object, Object>;
-    fn cadr(&self) -> Result<Object, Object>;
-    fn cdar(&self) -> Result<Object, Object>;
-    fn cddr(&self) -> Result<Object, Object>;
-    fn caddr(&self) -> Result<Object, Object>;
-    fn cdadr(&self) -> Result<Object, Object>;
-    fn len(&self) -> Result<Object, Object>;
-}
-
-impl Pair for Object {
-    fn new(car: Object, cdr: Object) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Pair(car, cdr))),
-        }
-    }
-
-    fn is_pair(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Pair(_, _) => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
-        }
-    }
-
-    fn as_pair(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Pair(_, _) => Ok(self.clone()),
-            _ => Err(Object::new_error(format!("not a pair"))),
-        }
-    }
-
-    fn cons(&self, cdr: &Object) -> Result<Object, Object> {
-        Ok(<Object as Pair>::new(self.clone(), cdr.clone()))
-    }
-
-    fn car(&self) -> Result<Object, Object> { 
-        match *self.borrow() {
-            Value::Pair(ref car, _) => Ok(car.clone()),
-            _ => Err(Object::new_error(format!("not a pair"))),
-        }
-    }
-
-    fn cdr(&self) -> Result<Object, Object> { 
-        match *self.borrow() {
-            Value::Pair(_, ref cdr) => Ok(cdr.clone()),
-            _ => Err(Object::new_error(format!("not a pair"))),
-        }
-    }
-
-    fn caar(&self) -> Result<Object, Object> { self.car()?.car() }
-    fn cadr(&self) -> Result<Object, Object> { self.cdr()?.car() }
-    fn cdar(&self) -> Result<Object, Object> { self.car()?.cdr() }
-    fn cddr(&self) -> Result<Object, Object> { self.cdr()?.cdr() }
-    fn caddr(&self) -> Result<Object, Object> { self.cddr()?.car() }
-    fn cdadr(&self) -> Result<Object, Object> { self.cadr()?.cdr() }
-    
-    fn len(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Null => Ok(<Object as Number>::new("0".to_string())),
-            _ => self.cdr()?.len()?.plus(&<Object as Number>::new("1".to_string())),
-        }
-    }
-
-}
-
-pub trait  AthirError {
-    fn new(value: String) -> Object;
-    fn is_error(&self) -> Result<Object, Object>;
-    fn as_error(&self) -> Result<String, Object>;    
-}
-
-impl AthirError for Object {
-    fn new(value: String) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Error(<Object as AthirString>::new(value)))),
-        }
-    }
-
-    fn as_error(&self) -> Result<String, Object> {
-        match *self.borrow() {
-            Value::Error(ref value) => Ok(value.as_string().unwrap()),
-            _ => Err(Object::new_error(format!("not an error"))),
-        }
-    }
-
-    fn is_error(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_error().is_ok()))
-    }
-}
-
-impl Object {
 
     pub fn as_variable_string(&self) -> Result<String, Object> {
         match *self.borrow() {
-            Value::Variable(ref value) => Ok(value.clone()),
+            Value::Symbol(ref value) => Ok(value.clone()),
             _ => Err(Object::new_error(format!("not a variable"))),
         }
     }
@@ -452,12 +95,6 @@ impl Object {
         }
     }
 
-    pub fn new_procedure(value: Procedure) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Procedure(value))),
-        }
-    }
-
     pub fn new_quotation(value: Object) -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Quotation(value))),
@@ -472,7 +109,7 @@ impl Object {
 
     pub fn new_variable(value: String) -> Object {
         Object {
-            value: Rc::new(RefCell::new(Value::Variable(value))),
+            value: Rc::new(RefCell::new(Value::Symbol(value))),
         }
     }
 
@@ -484,36 +121,30 @@ impl Object {
 
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    Eof,
+    Null,
 
+    Boolean(bool),
+    Character(char),
+    Number(String),
+    String(String),
+    Symbol(String),
 
-#[derive(Clone)]
-pub enum Procedure {
-    Unary(fn(&Object) -> Result<Object, Object>),
-    Binary(fn(&Object, &Object) -> Result<Object, Object>),
-    Variadic(fn(&Object) -> Result<Object, Object>),
-    Lambda(Object, Object, Object),
-}
+    Bytevector(Object),
+    Vector(Object),
 
-impl std::fmt::Debug for Procedure {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        match self {
-            Procedure::Unary(_) => write!(f, "Unary"),
-            Procedure::Binary(_) => write!(f, "Binary"),
-            Procedure::Variadic(_) => write!(f, "Variadic"),
-            Procedure::Lambda(_, _, _) => write!(f, "Lambda"),
-        }
-    }
-}
-impl PartialEq for Procedure {
-    fn eq(&self, other: &Procedure) -> bool {
-        match (self, other) {
-            (Procedure::Unary(_), Procedure::Unary(_)) => true,
-            (Procedure::Binary(_), Procedure::Binary(_)) => true,
-            (Procedure::Variadic(_), Procedure::Variadic(_)) => true,
-            (Procedure::Lambda(_, _, _), Procedure::Lambda(_, _, _)) => true,
-            _ => false,
-        }
-    }
+    Pair(Object, Object),
+    Port,
+    Procedure(ProcedureKind), 
+
+    Error(Object),
+    Keyword(Keyword),
+    Map(HashMap<String, Object>),
+    Env(Object, Object),
+    Quotation(Object),
+    Unspecified,
 }
 
 #[derive(Debug, Clone, PartialEq)]

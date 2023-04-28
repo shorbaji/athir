@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::object::{Object, Value, Key, Procedure, Boolean, Number, AthirString, Character, Pair, Vector};
+use crate::object::{Object, Value, Key, Procedure, procedure::ProcedureKind, Boolean, Number, AthirString, Character, Pair, Vector};
 
 pub trait Env {
     fn new() -> Object;
@@ -9,7 +9,7 @@ pub trait Env {
     fn lookup(var: Key, env: &Object) -> Result<Object, Object>;
     fn insert( &self, var: Key, val: &Object) -> Result<Object, Object>;
     fn init(&self) -> Result<Object, Object>;
-    fn register(&self, symbol: &str, proc: Procedure) -> Result<Object, Object>;
+    fn register(&self, symbol: &str, proc: ProcedureKind) -> Result<Object, Object>;
 
 }
 
@@ -66,39 +66,39 @@ impl Env for Object {
         }
     }
 
-    fn register(&self, symbol: &str, proc: Procedure) -> Result<Object, Object> {
-        self.insert(symbol.to_string(), &Object::new_procedure(proc))
+    fn register(&self, symbol: &str, kind: ProcedureKind) -> Result<Object, Object> {
+        self.insert(symbol.to_string(), &<Object as Procedure>::new(Value::Procedure(kind)))
     }
 
     fn init(&self) -> Result<Object, Object> {
        let pairs = vec!(
-            ("car", Procedure::Unary(Object::car)),
-            ("cdr", Procedure::Unary(Object::cdr)),
-            ("cons", Procedure::Binary(Object::cons)),
-            ("caar", Procedure::Unary(Object::caar)),
-            ("cdar", Procedure::Unary(Object::cdar)),
-            ("cadr", Procedure::Unary(Object::cadr)),
-            ("cddr", Procedure::Unary(Object::cddr)),
-            ("caddr", Procedure::Unary(Object::caddr)),
-            ("cdadr", Procedure::Unary(Object::cdadr)),
-            ("eq?", Procedure::Binary(Object::eq)),
-            ("+", Procedure::Variadic(Object::add)),
-            ("*", Procedure::Variadic(Object::multiply)),
-            ("-", Procedure::Variadic(Object::subtract)),
-            ("boolean?", Procedure::Unary(Object::is_boolean)),
-            ("number?", Procedure::Unary(Object::is_number)),
-            ("string?", Procedure::Unary(Object::is_string)),
-            ("null?", Procedure::Unary(Object::is_null)),
-            // ("procedure?", Procedure::Unary(Object::is_procedure)),
-            ("pair?", Procedure::Unary(Object::is_pair)),
-            ("char?", Procedure::Unary(Object::is_character)),
-            ("vector?", Procedure::Unary(Object::is_vector)),
-            ("len", Procedure::Unary(Object::len)),
-            ("read", Procedure::Unary(crate::read::read))
+            ("car", ProcedureKind::Unary(Object::car)),
+            ("cdr", ProcedureKind::Unary(Object::cdr)),
+            ("cons", ProcedureKind::Binary(Object::cons)),
+            ("caar", ProcedureKind::Unary(Object::caar)),
+            ("cdar", ProcedureKind::Unary(Object::cdar)),
+            ("cadr", ProcedureKind::Unary(Object::cadr)),
+            ("cddr", ProcedureKind::Unary(Object::cddr)),
+            ("caddr", ProcedureKind::Unary(Object::caddr)),
+            ("cdadr", ProcedureKind::Unary(Object::cdadr)),
+            ("eq?", ProcedureKind::Binary(Object::eq)),
+            ("+", ProcedureKind::Variadic(Object::add)),
+            ("*", ProcedureKind::Variadic(Object::multiply)),
+            ("-", ProcedureKind::Variadic(Object::subtract)),
+            ("boolean?", ProcedureKind::Unary(Object::is_boolean)),
+            ("number?", ProcedureKind::Unary(Object::is_number)),
+            ("string?", ProcedureKind::Unary(Object::is_string)),
+            ("null?", ProcedureKind::Unary(Object::is_null)),
+            ("procedure?", ProcedureKind::Unary(Object::is_procedure)),
+            ("pair?", ProcedureKind::Unary(Object::is_pair)),
+            ("char?", ProcedureKind::Unary(Object::is_character)),
+            ("vector?", ProcedureKind::Unary(Object::is_vector)),
+            ("len", ProcedureKind::Unary(Object::len)),
+            ("read", ProcedureKind::Unary(crate::read::read))
         );
 
-        for (symbol, proc) in pairs.into_iter() {
-            self.register(symbol, proc)?;
+        for (symbol, kind) in pairs.into_iter() {
+            self.register(symbol, kind)?;
         }
 
         Ok(self.clone())

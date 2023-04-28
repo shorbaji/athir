@@ -1,7 +1,7 @@
 use crate::print::print;
 use crate::read::read;
 use crate::eval::eval;
-use crate::object::{env::Env, port::Port, Object};
+use crate::object::{env::Env, Port, Object};
 
 pub fn repl() -> Result<Object, Object> {
     let env = <Object as Env>::new();
