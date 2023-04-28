@@ -70,11 +70,9 @@ impl<T> Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Err
                 Ok(tokens.into_iter().peekable())
             },
             Some(Err(err)) => {
-                println!("Error reading line: {}", err);
                 Err(err) 
             },
             None => {
-                println!("No more input");
                 Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "No more input"))
             }
         }
@@ -89,10 +87,7 @@ impl<T> Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Err
         while self.inner.peek().is_none() {
             match self.refresh() {
                 Ok(inner) => self.inner = inner,
-                Err(err) => {
-                    println!("Error refreshing: {}", err);
-                    return None;
-                }
+                Err(_) => return None,
             }
         }
 

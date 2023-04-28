@@ -18,7 +18,6 @@ use crate::read::lexer::{Lexer, Token};
 use crate::stdlib::base::*;
 
 use std::io::Write;
-use std::io::Stdout;
 
 pub fn read(port: Object) -> Result<Object, Object> {
     match port {
@@ -26,8 +25,13 @@ pub fn read(port: Object) -> Result<Object, Object> {
             print!("> ");
             std::io::stdout().flush().unwrap();
             
-            let expr = StdinRead::new().next().unwrap();
-            expr
+            let expr = StdinRead::new().next();
+
+            match expr {
+                Some(Ok(expr)) => Ok(expr),
+                Some(Err(err)) => Err(err),
+                None => Err(Object::new_eof()),
+            }
         },
         _ => Err(Object::new_error("Not a port".to_string())),
     }

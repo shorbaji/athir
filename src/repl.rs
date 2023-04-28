@@ -8,10 +8,11 @@ pub fn repl() -> Result<Object, Object> {
     let port = <Object as Port>::new();
     
     loop { 
-        read(port.clone())
-        .and_then(|expr| eval(expr, env.clone()))
-        .and_then(|val| print(val))
-        .or_else(|err| print(err))?;
-    }
+        let expr = read(port.clone());
 
+        match expr {
+            Ok(expr) => { print(eval(expr, env.clone())?)?; },
+            Err(err) => { return Err(err); }
+        };
+    }
 }
