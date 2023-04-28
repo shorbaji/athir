@@ -9,19 +9,18 @@
 /// 
 /// [P1]
 /// - print 
-/// - standard library read 
 /// - standard library write
 /// - standard library char
-/// - main should return a result
 /// - better error messages
 /// - number
 /// - standard library cxr
 /// - standard library base
 
-mod eval;
 mod object;
-mod print;
+
 mod read;
+mod eval;
+mod print;
 mod repl;
 
 fn main() -> Result<crate::object::Object, crate::object::Object> {

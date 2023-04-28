@@ -20,38 +20,6 @@ impl Object {
         self.value.borrow_mut()
     }
 
-    pub fn cons(&self, cdr: &Object) -> Result<Object, Object> {
-        Ok(<Object as Pair>::new(self.clone(), cdr.clone()))
-    }
-
-    pub fn car(&self) -> Result<Object, Object> { 
-        match *self.borrow() {
-            Value::Pair(ref car, _) => Ok(car.clone()),
-            _ => Err(Object::new_error(format!("not a pair"))),
-        }
-    }
-
-    pub fn cdr(&self) -> Result<Object, Object> { 
-        match *self.borrow() {
-            Value::Pair(_, ref cdr) => Ok(cdr.clone()),
-            _ => Err(Object::new_error(format!("not a pair"))),
-        }
-    }
-
-    pub fn caar(&self) -> Result<Object, Object> { self.car()?.car() }
-    pub fn cadr(&self) -> Result<Object, Object> { self.cdr()?.car() }
-    pub fn cdar(&self) -> Result<Object, Object> { self.car()?.cdr() }
-    pub fn cddr(&self) -> Result<Object, Object> { self.cdr()?.cdr() }
-    pub fn caddr(&self) -> Result<Object, Object> { self.cddr()?.car() }
-    pub fn cdadr(&self) -> Result<Object, Object> { self.cadr()?.cdr() }
-    
-    pub fn len(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Null => Ok(<Object as Number>::new("0".to_string())),
-            _ => self.cdr()?.len()?.plus(&<Object as Number>::new("1".to_string())),
-        }
-    }
-
     pub fn eq(a: &Object, b: &Object) -> Result<Object, Object> {
     
         let bool = *a.borrow() ==  *b.borrow();
@@ -345,6 +313,16 @@ pub trait Pair {
     fn new(car: Object, cdr: Object) -> Object;
     fn is_pair(&self) -> Result<Object, Object>;
     fn as_pair(&self) -> Result<Object, Object>;
+    fn cons(&self, cdr: &Object) -> Result<Object, Object>;
+    fn car(&self) -> Result<Object, Object>;
+    fn cdr(&self) -> Result<Object, Object>;
+    fn caar(&self) -> Result<Object, Object>;
+    fn cadr(&self) -> Result<Object, Object>;
+    fn cdar(&self) -> Result<Object, Object>;
+    fn cddr(&self) -> Result<Object, Object>;
+    fn caddr(&self) -> Result<Object, Object>;
+    fn cdadr(&self) -> Result<Object, Object>;
+    fn len(&self) -> Result<Object, Object>;
 }
 
 impl Pair for Object {
@@ -367,6 +345,39 @@ impl Pair for Object {
             _ => Err(Object::new_error(format!("not a pair"))),
         }
     }
+
+    fn cons(&self, cdr: &Object) -> Result<Object, Object> {
+        Ok(<Object as Pair>::new(self.clone(), cdr.clone()))
+    }
+
+    fn car(&self) -> Result<Object, Object> { 
+        match *self.borrow() {
+            Value::Pair(ref car, _) => Ok(car.clone()),
+            _ => Err(Object::new_error(format!("not a pair"))),
+        }
+    }
+
+    fn cdr(&self) -> Result<Object, Object> { 
+        match *self.borrow() {
+            Value::Pair(_, ref cdr) => Ok(cdr.clone()),
+            _ => Err(Object::new_error(format!("not a pair"))),
+        }
+    }
+
+    fn caar(&self) -> Result<Object, Object> { self.car()?.car() }
+    fn cadr(&self) -> Result<Object, Object> { self.cdr()?.car() }
+    fn cdar(&self) -> Result<Object, Object> { self.car()?.cdr() }
+    fn cddr(&self) -> Result<Object, Object> { self.cdr()?.cdr() }
+    fn caddr(&self) -> Result<Object, Object> { self.cddr()?.car() }
+    fn cdadr(&self) -> Result<Object, Object> { self.cadr()?.cdr() }
+    
+    fn len(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Null => Ok(<Object as Number>::new("0".to_string())),
+            _ => self.cdr()?.len()?.plus(&<Object as Number>::new("1".to_string())),
+        }
+    }
+
 }
 
 pub trait  AthirError {
@@ -477,10 +488,8 @@ impl Object {
 
 #[derive(Clone)]
 pub enum Procedure {
-    Nullary(fn() -> Result<Object, Object>),
     Unary(fn(&Object) -> Result<Object, Object>),
     Binary(fn(&Object, &Object) -> Result<Object, Object>),
-    Ternanry(fn(&Object, &Object, &Object) -> Result<Object, Object>),
     Variadic(fn(&Object) -> Result<Object, Object>),
     Lambda(Object, Object, Object),
 }
@@ -488,10 +497,8 @@ pub enum Procedure {
 impl std::fmt::Debug for Procedure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
-            Procedure::Nullary(_) => write!(f, "Nullary"),
             Procedure::Unary(_) => write!(f, "Unary"),
             Procedure::Binary(_) => write!(f, "Binary"),
-            Procedure::Ternanry(_) => write!(f, "Ternanry"),
             Procedure::Variadic(_) => write!(f, "Variadic"),
             Procedure::Lambda(_, _, _) => write!(f, "Lambda"),
         }
@@ -500,10 +507,8 @@ impl std::fmt::Debug for Procedure {
 impl PartialEq for Procedure {
     fn eq(&self, other: &Procedure) -> bool {
         match (self, other) {
-            (Procedure::Nullary(_), Procedure::Nullary(_)) => true,
             (Procedure::Unary(_), Procedure::Unary(_)) => true,
             (Procedure::Binary(_), Procedure::Binary(_)) => true,
-            (Procedure::Ternanry(_), Procedure::Ternanry(_)) => true,
             (Procedure::Variadic(_), Procedure::Variadic(_)) => true,
             (Procedure::Lambda(_, _, _), Procedure::Lambda(_, _, _)) => true,
             _ => false,
@@ -590,18 +595,6 @@ impl From<String> for Keyword {
 }
 
 pub type Key = String;
-
-pub trait Port {
-    fn new() -> Object;
-}
-
-impl Port for Object {
-    fn new() -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Port))
-        }
-    }
-}
 
 impl Termination for Object {
     fn report(self) -> std::process::ExitCode {

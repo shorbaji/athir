@@ -13,7 +13,7 @@ mod lexer;
 
 use std::iter::{once, from_fn};
 
-use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector, port::Port, Value};
+use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector, port::Port, Value, Pair};
 use crate::read::lexer::{Lexer, Token};
 use std::io::Write;
 
