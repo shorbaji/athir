@@ -8,7 +8,6 @@
 /// - error recovery with rdepth
 /// 
 /// [P1]
-/// - print 
 /// - standard library write
 /// - standard library char
 /// - better error messages

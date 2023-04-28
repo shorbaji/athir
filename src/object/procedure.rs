@@ -17,7 +17,7 @@ pub trait Procedure {
     fn new_variadic(value: fn(&Object) -> Result<Object, Object>) -> Object;
     fn is_procedure(&self) -> Result<Object, Object>;
     fn as_procedure(&self) -> Result<Object, Object>;
-    fn apply(&self, args: &Object) -> Result<Object, Object>;
+    fn apply_as_builtin(&self, args: &Object) -> Result<Object, Object>;
 }
 
 impl Procedure for Object {
@@ -50,7 +50,7 @@ impl Procedure for Object {
         }
     }
 
-    fn apply(&self, args: &Object) -> Result<Object, Object> {
+    fn apply_as_builtin(&self, args: &Object) -> Result<Object, Object> {
         match *self.borrow() {
             Value::Procedure(ProcedureKind::Unary(f)) => f(&args.car()?),
             Value::Procedure(ProcedureKind::Binary(f)) => f(&args.car()?, &args.cadr()?),

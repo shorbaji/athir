@@ -1,11 +1,11 @@
 use crate::object::{Value, Object, Env, Pair, AthirError, Boolean };
-use crate::eval::eval;
+use crate::eval::Eval;
 
 pub trait Lambda {
     fn new(formals: Object, body: Object, parent: Object) -> Object;
     fn as_lambda(&self) -> Result<Object, Object>;
     fn is_lambda(&self) -> Result<Object, Object>;
-    fn apply(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object>;
+    fn apply_as_lambda(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object>;
 }
 
 impl Lambda for Object {
@@ -24,7 +24,7 @@ impl Lambda for Object {
         Ok(<Object as Boolean>::new(self.as_lambda().is_ok()))
     }
 
-    fn apply(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object> {
+    fn apply_as_lambda(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object> {
     
         if args.len()? == formals.len()? {
             let new_env = <Object as Env>::new_env_with_parent(parent);
@@ -51,7 +51,7 @@ impl Lambda for Object {
     
             while !matches!(*body.borrow(), Value::Null) {
                 expr = formals.car()?;
-                result = eval(&expr, &new_env)?;
+                result = expr.eval(&new_env)?;
                 body = body.cdr()?;
             };
     

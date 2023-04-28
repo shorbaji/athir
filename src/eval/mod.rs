@@ -3,45 +3,59 @@ mod tests;
 
 use crate::object::{Value, Object, Procedure, Lambda, Keyword, Env, Pair, AthirError};
 
-pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
-    match *expr.borrow() {
-        Value::Boolean(_)
-        | Value::Bytevector(_) 
-        | Value::Character(_) 
-        | Value::Number(_) 
-        | Value::String(_)
-        | Value::Vector(_) => Ok(expr.clone()),
-        | Value::Quotation(ref datum) => Ok(datum.clone()),
-        | Value::Symbol(_) => env.lookup(expr),
-        | Value::Pair(ref car, ref cdr) => {
-            match *car.borrow() {
-                Value::Keyword(Keyword::If) => iff(cdr, env),
-                Value::Keyword(Keyword::Lambda) => lambda(cdr, env),
-                Value::Keyword(Keyword::Define) => define(cdr, env),
-                Value::Keyword(Keyword::Set) => set(cdr, env),
-                Value::Keyword(Keyword::Quote) => quote(cdr),
-                _ => apply(&eval(car, env)?, &evlis(cdr, env)?),                    
-            }
-        },
-        _ => Err(<Object as AthirError>::new(format!("Malformed expression"))),
-    }
+pub trait Eval {
+    fn eval(&self, env: &Object) -> Result<Object, Object>;
+    fn evlis(&self, env: &Object) -> Result<Object, Object>;
+    fn apply(&self, operands: &Object) -> Result<Object, Object>;
 }
 
-fn apply(operator: &Object, operands: &Object) -> Result<Object, Object> {
-    match *operator.borrow() {
-        Value::Procedure(_) => <Object as Procedure>::apply(&operator, &operands),
-        Value::Lambda(_, _, _) => <Object as Procedure>::apply(&operator, &operands),
-        _ => Err(<Object as AthirError>::new(format!("not a procedure"))),
-    }
-}
+impl Eval for Object {
 
-fn evlis(args: &Object, env: &Object) -> Result<Object, Object> {
+    fn eval(&self, env: &Object) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Boolean(_)
+            | Value::Bytevector(_) 
+            | Value::Character(_) 
+            | Value::Number(_) 
+            | Value::String(_)
+            | Value::Vector(_) => Ok(self.clone()),
+            | Value::Quotation(ref datum) => Ok(datum.clone()),
+            | Value::Symbol(_) => env.lookup(self),
+            | Value::Pair(ref car, ref cdr) => {
+                match *car.borrow() {
+                    Value::Keyword(Keyword::If) => iff(cdr, env),
+                    Value::Keyword(Keyword::Lambda) => lambda(cdr, env),
+                    Value::Keyword(Keyword::Define) => define(cdr, env),
+                    Value::Keyword(Keyword::Set) => set(cdr, env),
+                    Value::Keyword(Keyword::Quote) => quote(cdr),
+                    _ => {
+                        let operator = car.eval(env)?;
+                        let operands = cdr.evlis(env)?;
 
-    match *args.borrow() {
-        Value::Null => Ok(args.clone()),
-        Value::Pair(ref car, ref cdr) => eval(car, env)?.cons(&evlis(cdr, env)?),
-        _ => Err(<Object as AthirError>::new("Malformed args".to_string())),
+                        operator.apply(&operands)
+                    }
+                }
+            },
+            _ => Err(<Object as AthirError>::new(format!("Malformed expression"))),
+        }
     }
+
+    fn evlis(&self, env: &Object) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Null => Ok(Object::new(Value::Null)),
+            Value::Pair(ref car, ref cdr) => car.eval(env)?.cons(&cdr.evlis(env)?),
+            _ => Err(<Object as AthirError>::new("Malformed args".to_string())),
+        }
+    }
+    
+    fn apply(&self, operands: &Object) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Procedure(_) => self.apply_as_builtin(operands),
+            Value::Lambda(ref formals, ref body, ref parent) => self.apply_as_lambda(formals, body, parent, operands),
+            _ => Err(<Object as AthirError>::new(format!("not a procedure"))),
+        }
+    }
+            
 }
 
 fn iff(expr: &Object, env: &Object) -> Result<Object, Object> {
@@ -49,8 +63,8 @@ fn iff(expr: &Object, env: &Object) -> Result<Object, Object> {
     let borrow = test.borrow();
     
     match *borrow {
-        Value::Boolean(_) => eval(&expr.cddr()?, env),
-        _ => eval(&expr.cadr()?, env),
+        Value::Boolean(_) => expr.cddr()?.eval(env),
+        _ => expr.cadr()?.eval(env),
     }
 }
 
@@ -63,7 +77,7 @@ fn lambda(expr: &Object, env: &Object) -> Result<Object, Object> {
 
 fn define(expr: &Object, env: &Object) -> Result<Object, Object> {
     let var = expr.car()?;
-    let val = eval(&expr.cadr()?, env)?;
+    let val = expr.cadr()?.eval(env)?;
 
     env.insert(&var, &val)
 }

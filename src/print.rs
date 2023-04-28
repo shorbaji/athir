@@ -1,6 +1,12 @@
 use crate::object::Object;
 
-pub fn print(object: Object) -> Result<Object, Object> {
-    println!("{:?}", object);
-    Ok(object)
+pub trait Print {
+    fn print(&self) -> Result<Object, Object>;
+}
+
+impl Print for Object {
+    fn print(&self) -> Result<Object, Object> {
+        println!("{:?}", self);
+        Ok(self.clone())
+    }
 }
