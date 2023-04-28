@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::ops::{DerefMut};
-use crate::object::{Object, Value, Key, Procedure, Boolean};
+use crate::object::{Object, Value, Key, Procedure, Boolean, Number, AthirString, Character, Pair, Vector};
 
 pub trait Env {
     fn new() -> Object;
@@ -38,8 +37,8 @@ impl Env for Object {
         match *env.borrow() {
             Value::Null => Err(Object::new_error(format!("unbound variable"))),
             Value::Env(ref parent, ref hm) => {
-                match hm.borrow_mut().deref_mut() {
-                    Value::Map(hm) => {
+                match *hm.borrow_mut() {
+                    Value::Map(ref hm) => {
                         match hm.get(&var) {
                             Some(val) => Ok(val.clone()),
                             None => Object::lookup(var, parent),
@@ -55,7 +54,7 @@ impl Env for Object {
     fn insert(&self, var: Key, val: &Object) -> Result<Object, Object> {
         match *self.borrow_mut() {
             Value::Env(_, ref hm) => {
-                match hm.borrow_mut().deref_mut() {
+                match *hm.borrow_mut() {
                     Value::Map(ref mut hm) => {
                         hm.insert(var, val.clone());
                         Ok(Object::unspecified())
@@ -87,6 +86,13 @@ impl Env for Object {
             ("*", Procedure::Variadic(Object::multiply)),
             ("-", Procedure::Variadic(Object::subtract)),
             ("boolean?", Procedure::Unary(Object::is_boolean)),
+            ("number?", Procedure::Unary(Object::is_number)),
+            ("string?", Procedure::Unary(Object::is_string)),
+            ("null?", Procedure::Unary(Object::is_null)),
+            // ("procedure?", Procedure::Unary(Object::is_procedure)),
+            ("pair?", Procedure::Unary(Object::is_pair)),
+            ("char?", Procedure::Unary(Object::is_character)),
+            ("vector?", Procedure::Unary(Object::is_vector)),
             ("len", Procedure::Unary(Object::len)),
         );
 

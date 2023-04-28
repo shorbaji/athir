@@ -1,13 +1,9 @@
 pub mod env;
 pub mod port;
 
-use std::fmt::Debug;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::cell::Ref;
-use std::cell::RefMut;
+use std::cell::{Ref, RefMut, RefCell};
 use std::collections::HashMap;
-use std::ops::Deref;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Object {
@@ -23,132 +19,38 @@ impl Object {
         self.value.borrow_mut()
     }
 
-    pub fn car(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Pair(ref car, _) => Ok(car.clone()),
-            _ => Err(Object::new_error(format!("Not a pair"))),
-        }
-    }
-    
-    pub fn cdr(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Pair(_, ref cdr) => Ok(cdr.clone()),
-            _ => Err(Object::new_error(format!("Not a pair"))),
-        }
-    }
-    
     pub fn cons(&self, cdr: &Object) -> Result<Object, Object> {
         Ok(Object::new_pair(self.clone(), cdr.clone()))
     }
-    
-    pub fn caar(&self) -> Result<Object, Object> {
-        self.car()?.car()
+
+    pub fn car(&self) -> Result<Object, Object> { 
+        match *self.borrow() {
+            Value::Pair(ref car, _) => Ok(car.clone()),
+            _ => Err(Object::new_error(format!("not a pair"))),
+        }
     }
-    
-    pub fn cadr(&self) -> Result<Object, Object> {
-        self.cdr()?.car()
+
+    pub fn cdr(&self) -> Result<Object, Object> { 
+        match *self.borrow() {
+            Value::Pair(_, ref cdr) => Ok(cdr.clone()),
+            _ => Err(Object::new_error(format!("not a pair"))),
+        }
     }
-    
-    pub fn cdar(&self) -> Result<Object, Object> {
-        self.car()?.cdr()
-    }
-    
-    pub fn cddr(&self) -> Result<Object, Object> {
-        self.cdr()?.cdr()
-    }
-    
-    pub fn caddr(&self) -> Result<Object, Object> {
-        self.cddr()?.car()
-    }
-    
-    pub fn cdadr(&self) -> Result<Object, Object> {
-        self.cadr()?.cdr()
-    }
+
+    pub fn caar(&self) -> Result<Object, Object> { self.car()?.car() }
+    pub fn cadr(&self) -> Result<Object, Object> { self.cdr()?.car() }
+    pub fn cdar(&self) -> Result<Object, Object> { self.car()?.cdr() }
+    pub fn cddr(&self) -> Result<Object, Object> { self.cdr()?.cdr() }
+    pub fn caddr(&self) -> Result<Object, Object> { self.cddr()?.car() }
+    pub fn cdadr(&self) -> Result<Object, Object> { self.cadr()?.cdr() }
     
     pub fn len(&self) -> Result<Object, Object> {
         match *self.borrow() {
             Value::Null => Ok(<Object as Number>::new("0".to_string())),
-            Value::Pair(_, ref cdr) => cdr.len()?.plus(&<Object as Number>::new("1".to_string())),
-            _ => Err(Object::new_error(format!("Not a pair"))),
+            _ => self.cdr()?.len()?.plus(&<Object as Number>::new("1".to_string())),
         }
     }
 
-    pub fn plus(&self, other: &Object) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Number(ref num) => {
-                match *other.borrow() {
-                    Value::Number(ref other_num) => {
-                        let result = num.parse::<i64>().unwrap() + other_num.parse::<i64>().unwrap();
-                        Ok(<Object as Number>::new(result.to_string()))
-                    },
-                    _ => Err(Object::new_error(format!("Not a number"))),
-                }
-            },
-            _ => Err(Object::new_error(format!("Not a number"))),
-        }
-    }
-    
-    pub fn multiply(args: &Object) -> Result<Object, Object> {
-        let mut result = 1;
-    
-        let mut args = args.clone();
-    
-        while !args.is_null() {
-            match *args.car()?.borrow() {
-                Value::Number(ref num) => {
-                    result *= num.parse::<i64>().unwrap();
-                },
-                _ => return Err(Object::new_error("error with multiply".to_string())),
-            }
-            args = args.cdr()?;
-        }
-    
-        Ok(<Object as Number>::new(result.to_string()))
-    }
-    
-    pub fn add(args: &Object) -> Result<Object, Object> {
-        let mut result = 0;
-    
-        let mut args = args.clone();
-    
-        while !args.is_null() {
-            match *args.car()?.borrow() {
-                Value::Number(ref num) => {
-                    result += num.parse::<i64>().unwrap();
-                },
-                _ => return Err(Object::new_error("error with plus".to_string())),
-            }
-            args = args.cdr()?;
-        }
-        Ok(<Object as Number>::new(result.to_string()))
-    }
-    
-    pub fn subtract(args: &Object) -> Result<Object, Object> {
-        let mut result;
-    
-        let first = args.car()?;
-        match *first.borrow() {
-            Value::Number(ref num) => {
-                result = num.parse::<i64>().unwrap();
-            },
-            _ => return Err(Object::new_error("error with minus".to_string())),
-        }
-    
-        let mut args = args.cdr()?;
-    
-        while !args.is_null() {
-            match *args.car()?.borrow() {
-                Value::Number(ref num) => {
-                    result -= num.parse::<i64>().unwrap();
-                },
-                _ => return Err(Object::new_error("error with minus".to_string())),
-            }
-            args = args.cdr()?;
-        }
-    
-        Ok(<Object as Number>::new(result.to_string()))
-    }
-    
     pub fn eq(a: &Object, b: &Object) -> Result<Object, Object> {
     
         let bool = *a.borrow() ==  *b.borrow();
@@ -186,6 +88,7 @@ pub enum Value {
 pub trait Boolean {
     fn new(value: bool) -> Object;
     fn is_boolean(&self) -> Result<Object, Object>;
+    fn as_boolean(&self) -> Result<bool, Object>;
 }
 
 impl Boolean for Object {
@@ -196,16 +99,22 @@ impl Boolean for Object {
     }
 
     fn is_boolean(&self) -> Result<Object, Object> {
+        Ok(<Object as Boolean>::new(self.as_boolean().is_ok()))
+    }
+
+    fn as_boolean(&self) -> Result<bool, Object> {
         match *(self.borrow()) {
-            Value::Boolean(_) => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
+            Value::Boolean(ref value) => Ok(*value),
+            _ => Err(Object::new_error(format!("not a boolean"))),
         }
     }
+
 }
 
 pub trait Character {
     fn new(value: char) -> Object;
     fn is_character(&self) -> Result<Object, Object>;
+    fn as_character(&self) -> Result<char, Object>;
 }
 
 impl Character for Object {
@@ -216,9 +125,13 @@ impl Character for Object {
     }
 
     fn is_character(&self) -> Result<Object, Object> {
-        match self.borrow().deref() {
-            Value::Character(_) => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
+        Ok(<Object as Boolean>::new(self.as_character().is_ok()))
+    }
+
+    fn as_character(&self) -> Result<char, Object> {
+        match *self.borrow() {
+            Value::Character(ref value) => Ok(*value),
+            _ => Err(Object::new_error(format!("not a character"))),
         }
     }
 }
@@ -226,6 +139,11 @@ impl Character for Object {
 pub trait Number {
     fn new(value: String) -> Object;
     fn is_number(&self) -> Result<Object, Object>;
+    fn as_number(&self) -> Result<String, Object>;
+    fn plus(&self, other: &Object) -> Result<Object, Object>;
+    fn add(args: &Object) -> Result<Object, Object>;
+    fn multiply(args: &Object) -> Result<Object, Object>;
+    fn subtract(args: &Object) -> Result<Object, Object>;
 }
 
 impl Number for Object {
@@ -236,16 +154,98 @@ impl Number for Object {
     }
 
     fn is_number(&self) -> Result<Object, Object> {
-        match self.borrow().deref() {
-            Value::Number(_) => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
+        Ok(<Object as Boolean>::new(self.as_number().is_ok()))
+    }
+
+    fn as_number(&self) -> Result<String, Object> {
+        match *self.borrow() {
+            Value::Number(ref value) => Ok(value.clone()),
+            _ => Err(Object::new_error(format!("not a number"))),
         }
     }
+
+    fn plus(&self, other: &Object) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Number(ref num) => {
+                match *other.borrow() {
+                    Value::Number(ref other_num) => {
+                        let result = num.parse::<i64>().unwrap() + other_num.parse::<i64>().unwrap();
+                        Ok(<Object as Number>::new(result.to_string()))
+                    },
+                    _ => Err(Object::new_error(format!("Not a number"))),
+                }
+            },
+            _ => Err(Object::new_error(format!("Not a number"))),
+        }
+    }
+    
+    fn add(args: &Object) -> Result<Object, Object> {
+        let mut result = 0;
+    
+        let mut args = args.clone();
+    
+        while !matches!(*args.borrow(), Value::Null) {
+            match *args.car()?.borrow() {
+                Value::Number(ref num) => {
+                    result += num.parse::<i64>().unwrap();
+                },
+                _ => return Err(Object::new_error("error with plus".to_string())),
+            }
+            args = args.cdr()?;
+        }
+        Ok(<Object as Number>::new(result.to_string()))
+    }
+    
+    fn multiply(args: &Object) -> Result<Object, Object> {
+        let mut result = 1;
+    
+        let mut args = args.clone();
+    
+        while !matches!(*args.borrow(), Value::Null) {
+            match *args.car()?.borrow() {
+                Value::Number(ref num) => {
+                    result *= num.parse::<i64>().unwrap();
+                },
+                _ => return Err(Object::new_error("error with multiply".to_string())),
+            }
+            args = args.cdr()?;
+        }
+    
+        Ok(<Object as Number>::new(result.to_string()))
+    }
+    
+    fn subtract(args: &Object) -> Result<Object, Object> {
+        let mut result;
+    
+        let first = args.car()?;
+        match *first.borrow() {
+            Value::Number(ref num) => {
+                result = num.parse::<i64>().unwrap();
+            },
+            _ => return Err(Object::new_error("error with minus".to_string())),
+        }
+    
+        let mut args = args.cdr()?;
+    
+        while !matches!(*args.borrow(), Value::Null) {
+            match *args.car()?.borrow() {
+                Value::Number(ref num) => {
+                    result -= num.parse::<i64>().unwrap();
+                },
+                _ => return Err(Object::new_error("error with minus".to_string())),
+            }
+            args = args.cdr()?;
+        }
+    
+        Ok(<Object as Number>::new(result.to_string()))
+    }
+    
 }
 
 pub trait AthirString {
     fn new(value: String) -> Object;
     fn is_string(&self) -> Result<Object, Object>;
+    fn as_string(&self) -> Result<String, Object>;
 }
 
 impl AthirString for Object {
@@ -255,17 +255,21 @@ impl AthirString for Object {
         }
     }
 
-    fn is_string(&self) -> Result<Object, Object> {
-        match self.borrow().deref() {
-            Value::String(_) => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
+    fn as_string(&self) -> Result<String, Object> {
+        match *self.borrow() {
+            Value::String(ref value) => Ok(value.clone()),
+            _ => Err(Object::new_error(format!("not a string"))),
         }
+    }
+    fn is_string(&self) -> Result<Object, Object> {
+        Ok(<Object as Boolean>::new(self.as_string().is_ok()))
     }
 }
 
 pub trait Variable {
     fn new(value: String) -> Object;
     fn is_variable(&self) -> Result<Object, Object>;
+    fn as_variable_string(&self) -> Result<String, Object>;
 }
 
 impl Variable for Object {
@@ -275,17 +279,21 @@ impl Variable for Object {
         }
     }
 
-    fn is_variable(&self) -> Result<Object, Object> {
-        match self.borrow().deref() {
-            Value::Variable(_) => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
+    fn as_variable_string(&self) -> Result<String, Object> {
+        match *self.borrow() {
+            Value::Variable(ref value) => Ok(value.clone()),
+            _ => Err(Object::new_error(format!("not a variable"))),
         }
+    }
+    fn is_variable(&self) -> Result<Object, Object> {
+        Ok(<Object as Boolean>::new(self.as_variable_string().is_ok()))
     }
 }
 
 pub trait Bytevector {
     fn new(value: Object) -> Object;
     fn is_bytevector(&self) -> Result<Object, Object>;
+    fn as_bytevector(&self) -> Result<Object, Object>;
 }
 
 impl Bytevector for Object {
@@ -295,17 +303,22 @@ impl Bytevector for Object {
         }
     }
 
-    fn is_bytevector(&self) -> Result<Object, Object> {
-        match self.borrow().deref() {
-            Value::Bytevector(_) => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
+    fn as_bytevector(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Bytevector(ref value) => Ok(value.clone()),
+            _ => Err(Object::new_error(format!("not a bytevector"))),
         }
+    }
+
+    fn is_bytevector(&self) -> Result<Object, Object> {
+        Ok(<Object as Boolean>::new(self.as_bytevector().is_ok()))
     }
 }
 
 pub trait Vector {
     fn new(value: Object) -> Object;
     fn is_vector(&self) -> Result<Object, Object>;
+    fn as_vector(&self) -> Result<Object, Object>;
 }
 
 impl Vector for Object {
@@ -315,136 +328,127 @@ impl Vector for Object {
         }
     }
 
+    fn as_vector(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Vector(ref value) => Ok(value.clone()),
+            _ => Err(Object::new_error(format!("not a vector"))),
+        }
+    }
+
     fn is_vector(&self) -> Result<Object, Object> {
-        match self.borrow().deref() {
-            Value::Vector(_) => Ok(<Object as Boolean>::new(true)),
+        Ok(<Object as Boolean>::new(self.as_vector().is_ok()))
+    }
+}
+
+pub trait Pair {
+    fn new(car: Object, cdr: Object) -> Object;
+    fn is_pair(&self) -> Result<Object, Object>;
+    fn as_pair(&self) -> Result<Object, Object>;
+}
+
+impl Pair for Object {
+    fn new(car: Object, cdr: Object) -> Object {
+        Object {
+            value: Rc::new(RefCell::new(Value::Pair(car, cdr))),
+        }
+    }
+
+    fn is_pair(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Pair(_, _) => Ok(<Object as Boolean>::new(true)),
             _ => Ok(<Object as Boolean>::new(false)),
         }
     }
+
+    fn as_pair(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Pair(_, _) => Ok(self.clone()),
+            _ => Err(Object::new_error(format!("not a pair"))),
+        }
+    }
 }
+
 impl Object {
 
     pub fn as_variable_string(&self) -> Result<String, Object> {
-        match self.borrow().deref() {
-            Value::Variable(value) => Ok(value.clone()),
+        match *self.borrow() {
+            Value::Variable(ref value) => Ok(value.clone()),
             _ => Err(Object::new_error(format!("not a variable"))),
         }
     }
 
-    pub fn is_bytevector(&self) -> bool {
-        match self.borrow().deref() {
-            Value::Bytevector(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_character(&self) -> bool {
-        match self.borrow().deref() {
-            Value::Character(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_number(&self) -> bool {
-        match self.borrow().deref() {
-            Value::Number(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_string(&self) -> bool {
-        match self.borrow().deref() {
-            Value::String(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_vector(&self) -> bool {
-        match self.borrow().deref() {
-            Value::Vector(_) => true,
-            _ => false,
-        }
-    }
-
     pub fn is_eof(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Eof => true,
             _ => false,
         }
     }
 
     pub fn is_error(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Error(_) => true,
             _ => false,
         }
     }
 
     pub fn is_keyword(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Keyword(_) => true,
             _ => false,
         }
     }
 
     pub fn is_map(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Map(_) => true,
             _ => false,
         }
     }
 
     pub fn is_env(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Env(_, _) => true,
             _ => false,
         }
     }
 
-    pub fn is_null(&self) -> bool {
-        match self.borrow().deref() {
-            Value::Null => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_pair(&self) -> bool {
-        match self.borrow().deref() {
-            Value::Pair(_, _) => true,
-            _ => false,
+    pub fn is_null(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Null => Ok(<Object as Boolean>::new(true)),
+            _ => Ok(<Object as Boolean>::new(false)),
         }
     }
 
     pub fn is_port(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Port => true,
             _ => false,
         }
     }
 
     pub fn is_procedure(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Procedure(_) => true,
             _ => false,
         }
     }
 
     pub fn is_quotation(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Quotation(_) => true,
             _ => false,
         }
     }
 
     pub fn is_unspecified(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Unspecified => true,
             _ => false,
         }
     }
 
     pub fn is_variable(&self) -> bool {
-        match self.borrow().deref() {
+        match *self.borrow() {
             Value::Variable(_) => true,
             _ => false,
         }
@@ -524,7 +528,7 @@ pub enum Procedure {
     Lambda(Object, Object, Object),
 }
 
-impl Debug for Procedure {
+impl std::fmt::Debug for Procedure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
             Procedure::Nullary(_) => write!(f, "Nullary"),

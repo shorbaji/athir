@@ -32,14 +32,16 @@ pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
 
 fn apply(proc: &Object, args: &Object) -> Result<Object, Object> {
     match *proc.borrow() {
-        Value::Procedure(ref func) => match func {
-            Procedure::Nullary(f) => f(),
-            Procedure::Unary(f) => f(&args.car()?),
-            Procedure::Binary(f) => f(&args.car()?, &args.cadr()?),
-            Procedure::Ternanry(f) => f(&args.car()?, &args.cadr()?, &args.caddr()?),
-            Procedure::Variadic(f) => f(args),
-            Procedure::Lambda(formals, body, parent) => apply_lambda(&formals, &body, &parent, args),
-        }
+        Value::Procedure(ref func) => {
+            match func {
+                Procedure::Nullary(f) => f(),
+                Procedure::Unary(f) => f(&args.car()?),
+                Procedure::Binary(f) => f(&args.car()?, &args.cadr()?),
+                Procedure::Ternanry(f) => f(&args.car()?, &args.cadr()?, &args.caddr()?),
+                Procedure::Variadic(f) => f(args),
+                Procedure::Lambda(formals, body, parent) => apply_lambda(&formals, &body, &parent, args),
+            }
+         }
         _ => Err(Object::new_error(format!("not a procedure"))),
     }
 }
@@ -53,7 +55,7 @@ fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object)
         let mut formal:Object;
         let mut formals = formals.clone();
 
-        while !formals.is_null() {
+        while !matches!(*formals.borrow(), Value::Null) {
             formal = formals.car()?;
             let arg = args.car()?;
 
@@ -69,7 +71,7 @@ fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object)
         let mut expr: Object;
         let mut result = Object::unspecified();
 
-        while !body.is_null() {
+        while !matches!(*body.borrow(), Value::Null) {
             expr = formals.car()?;
             result = eval(&expr, &new_env)?;
             body = body.cdr()?;
@@ -83,6 +85,7 @@ fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object)
 }
 
 fn evlis(args: &Object, env: &Object) -> Result<Object, Object> {
+
     match *args.borrow() {
         Value::Null => Ok(Object::null()),
         Value::Pair(ref car, ref cdr) => eval(car, env)?.cons(&evlis(cdr, env)?),
@@ -93,6 +96,7 @@ fn evlis(args: &Object, env: &Object) -> Result<Object, Object> {
 fn iff(expr: &Object, env: &Object) -> Result<Object, Object> {
     let test = expr.car()?;
     let borrow = test.borrow();
+    
     match *borrow {
         Value::Boolean(_) => eval(&expr.cddr()?, env),
         _ => eval(&expr.cadr()?, env),
