@@ -53,7 +53,7 @@ impl Object {
     pub fn as_variable_string(&self) -> Result<String, Object> {
         match *self.borrow() {
             Value::Symbol(ref value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a variable"))),
+            _ => Err(<Object as AthirError>::new(format!("not a variable"))),
         }
     }
 
@@ -74,12 +74,6 @@ impl Object {
     pub fn new_eof() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Eof)),
-        }
-    }
-
-    pub fn new_error(value: String) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Error(<Object as AthirString>::new(value)))),
         }
     }
 
@@ -104,12 +98,6 @@ impl Object {
     pub fn unspecified() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Unspecified)),
-        }
-    }
-
-    pub fn new_variable(value: String) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Symbol(value))),
         }
     }
 

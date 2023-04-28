@@ -1,4 +1,4 @@
-use crate::object::{ Object, Boolean, Value};
+use crate::object::{ Object, Boolean, Value, AthirError};
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -66,7 +66,7 @@ impl Port for Object {
     fn as_port(&self) -> Result<Object, Object> {
         match *self.borrow() {
             Value::Port => Ok(self.clone()),
-            _ => Err(Object::new_error("not a port".to_string())),
+            _ => Err(<Object as AthirError>::new("not a port".to_string())),
         }
     }
 }

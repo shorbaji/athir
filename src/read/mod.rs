@@ -13,7 +13,7 @@ mod lexer;
 
 use std::iter::{once, from_fn};
 
-use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector, port::Port, Value, Pair};
+use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector, port::Port, Value, Pair, AthirError, Symbol};
 use crate::read::lexer::{Lexer, Token};
 use std::io::Write;
 
@@ -31,7 +31,7 @@ pub fn read(port: &Object) -> Result<Object, Object> {
                 None => Err(Object::new_eof()),
             }
         },
-        _ => Err(Object::new_error("Not a port".to_string())),
+        _ => Err(<Object as AthirError>::new("Not a port".to_string())),
     }
 }
 
@@ -165,7 +165,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             Token::Quote => self.quotation_short(rdepth),
             Token::Quasiquote => self.quasiquotation_short(rdepth, 1),
             Token::SharpOpen => self.vector(rdepth),
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "expression".to_string())),
         }
     }
@@ -256,7 +256,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 self.paren_right(rdepth + 1)?;
                 Ok(ids)
             }
-            _ => Err(Object::new_error("expected identifier or open parenthesis".to_string())),
+            _ => Err(<Object as AthirError>::new("expected identifier or open parenthesis".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or open parenthesis".to_string())),
         }
     }
@@ -272,7 +272,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         for expr in exprs.clone().into_iter() {
             if crate::eval::is_definition_expr(&expr) {
                 if defs == false {
-                    return Err(Object::new_error("definitions must precede expressions".to_string()));
+                    return Err(<Object as AthirError>::new("definitions must precede expressions".to_string()));
                 }
             } else {
                 defs = false;
@@ -348,7 +348,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 let body = self.body(rdepth)?;
                 crate::eval::list(vec!(keyword, var, formals, body))
             },
-            _ => Err(Object::new_error("expected identifier or open parenthesis".to_string())),
+            _ => Err(<Object as AthirError>::new("expected identifier or open parenthesis".to_string())),
             // token @ _ => Err(unexpected(1, token.to_string(), "identifier or open paren".to_string())),
         }
     }
@@ -451,7 +451,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::Number(_) => self.uinteger10(rdepth),
-            _ => Err(Object::new_error("expected identifier or uinteger10".to_string())),
+            _ => Err(<Object as AthirError>::new("expected identifier or uinteger10".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or uinteger10".to_string())),
         }
     }
@@ -468,10 +468,10 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                     "include-ci" => self.include(rdepth + 1),
                     "include-library-declarations" => self.include_library_declarations(rdepth + 1),
                     "cond-expand" => self.cond_expand(rdepth + 1),
-                    _ => Err(Object::new_error("expected begin, export, import, include, include-ci, include-library-declarations, cond-expand".to_string())),
+                    _ => Err(<Object as AthirError>::new("expected begin, export, import, include, include-ci, include-library-declarations, cond-expand".to_string())),
                     // token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string())),
                 },
-                _ => Err(Object::new_error("expected begin, export, import, include, include-ci, include-library-declarations, cond-expand".to_string())),
+                _ => Err(<Object as AthirError>::new("expected begin, export, import, include, include-ci, include-library-declarations, cond-expand".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string())),
             
         }?;
@@ -495,7 +495,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.export_spec_id(rdepth),
             Token::ParenLeft => self.export_spec_rename(rdepth),
-            _ => Err(Object::new_error("expected identifier or export-spec-list".to_string())),
+            _ => Err(<Object as AthirError>::new("expected identifier or export-spec-list".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or export-spec-list".to_string())),
         }
     }
@@ -634,7 +634,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::ParenLeft => self.feature_requirement_with_paren(rdepth),
-            _ => Err(Object::new_error("expected identifier or open parenthesis".to_string())),
+            _ => Err(<Object as AthirError>::new("expected identifier or open parenthesis".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or open parenthesis".to_string()))
         }
     }
@@ -732,13 +732,13 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                             Token::Character(c) => Ok(<Object as Character>::new(c)),
                             Token::Number(n) => Ok(<Object as Number>::new(n)),
                             Token::String(s) => Ok(<Object as AthirString>::new(s)),
-                            _ => Err(Object::new_error("unexpected token".to_string())),
+                            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
                             // _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string())),
                         },
                     None => Ok(Object::new_eof()),
                 }
             }
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string())),
         }
     }
@@ -762,10 +762,10 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                         let body = self.body(rdepth)?;
                         crate::eval::list(vec!(keyword, syntax_specs, body))
                     }
-                    _ => Err(Object::new_error("unexpected token".to_string())),
+                    _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
                     //  _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string())),
                 },
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string())),
         }
     }
@@ -837,7 +837,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                         },
                     }
                 },
-                _ => Err(Object::new_error("unexpected token".to_string())),
+                _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
                 // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string())),
             }    
         }
@@ -991,7 +991,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::Number(_) => self.pattern_datum(rdepth),
             Token::ParenLeft => self.pattern_with_paren(rdepth),
             Token::SharpOpen => self.pattern_with_sharp_paren(rdepth),
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string())),
         }
     }
@@ -1005,7 +1005,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         match token {
             Token::Identifier(s) if s.as_str() == "..." => 
-                Ok(Object::new_error("ellipsis not allowed in pattern".to_string())),
+                Ok(<Object as AthirError>::new("ellipsis not allowed in pattern".to_string())),
                 // Err(unexpected(rdepth, "...".to_string(), "identifier".to_string())),
             _ => self.identifier(rdepth),
         }
@@ -1149,7 +1149,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::Character(_)
             | Token::String(_)
             | Token::Number(_) => self.template_datum(rdepth),
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
     }
@@ -1172,7 +1172,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                         elements.push(self.template_element(rdepth + 1)?);
                         Ok(elements)
                     },
-                    _ => Err(Object::new_error("unexpected token".to_string())),
+                    _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
                     // token @ _ => Err(unexpected(rdepth, token.to_string(), "close parenthesis or dot".to_string())),
                 }
             }
@@ -1227,7 +1227,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::Quasiquote
             | Token::Comma
             | Token::CommaAt => self.abbreviation(rdepth),
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
     }
@@ -1240,7 +1240,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::String(_)
             | Token::Number(_) => self.literal(rdepth),
             Token::SharpU8Open => self.bytevector(rdepth),
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
     }
@@ -1255,7 +1255,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             Token::Quasiquote => self.quasiquote(rdepth),
             Token::Comma => self.comma(rdepth),
             Token::CommaAt => self.comma_at(rdepth),
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "quote, quasiquote, comma or comma-at".to_string()))
         }?;
 
@@ -1297,7 +1297,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                     _ => return Err(Object::new_eof()),
                 }
             },
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "uninteger10".to_string())),
         }
     }
@@ -1328,7 +1328,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     fn keyword(&mut self, keyword: &str, rdepth: usize) -> Result<Object, Object> {
         match self.peek_or_eof()? {
             Token::Identifier(s) if keyword == s => self.keyword_box_leaf_from_next(rdepth),
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "a keyword".to_string()))
         }
     }
@@ -1338,7 +1338,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.lexer.next() {
             Some(Token::Identifier(s)) => Ok(Object::new_keyword(Keyword::from(s))),
             None => Err(Object::new_eof()),
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.unwrap().to_string(), "a keyword".to_string())),
         }
     }
@@ -1347,9 +1347,9 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             t if t == &expected => {
                 self.lexer.next();
-                Ok(Object::new_variable(s.to_string()))
+                Ok(<Object as Symbol>::new(s.to_string()))
             },
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), s.to_string())),
         }   
     }
@@ -1401,13 +1401,13 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 match next {
                     Some(token) => match token {
                             Token::String(s) => Ok(<Object as AthirString>::new(s)),
-                            _ => Err(Object::new_error("unexpected token".to_string())),
+                            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
                             // _ => Err(unexpected(rdepth, token.to_string(), "string".to_string())),
                         },
                     None => Ok(Object::new_eof()),
                 }
             },
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "string".to_string())),
         }
     }
@@ -1416,12 +1416,12 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => {
                 if let Some(Token::Identifier(id)) = self.lexer.next() {
-                    Ok(Object::new_variable(id))
+                    Ok(<Object as Symbol>::new(id))
                 } else {
                     Err(Object::new_eof())
                 }
             },
-            _ => Err(Object::new_error("unexpected token".to_string())),
+            _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier".to_string())),
         }        
     }

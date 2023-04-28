@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::object::{Object, Value, Key, Procedure, procedure::ProcedureKind, Boolean, Number, AthirString, Character, Pair, Vector};
+use crate::object::{Object, Value, Key, Procedure, procedure::ProcedureKind, Boolean, Number, AthirString, Character, Pair, Vector, AthirError};
 
 pub trait Env {
     fn new() -> Object;
@@ -29,13 +29,13 @@ impl Env for Object {
     fn as_env(&self) -> Result<Object, Object> {
         match *self.borrow() {
             Value::Env(_, ref env) => Ok(env.clone()),
-            _ => Err(Object::new_error("not an environment".to_string())),
+            _ => Err(<Object as AthirError>::new("not an environment".to_string())),
         }
     }
 
     fn lookup(var: Key, env: &Object) -> Result<Object, Object> {
         match *env.borrow() {
-            Value::Null => Err(Object::new_error(format!("unbound variable"))),
+            Value::Null => Err(<Object as AthirError>::new(format!("unbound variable"))),
             Value::Env(ref parent, ref hm) => {
                 match *hm.borrow_mut() {
                     Value::Map(ref hm) => {
@@ -44,10 +44,10 @@ impl Env for Object {
                             None => Object::lookup(var, parent),
                         }
                     },
-                    _ => Err(Object::new_error(format!("not a map"))),
+                    _ => Err(<Object as AthirError>::new(format!("not a map"))),
                 }
             },
-            _ => Err(Object::new_error(format!("not an env"))),
+            _ => Err(<Object as AthirError>::new(format!("not an env"))),
         }
     }
 
@@ -59,10 +59,10 @@ impl Env for Object {
                         hm.insert(var, val.clone());
                         Ok(Object::unspecified())
                     },
-                    _ => Err(Object::new_error(format!("not a map"))),
+                    _ => Err(<Object as AthirError>::new(format!("not a map"))),
                 }
             },
-            _ => Err(Object::new_error(format!("not an env"))),
+            _ => Err(<Object as AthirError>::new(format!("not an env"))),
         }
     }
 
