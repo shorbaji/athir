@@ -15,7 +15,7 @@ pub trait Env {
 impl Env for Object {
     fn new() -> Object {
         Object {
-            value: Rc::new(RefCell::new(Value::Env(Object::new_null(), <Object as Map>::new()))),
+            value: Rc::new(RefCell::new(Value::Env(Object::new(Value::Null), <Object as Map>::new()))),
         }.init().unwrap()
     }
 

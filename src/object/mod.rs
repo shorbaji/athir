@@ -37,7 +37,7 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Object {
-    pub value: Rc<RefCell<Value>>,
+    value: Rc<RefCell<Value>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -63,6 +63,12 @@ pub enum Value {
 }
 
 impl Object {
+    pub fn new(value: Value) -> Object {
+        Object {
+            value: Rc::new(RefCell::new(value)),
+        }
+    }
+
     pub fn borrow(&self) -> Ref<Value> {
         self.value.borrow()
     }
@@ -95,30 +101,6 @@ impl Object {
     pub fn new_eof() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Eof)),
-        }
-    }
-
-    pub fn new_keyword(value: Keyword) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Keyword(value)))
-        }
-    }
-
-    pub fn new_null() -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Null)),
-        }
-    }
-
-    pub fn new_quotation(value: Object) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Quotation(value))),
-        }
-    }
-
-    pub fn new_unspecified() -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Unspecified)),
         }
     }
 

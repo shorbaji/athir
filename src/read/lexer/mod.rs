@@ -93,6 +93,7 @@ impl<T> Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Err
 
         self.inner.peek()
     }
+
 }
 
 impl<T> Iterator for Lexer<T> 

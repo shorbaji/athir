@@ -802,7 +802,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     fn quasiquotation_short(&mut self, rdepth: usize, qqdepth: u32) -> Result<Object, Object> {
         self.quasiquote(rdepth)?;
         // let keyword = Rc::new(RefCell::new(Object::Identifier(Identifier::Keyword(Keyword::from("quasiquote".to_string())))));
-        let keyword = Object::new_keyword(Keyword::Quasiquote);
+        let keyword = Object::new(Value::Keyword(Keyword::Quasiquote));
         let template = self.qq_template(rdepth, qqdepth)?;
         crate::eval::list(vec!(keyword, template))
     }
@@ -903,7 +903,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let datum = self.datum(rdepth)?;
 
 
-        Ok(Object::new_quotation(datum))
+        Ok(Object::new(Value::Quotation(datum)))
     }
 
     fn quotation_short(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -911,7 +911,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let _quote = self.quote(rdepth)?;
         let datum = self.datum(rdepth)?;
 
-        Ok(Object::new_quotation(datum))
+        Ok(Object::new(Value::Quotation(datum)))
     }
 
     fn identifier_list_possible_dot(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1188,7 +1188,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         
         match self.peek_or_eof()? {
             Token::Identifier(id) if id.as_str() == "..." => { 
-                let ellipsis = Object::new_keyword(Keyword::Ellipsis);
+                let ellipsis = Object::new(Value::Keyword(Keyword::Ellipsis));
                 crate::eval::list(vec!(template, ellipsis))
             }
             _ => crate::eval::list(vec!(template))
@@ -1269,7 +1269,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
 
         let data = match self.peek_or_eof()? {
-            Token::ParenRight => Ok(Object::new_null()),
+            Token::ParenRight => Ok(Object::new(Value::Null)),
             _ => {
                 let data = self.one_or_more(Read::datum, rdepth + 1)?;
 
@@ -1334,9 +1334,9 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
     }
 
     fn keyword_box_leaf_from_next(&mut self, rdepth: usize) -> Result<Object, Object> {
-
+        
         match self.lexer.next() {
-            Some(Token::Identifier(s)) => Ok(Object::new_keyword(Keyword::from(s))),
+            Some(Token::Identifier(s)) => Ok(Object::new(Value::Keyword(Keyword::from(s)))),
             None => Err(Object::new_eof()),
             _ => Err(<Object as AthirError>::new("unexpected token".to_string())),
             // token @ _ => Err(unexpected(rdepth, token.unwrap().to_string(), "a keyword".to_string())),

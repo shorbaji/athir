@@ -64,7 +64,7 @@ fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object)
 
         let mut body = body.clone();
         let mut expr: Object;
-        let mut result = Object::new_unspecified();
+        let mut result = Object::new(Value::Unspecified);
 
         while !matches!(*body.borrow(), Value::Null) {
             expr = formals.car()?;
@@ -82,7 +82,7 @@ fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object)
 fn evlis(args: &Object, env: &Object) -> Result<Object, Object> {
 
     match *args.borrow() {
-        Value::Null => Ok(Object::new_null()),
+        Value::Null => Ok(args.clone()),
         Value::Pair(ref car, ref cdr) => eval(car, env)?.cons(&evlis(cdr, env)?),
         _ => Err(<Object as AthirError>::new("Malformed args".to_string())),
     }
@@ -122,7 +122,7 @@ fn quote(expr: &Object) -> Result<Object, Object> {
 }
 
 pub fn list(objects: Vec<Object>) -> Result<Object, Object> {
-    let mut list = Object::new_null();
+    let mut list = Object::new(Value::Null);
     for object in objects.into_iter().rev() {
         list = object.cons(&list)?;
     }
