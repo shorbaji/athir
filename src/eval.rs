@@ -1,6 +1,5 @@
 
-use crate::object::{Value, Object, Procedure, Keyword, ObjectExt, env::Env};
-use crate::stdlib::base::*;
+use crate::object::{Value, Object, Procedure, Keyword, env::Env};
 
 pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
     match *expr.borrow() {
@@ -10,6 +9,7 @@ pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
         | Value::Number(_) 
         | Value::String(_)
         | Value::Vector(_) => Ok(expr.clone()),
+
         | Value::Variable(ref var) => Object::lookup(var.clone(), env),
         | Value::Pair(ref car, ref cdr) => {
             match *car.borrow() {
@@ -34,9 +34,9 @@ fn apply(proc: &Object, args: &Object) -> Result<Object, Object> {
     match *proc.borrow() {
         Value::Procedure(ref func) => match func {
             Procedure::Nullary(f) => f(),
-            Procedure::Unary(f) => f(&car(args)?),
-            Procedure::Binary(f) => f(&car(args)?, &cadr(args)?),
-            Procedure::Ternanry(f) => f(&car(args)?, &cadr(args)?, &caddr(args)?),
+            Procedure::Unary(f) => f(&args.car()?),
+            Procedure::Binary(f) => f(&args.car()?, &args.cadr()?),
+            Procedure::Ternanry(f) => f(&args.car()?, &args.cadr()?, &args.caddr()?),
             Procedure::Variadic(f) => f(args),
             Procedure::Lambda(formals, body, parent) => apply_lambda(&formals, &body, &parent, args),
         }
@@ -46,7 +46,7 @@ fn apply(proc: &Object, args: &Object) -> Result<Object, Object> {
 
 fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object> {
 
-    if len(args)? == len(formals)? {
+    if args.len()? == formals.len()? {
         let new_env = <Object as Env>::new_env_with_parent(parent);
 
         let mut args = args.clone();
@@ -54,14 +54,14 @@ fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object)
         let mut formals = formals.clone();
 
         while !formals.is_null() {
-            formal = car(&formals)?;
-            let arg = car(&args)?;
+            formal = formals.car()?;
+            let arg = args.car()?;
 
             new_env.insert(formal.as_variable_string()?, &arg)?;
 
-            formals = cdr(&formals)?;
+            formals = formals.cdr()?;
 
-            args = cdr(&args)?;
+            args = args.cdr()?;
 
         };
 
@@ -70,9 +70,9 @@ fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object)
         let mut result = Object::unspecified();
 
         while !body.is_null() {
-            expr = car(&formals)?;
+            expr = formals.car()?;
             result = eval(&expr, &new_env)?;
-            body = cdr(&body)?;
+            body = body.cdr()?;
         };
 
         Ok(result)
@@ -85,30 +85,30 @@ fn apply_lambda(formals: &Object, body: &Object, parent: &Object, args: &Object)
 fn evlis(args: &Object, env: &Object) -> Result<Object, Object> {
     match *args.borrow() {
         Value::Null => Ok(Object::null()),
-        Value::Pair(ref car, ref cdr) => cons(&eval(car, env)?, &evlis(cdr, env)?),
+        Value::Pair(ref car, ref cdr) => eval(car, env)?.cons(&evlis(cdr, env)?),
         _ => Err(Object::new_error("Malformed args".to_string())),
     }
 }
 
 fn iff(expr: &Object, env: &Object) -> Result<Object, Object> {
-    let test = car(expr)?;
+    let test = expr.car()?;
     let borrow = test.borrow();
     match *borrow {
-        Value::Boolean(_) => eval(&cddr(expr)?, env),
-        _ => eval(&cadr(expr)?, env),
+        Value::Boolean(_) => eval(&expr.cddr()?, env),
+        _ => eval(&expr.cadr()?, env),
     }
 }
 
 fn lambda(expr: &Object, env: &Object) -> Result<Object, Object> {
-    let formals = car(expr)?;
-    let body = cadr(expr)?;
+    let formals = expr.car()?;
+    let body = expr.cadr()?;
 
     Ok(Object::new_procedure(Procedure::Lambda(formals, body, env.clone())))
 }
 
 fn define(expr: &Object, env: &Object) -> Result<Object, Object> {
-    let var = car(expr)?;
-    let val = eval(&cadr(expr)?, env)?;
+    let var = expr.car()?;
+    let val = eval(&expr.cadr()?, env)?;
 
     let borrow = var.borrow();
 
@@ -122,18 +122,18 @@ fn define(expr: &Object, env: &Object) -> Result<Object, Object> {
 }
 
 fn assignment(expr: &Object, env: &Object) -> Result<Object, Object> {
-    Object::lookup(car(expr)?.as_variable_string()?, env)?;
+    Object::lookup(expr.car()?.as_variable_string()?, env)?;
     define(expr, env)
 }
 
 fn quote(expr: &Object) -> Result<Object, Object> {
-    Ok(cadr(expr)?)
+    Ok(expr.cadr()?)
 }
 
 pub fn list(objects: Vec<Object>) -> Result<Object, Object> {
     let mut list = Object::null();
     for object in objects.into_iter().rev() {
-        list = cons(&object, &list)?;
+        list = object.cons(&list)?;
     }
     Ok(list)
 }
@@ -142,14 +142,14 @@ pub fn list_not_null_terminated(objects: Vec<Object>, object: &Object) -> Result
     let mut list = object.clone();
 
     for object in objects.into_iter().rev() {
-        list = cons(&object, &list)?;
+        list = object.cons(&list)?;
     }
 
     Ok(list)
 }
 
 pub fn is_definition_expr(expr: &Object) -> bool {
-    let is_definition_keyword = match car(expr) {
+    let is_definition_keyword = match expr.car() {
         Ok(node) => is_definition_keyword(&node),
         Err(_) => false,
     };
@@ -170,7 +170,7 @@ fn is_begin_keyword(expr: &Object) -> bool {
 }
 
 fn is_begin_expr(expr: &Object) -> bool {
-    match car(expr) {
+    match expr.car() {
         Ok(node) => is_begin_keyword(&node),
         Err(_) => false,
     }
@@ -178,7 +178,7 @@ fn is_begin_expr(expr: &Object) -> bool {
 
 fn is_begin_definition_expr(expr: &Object) -> bool {    
     is_begin_expr(expr) && 
-    match cdadr(expr) {
+    match expr.cdadr() {
         Ok(object) => matches!(*object.borrow(), Value::Boolean(true)),
         Err(_) => false,
     }

@@ -22,6 +22,124 @@ impl Object {
     pub fn borrow_mut(&self) -> RefMut<Value> {
         self.value.borrow_mut()
     }
+
+    pub fn car(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Pair(ref car, _) => Ok(car.clone()),
+            _ => Err(Object::new_error(format!("Not a pair"))),
+        }
+    }
+    
+    pub fn cdr(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Pair(_, ref cdr) => Ok(cdr.clone()),
+            _ => Err(Object::new_error(format!("Not a pair"))),
+        }
+    }
+    
+    pub fn cons(&self, cdr: &Object) -> Result<Object, Object> {
+        Ok(Object::new_pair(self.clone(), cdr.clone()))
+    }
+    
+    pub fn caar(&self) -> Result<Object, Object> {
+        self.car()?.car()
+    }
+    
+    pub fn cadr(&self) -> Result<Object, Object> {
+        self.cdr()?.car()
+    }
+    
+    pub fn cdar(&self) -> Result<Object, Object> {
+        self.car()?.cdr()
+    }
+    
+    pub fn cddr(&self) -> Result<Object, Object> {
+        self.cdr()?.cdr()
+    }
+    
+    pub fn caddr(&self) -> Result<Object, Object> {
+        self.cddr()?.car()
+    }
+    
+    pub fn cdadr(&self) -> Result<Object, Object> {
+        self.cadr()?.cdr()
+    }
+    
+    pub fn len(&self) -> Result<usize, Object> {
+        match *self.borrow() {
+            Value::Null => Ok(0),
+            Value::Pair(_, ref cdr) => Ok(cdr.len()? + 1),
+            _ => Err(Object::new_error(format!("Not a pair"))),
+        }
+    }
+    
+    pub fn multiply(args: &Object) -> Result<Object, Object> {
+        let mut result = 1;
+    
+        let mut args = args.clone();
+    
+        while !args.is_null() {
+            match *args.car()?.borrow() {
+                Value::Number(ref num) => {
+                    result *= num.parse::<i64>().unwrap();
+                },
+                _ => return Err(Object::new_error("error with multiply".to_string())),
+            }
+            args = args.cdr()?;
+        }
+    
+        Ok(<Object as Number>::new(result.to_string()))
+    }
+    
+    pub fn add(args: &Object) -> Result<Object, Object> {
+        let mut result = 0;
+    
+        let mut args = args.clone();
+    
+        while !args.is_null() {
+            match *args.car()?.borrow() {
+                Value::Number(ref num) => {
+                    result += num.parse::<i64>().unwrap();
+                },
+                _ => return Err(Object::new_error("error with plus".to_string())),
+            }
+            args = args.cdr()?;
+        }
+        Ok(<Object as Number>::new(result.to_string()))
+    }
+    
+    pub fn subtract(args: &Object) -> Result<Object, Object> {
+        let mut result;
+    
+        let first = args.car()?;
+        match *first.borrow() {
+            Value::Number(ref num) => {
+                result = num.parse::<i64>().unwrap();
+            },
+            _ => return Err(Object::new_error("error with minus".to_string())),
+        }
+    
+        let mut args = args.cdr()?;
+    
+        while !args.is_null() {
+            match *args.car()?.borrow() {
+                Value::Number(ref num) => {
+                    result -= num.parse::<i64>().unwrap();
+                },
+                _ => return Err(Object::new_error("error with minus".to_string())),
+            }
+            args = args.cdr()?;
+        }
+    
+        Ok(<Object as Number>::new(result.to_string()))
+    }
+    
+    pub fn eq(a: &Object, b: &Object) -> Result<Object, Object> {
+    
+        let bool = *a.borrow() ==  *b.borrow();
+    
+        Ok(<Object as Boolean>::new(bool))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -189,230 +307,189 @@ impl Vector for Object {
         }
     }
 }
+impl Object {
 
-pub trait ObjectExt {
-    fn as_string(&self) -> Result<String, Object>;
-    fn as_variable_string(&self) -> Result<String, Object>;
-    fn is_bytevector(&self) -> bool;
-    fn is_character(&self) -> bool;
-    fn is_number(&self) -> bool;
-    fn is_string(&self) -> bool;
-    fn is_vector(&self) -> bool;
-    fn is_eof(&self) -> bool;
-    fn is_error(&self) -> bool;
-    fn is_keyword(&self) -> bool;
-    fn is_map(&self) -> bool;
-    fn is_env(&self) -> bool;
-    fn is_null(&self) -> bool;
-    fn is_pair(&self) -> bool;
-    fn is_port(&self) -> bool;
-    fn is_procedure(&self) -> bool;
-    fn is_quotation(&self) -> bool;
-    fn is_unspecified(&self) -> bool;
-    fn is_variable(&self) -> bool;    
-    fn new_eof() -> Object;
-    fn new_error(value: String) -> Object;
-    fn new_keyword(value: Keyword) -> Object;
-    fn new_map() -> Object;
-    fn new_procedure(value: Procedure) -> Object;
-    fn new_pair(car: Object, cdr: Object) -> Object;
-    fn new_quotation(value: Object) -> Object;
-    fn new_variable(value: String) -> Object;
-    fn null() -> Object;
-    fn unspecified() -> Object;
-
-}
-
-impl ObjectExt for Object {
-
-    fn as_string(&self) -> Result<String, Object> {
-        match self.borrow().deref() {
-            Value::String(value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a string"))),
-        }
-    }
-
-    fn as_variable_string(&self) -> Result<String, Object> {
+    pub fn as_variable_string(&self) -> Result<String, Object> {
         match self.borrow().deref() {
             Value::Variable(value) => Ok(value.clone()),
             _ => Err(Object::new_error(format!("not a variable"))),
         }
     }
 
-    fn is_bytevector(&self) -> bool {
+    pub fn is_bytevector(&self) -> bool {
         match self.borrow().deref() {
             Value::Bytevector(_) => true,
             _ => false,
         }
     }
 
-    fn is_character(&self) -> bool {
+    pub fn is_character(&self) -> bool {
         match self.borrow().deref() {
             Value::Character(_) => true,
             _ => false,
         }
     }
 
-    fn is_number(&self) -> bool {
+    pub fn is_number(&self) -> bool {
         match self.borrow().deref() {
             Value::Number(_) => true,
             _ => false,
         }
     }
 
-    fn is_string(&self) -> bool {
+    pub fn is_string(&self) -> bool {
         match self.borrow().deref() {
             Value::String(_) => true,
             _ => false,
         }
     }
 
-    fn is_vector(&self) -> bool {
+    pub fn is_vector(&self) -> bool {
         match self.borrow().deref() {
             Value::Vector(_) => true,
             _ => false,
         }
     }
 
-    fn is_eof(&self) -> bool {
+    pub fn is_eof(&self) -> bool {
         match self.borrow().deref() {
             Value::Eof => true,
             _ => false,
         }
     }
 
-    fn is_error(&self) -> bool {
+    pub fn is_error(&self) -> bool {
         match self.borrow().deref() {
             Value::Error(_) => true,
             _ => false,
         }
     }
 
-    fn is_keyword(&self) -> bool {
+    pub fn is_keyword(&self) -> bool {
         match self.borrow().deref() {
             Value::Keyword(_) => true,
             _ => false,
         }
     }
 
-    fn is_map(&self) -> bool {
+    pub fn is_map(&self) -> bool {
         match self.borrow().deref() {
             Value::Map(_) => true,
             _ => false,
         }
     }
 
-    fn is_env(&self) -> bool {
+    pub fn is_env(&self) -> bool {
         match self.borrow().deref() {
             Value::Env(_, _) => true,
             _ => false,
         }
     }
 
-    fn is_null(&self) -> bool {
+    pub fn is_null(&self) -> bool {
         match self.borrow().deref() {
             Value::Null => true,
             _ => false,
         }
     }
 
-    fn is_pair(&self) -> bool {
+    pub fn is_pair(&self) -> bool {
         match self.borrow().deref() {
             Value::Pair(_, _) => true,
             _ => false,
         }
     }
 
-    fn is_port(&self) -> bool {
+    pub fn is_port(&self) -> bool {
         match self.borrow().deref() {
             Value::Port => true,
             _ => false,
         }
     }
 
-    fn is_procedure(&self) -> bool {
+    pub fn is_procedure(&self) -> bool {
         match self.borrow().deref() {
             Value::Procedure(_) => true,
             _ => false,
         }
     }
 
-    fn is_quotation(&self) -> bool {
+    pub fn is_quotation(&self) -> bool {
         match self.borrow().deref() {
             Value::Quotation(_) => true,
             _ => false,
         }
     }
 
-    fn is_unspecified(&self) -> bool {
+    pub fn is_unspecified(&self) -> bool {
         match self.borrow().deref() {
             Value::Unspecified => true,
             _ => false,
         }
     }
 
-    fn is_variable(&self) -> bool {
+    pub fn is_variable(&self) -> bool {
         match self.borrow().deref() {
             Value::Variable(_) => true,
             _ => false,
         }
     }
 
-    fn new_eof() -> Object {
+    pub fn new_eof() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Eof)),
         }
     }
 
-    fn new_error(value: String) -> Object {
+    pub fn new_error(value: String) -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Error(<Object as AthirString>::new(value)))),
         }
     }
 
-    fn new_keyword(value: Keyword) -> Object {
+    pub fn new_keyword(value: Keyword) -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Keyword(value)))
         }
     }
 
-    fn null() -> Object {
+    pub fn null() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Null)),
         }
     }
 
-    fn new_pair(car: Object, cdr: Object) -> Object {
+    pub fn new_pair(car: Object, cdr: Object) -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Pair(car, cdr))),
         }
     }
     
-    fn new_procedure(value: Procedure) -> Object {
+    pub fn new_procedure(value: Procedure) -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Procedure(value))),
         }
     }
 
-    fn new_quotation(value: Object) -> Object {
+    pub fn new_quotation(value: Object) -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Quotation(value))),
         }
     }
 
-    fn unspecified() -> Object {
+    pub fn unspecified() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Unspecified)),
         }
     }
 
-    fn new_variable(value: String) -> Object {
+    pub fn new_variable(value: String) -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Variable(value))),
         }
     }
 
-    fn new_map() -> Object {
+    pub fn new_map() -> Object {
         Object {
             value: Rc::new(RefCell::new(Value::Map(HashMap::new())))
         }

@@ -1,20 +1,19 @@
 /// TODOs
 ///
 /// [P0]
-/// - error recovery with rdepth
-/// - eval testing
 /// - port & reader support for stdin
 /// - port & reader support for string
+/// - port & reader support for file
+/// - eval testing
+/// - error recovery with rdepth
 /// 
 /// [P1]
-/// - port & reader support for file
 /// - print 
 /// - standard library read 
 /// - standard library write
 /// - standard library char
 /// - main should return a result
 /// - better error messages
-/// - use &Object instead of Object
 /// - number
 /// - standard library cxr
 /// - standard library base

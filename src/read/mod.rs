@@ -13,7 +13,7 @@ mod lexer;
 
 use std::iter::{once, from_fn};
 
-use crate::object::{Object, ObjectExt, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector};
+use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector};
 use crate::read::lexer::{Lexer, Token};
 use crate::stdlib::base::*;
 
@@ -205,7 +205,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let operator = self.expr(rdepth)?;
         let operands = self.operands(rdepth)?;
 
-        cons(&operator, &operands)
+        operator.cons(&operands)
     }
 
     fn operands(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -320,7 +320,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         let exprs = crate::eval::list(exprs)?;
 
-        let tagged = cons(&exprs, &is_all_defs)?;
+        let tagged = exprs.cons(&is_all_defs)?;
 
         crate::eval::list(vec!(begin, tagged))
 

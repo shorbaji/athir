@@ -1,8 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ops::{DerefMut};
-use crate::object::{Object, Value, ObjectExt, Key, Procedure};
-use crate::stdlib::base::*;
+use crate::object::{Object, Value, Key, Procedure, Boolean};
 
 pub trait Env {
     fn new() -> Object;
@@ -11,6 +10,8 @@ pub trait Env {
     fn lookup(var: Key, env: &Object) -> Result<Object, Object>;
     fn insert( &self, var: Key, val: &Object) -> Result<Object, Object>;
     fn init(&self) -> Result<Object, Object>;
+    fn register(&self, symbol: &str, proc: Procedure) -> Result<Object, Object>;
+
 }
 
 impl Env for Object {
@@ -66,21 +67,31 @@ impl Env for Object {
         }
     }
 
-    fn init(&self) -> Result<Object, Object> {
+    fn register(&self, symbol: &str, proc: Procedure) -> Result<Object, Object> {
+        self.insert(symbol.to_string(), &Object::new_procedure(proc))
+    }
 
-        self.insert("car".to_string(), &Object::new_procedure(Procedure::Unary(car)))?;
-        self.insert("cdr".to_string(), &Object::new_procedure(Procedure::Unary(cdr)))?;
-        self.insert("cons".to_string(), &Object::new_procedure(Procedure::Binary(cons)))?;
-        self.insert("caar".to_string(), &Object::new_procedure(Procedure::Unary(caar)))?;
-        self.insert("cdar".to_string(), &Object::new_procedure(Procedure::Unary(cdar)))?;
-        self.insert("cadr".to_string(), &Object::new_procedure(Procedure::Unary(cadr)))?;
-        self.insert("cddr".to_string(), &Object::new_procedure(Procedure::Unary(cddr)))?;
-        self.insert("caddr".to_string(), &Object::new_procedure(Procedure::Unary(caddr)))?;
-        self.insert("cdadr".to_string(), &Object::new_procedure(Procedure::Unary(cdadr)))?;
-        self.insert("eq?".to_string(), &Object::new_procedure(Procedure::Binary(eq)))?;
-        self.insert("+".to_string(), &Object::new_procedure(Procedure::Variadic(add)))?;
-        self.insert("*".to_string(), &Object::new_procedure(Procedure::Variadic(multiply)))?;
-        self.insert("-".to_string(), &Object::new_procedure(Procedure::Variadic(subtract)))?;
+    fn init(&self) -> Result<Object, Object> {
+       let pairs = vec!(
+            ("car", Procedure::Unary(Object::car)),
+            ("cdr", Procedure::Unary(Object::cdr)),
+            ("cons", Procedure::Binary(Object::cons)),
+            ("caar", Procedure::Unary(Object::caar)),
+            ("cdar", Procedure::Unary(Object::cdar)),
+            ("cadr", Procedure::Unary(Object::cadr)),
+            ("cddr", Procedure::Unary(Object::cddr)),
+            ("caddr", Procedure::Unary(Object::caddr)),
+            ("cdadr", Procedure::Unary(Object::cdadr)),
+            ("eq?", Procedure::Binary(Object::eq)),
+            ("+", Procedure::Variadic(Object::add)),
+            ("*", Procedure::Variadic(Object::multiply)),
+            ("-", Procedure::Variadic(Object::subtract)),
+            ("boolean?", Procedure::Unary(Object::is_boolean)),
+        );
+
+        for (symbol, proc) in pairs.into_iter() {
+            self.register(symbol, proc)?;
+        }
 
         Ok(self.clone())
     }
