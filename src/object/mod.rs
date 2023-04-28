@@ -3,6 +3,7 @@ pub mod port;
 
 use std::cell::{Ref, RefMut, RefCell};
 use std::collections::HashMap;
+use std::process::Termination;
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -599,5 +600,12 @@ impl Port for Object {
         Object {
             value: Rc::new(RefCell::new(Value::Port))
         }
+    }
+}
+
+impl Termination for Object {
+    fn report(self) -> std::process::ExitCode {
+        std::process::exit(0)
+        
     }
 }

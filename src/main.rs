@@ -24,11 +24,8 @@ mod print;
 mod read;
 mod repl;
 
-fn main() -> Result<(), ()> {
+fn main() -> Result<crate::object::Object, crate::object::Object> {
     println!("athir (c) 2023 Athir LLC");
 
-    match repl::repl() {
-        Ok(_) => Ok(()),
-        Err(_) => Ok(()),
-    }
+    repl::repl()
 }
