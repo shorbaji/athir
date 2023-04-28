@@ -19,7 +19,7 @@ use std::io::Write;
 
 pub fn read(port: Object) -> Result<Object, Object> {
     match port {
-        port if matches!(*port.is_port()?.borrow(), Value::Null) => {
+        port if matches!(*port.is_port()?.borrow(), Value::Boolean(true)) => {
             print!("> ");
             std::io::stdout().flush().unwrap();
             
