@@ -213,8 +213,6 @@ impl From<String> for Keyword {
     }
 }
 
-pub type Key = String;
-
 impl Termination for Object {
     fn report(self) -> std::process::ExitCode {
         std::process::exit(0)

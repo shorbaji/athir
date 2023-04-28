@@ -33,10 +33,10 @@ pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
 
 fn apply(proc: &Object, args: &Object) -> Result<Object, Object> {
     match *proc.borrow() {
-        Value::Unary(f) => f(&args.car()?),
-        Value::Binary(f) => f(&args.car()?, &args.cadr()?),
-        Value::Variadic(f) => f(args),
-        Value::Lambda(formals, body, parent) => apply_lambda(&formals, &body, &parent, args),
+        Value::Procedure(ProcedureKind::Unary(f)) => f(&args.car()?),
+        Value::Procedure(ProcedureKind::Binary(f)) => f(&args.car()?, &args.cadr()?),
+        Value::Procedure(ProcedureKind::Variadic(f)) => f(args),
+        Value::Procedure(ProcedureKind::Lambda(ref formals, ref body, ref parent)) => apply_lambda(&formals, &body, &parent, args),
         _ => Err(<Object as AthirError>::new(format!("not a procedure"))),
     }
 }

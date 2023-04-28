@@ -1,13 +1,13 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::object::{Object, Value, Key, Procedure, procedure::ProcedureKind, Boolean, Number, AthirString, Character, Pair, Vector, AthirError};
+use crate::object::{Object, Value, Procedure, procedure::ProcedureKind, Boolean, Number, AthirString, Character, Pair, Vector, AthirError, Symbol};
 
 pub trait Env {
     fn new() -> Object;
     fn new_env_with_parent(parent: &Object) -> Object;
     fn as_env(&self) -> Result<Object, Object>;
-    fn lookup(var: Key, env: &Object) -> Result<Object, Object>;
-    fn insert( &self, var: Key, val: &Object) -> Result<Object, Object>;
+    fn lookup(&self, symbol: &Object) -> Result<Object, Object>;
+    fn insert( &self, symbol: &Object, val: &Object) -> Result<Object, Object>;
     fn init(&self) -> Result<Object, Object>;
     fn register(&self, symbol: &str, proc: ProcedureKind) -> Result<Object, Object>;
 
@@ -33,15 +33,16 @@ impl Env for Object {
         }
     }
 
-    fn lookup(var: Key, env: &Object) -> Result<Object, Object> {
-        match *env.borrow() {
+    fn lookup(&self, symbol: &Object) -> Result<Object, Object> {
+        match *self.borrow() {
             Value::Null => Err(<Object as AthirError>::new(format!("unbound variable"))),
             Value::Env(ref parent, ref hm) => {
                 match *hm.borrow_mut() {
                     Value::Map(ref hm) => {
+                        let var = symbol.as_variable_string()?;
                         match hm.get(&var) {
                             Some(val) => Ok(val.clone()),
-                            None => Object::lookup(var, parent),
+                            None => Object::lookup(symbol, parent),
                         }
                     },
                     _ => Err(<Object as AthirError>::new(format!("not a map"))),
@@ -51,11 +52,12 @@ impl Env for Object {
         }
     }
 
-    fn insert(&self, var: Key, val: &Object) -> Result<Object, Object> {
+    fn insert(&self, symbol: &Object, val: &Object) -> Result<Object, Object> {
         match *self.borrow_mut() {
             Value::Env(_, ref hm) => {
                 match *hm.borrow_mut() {
                     Value::Map(ref mut hm) => {
+                        let var = symbol.as_variable_string()?;
                         hm.insert(var, val.clone());
                         Ok(Object::unspecified())
                     },
@@ -67,7 +69,7 @@ impl Env for Object {
     }
 
     fn register(&self, symbol: &str, kind: ProcedureKind) -> Result<Object, Object> {
-        self.insert(symbol.to_string(), &<Object as Procedure>::new(Value::Procedure(kind)))
+        self.insert(&<Object as Symbol>::new(symbol.to_string()), &<Object as Procedure>::new(Value::Procedure(kind)))
     }
 
     fn init(&self) -> Result<Object, Object> {
