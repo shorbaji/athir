@@ -1,269 +1,44 @@
-//! Node
-//!
+pub mod env;
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::ops::Deref;
 
-use lazy_static::__Deref;
-
-use crate::result::{EvalResult, VecEvalResult};
-use crate::error::Error;
-use crate::eval::env::Env;
-
-#[derive(Debug, Clone)]
-pub enum Object {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
     Boolean(bool),
-    Bytevector(Vec<Rc<RefCell<Object>>>),
+    Bytevector(Object),
     Character(char),
-    _Eof,
-    Identifier(Identifier),
-    Null,
     Number(String),
-    Pair(Rc<RefCell<Object>>, Rc<RefCell<Object>>),
-    _Port,
-    Procedure(Procedure),
-    Quotation(Rc<RefCell<Object>>),
     String(String),
-    Vector(Vec<Rc<RefCell<Object>>>),
+    Vector(Object),
+    Eof,
+    Error(Object),
+    Keyword(Keyword),
+    Map(HashMap<String, Object>),
+    Env(Object, Object),
+    Null,
+    Pair(Object, Object),
+    Port,
+    Procedure(Procedure), 
+    Quotation(Object),
     Unspecified,
+    Variable(String),
 }
 
-impl std::fmt::Debug for Procedure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Procedure::Builtin { name, min_args, max_args, .. } => {
-                write!(f, "Builtin: {:?} min: {:?} max {:?}", name, min_args, max_args)
-            },
-            Procedure::Lambda{env: _, formals, body} => {
-                write!(f, "Lambda: formals: {:?} body: {:?}", formals, body)
-            }
-        }
-    }
-}
+pub type Object = Rc<RefCell<Value>>;
 
-#[derive(Clone)]
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Procedure {
-    Builtin {
-        name: &'static str,
-        min_args: Option<usize>,
-        max_args: Option<usize>, 
-        func: fn(Rc<RefCell<Object>>) -> EvalResult
-    },
-    Lambda {
-        env: Rc<RefCell<Env>>,
-        formals: Rc<RefCell<Object>>,
-        body: Rc<RefCell<Object>>,
-    },
+    Nullary(fn() -> Result<Object, Object>),
+    Unary(fn(Object) -> Result<Object, Object>),
+    Binary(fn(Object, Object) -> Result<Object, Object>),
+    Ternanry(fn(Object, Object, Object) -> Result<Object, Object>),
+    Variadic(fn(Object) -> Result<Object, Object>),
+    Lambda(Object, Object, Object),
 }
-
-// public methods
-
-pub fn cons(args: Rc<RefCell<Object>>) -> EvalResult {
-    let a = car(args.clone())?;
-    let b = cadr(args)?;
-
-    Ok(Rc::new(RefCell::new(Object::Pair(a, b))))
-}
-
-pub fn car(args: Rc<RefCell<Object>>) -> EvalResult {
-    match *args.borrow() {
-        Object::Pair(ref a, _) => Ok(a.clone()),
-        _ => Err(Error::EvalError("car: expected pair".to_string())),
-    }
-}
-
-pub fn cdr(args: Rc<RefCell<Object>>) -> EvalResult {
-    match *args.borrow() {
-        Object::Pair(_, ref cdr) => Ok(cdr.clone()),
-        _ => Err(Error::EvalError("cdr: expected pair".to_string())),
-    }
-}
-
-pub fn caar(args: Rc<RefCell<Object>>) -> EvalResult {
-    car(car(args)?)
-}
-
-pub fn cadr(args: Rc<RefCell<Object>>) -> EvalResult {
-    car(cdr(args)?)
-}
-
-pub fn cdar(args: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(car(args)?)
-}
-
-pub fn cddr(args: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(cdr(args)?)
-}
-
-pub fn caddr(args: Rc<RefCell<Object>>) -> EvalResult {
-    car(cdr(cdr(args)?)?)
-}
-
-pub fn cdadr(args: Rc<RefCell<Object>>) -> EvalResult {
-    cdr(car(cdr(args)?)?)
-}
-
-pub fn is_null(args:Rc<RefCell<Object>>) -> EvalResult {
-    match args.borrow().deref() {
-        Object::Null => Ok(Rc::new(RefCell::new(Object::Boolean(true)))),
-        _ => Ok(Rc::new(RefCell::new(Object::Boolean(false)))),
-    }
-}
-
-pub fn _is_false(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Boolean(false) | Object::Null);
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-
-}
-
-pub fn is_true(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = !matches!(args.borrow().deref(), Object::Boolean(false) | Object::Null);
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_boolean(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Boolean(_));
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_bytevector(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Bytevector(_));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_char(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Character(_));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_eof_object(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::_Eof);
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_number(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Number(_));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_pair(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Pair(_, _));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_procedure(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Procedure(_));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_string(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::String(_));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_symbol(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Identifier(_));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_vector(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::Vector(_));
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-pub fn is_port(args:Rc<RefCell<Object>>) -> EvalResult {
-    let bool = matches!(args.borrow().deref(), Object::_Port);
-
-    Ok(Rc::new(RefCell::new(Object::Boolean(bool))))
-}
-
-impl Object {
-    /// Creates an Objects from a Vec of Objects
-    pub fn list(nodes: Vec<Rc<RefCell<Object>>>) -> EvalResult {
-        let mut result = Object::Null;
-
-        for node in nodes.into_iter().rev() {
-            result = Object::Pair(node, Rc::new(RefCell::new(result)));
-        }
-
-        Ok(Rc::new(RefCell::new(result)))
-    }
-
-    pub fn list_not_null_terminated(nodes: Vec<Rc<RefCell<Object>>>, node: Rc<RefCell<Object>>) -> EvalResult {
-        let mut result = node;
-
-        for node in nodes.into_iter().rev() {
-            result = Rc::new(RefCell::new(Object::Pair(node, result)));
-        }
-
-        Ok(result)
-    }
-
-    pub fn as_list(&self) -> VecEvalResult {
-        let mut result = Vec::new();
-        let mut current = Rc::new(RefCell::new(self.clone()));
-        loop {
-            match current.clone().borrow().deref() {
-                Object::Pair(car, cdr) => {
-                    result.push(car.clone());
-                    current = cdr.clone();
-                }
-                _ => break,
-            }
-        }
-
-        Ok(result)
-    }
-
-}
-
-pub fn is_definition_expr(expr: Rc<RefCell<Object>>) -> bool {
-    let is_definition_keyword = match car(expr.clone()) {
-        Ok(node) => is_definition_keyword(node),
-        Err(_) => false,
-    };
-    
-    is_definition_keyword || is_begin_definition_expr(expr)
-}
-
-fn is_definition_keyword(expr: Rc<RefCell<Object>>) -> bool {
-    matches!(*expr.borrow(), 
-        Object::Identifier(Identifier::Keyword(Keyword::Define))
-        | Object::Identifier(Identifier::Keyword(Keyword::DefineValues))
-        | Object::Identifier(Identifier::Keyword(Keyword::DefineRecordType))
-        | Object::Identifier(Identifier::Keyword(Keyword::DefineSyntax))
-    )
-}
-
-fn is_begin_keyword(expr: Rc<RefCell<Object>>) -> bool {
-    matches!(*expr.borrow(), Object::Identifier(Identifier::Keyword(Keyword::Begin)))
-}
-
-fn is_begin_expr(expr: Rc<RefCell<Object>>) -> bool {
-    match car(expr) {
-        Ok(node) => is_begin_keyword(node),
-        Err(_) => false,
-    }
-}
-
-fn is_begin_definition_expr(expr: Rc<RefCell<Object>>) -> bool {    
-    is_begin_expr(expr.clone()) && 
-    match cdadr(expr) {
-        Ok(object) => matches!(*object.borrow(), Object::Boolean(true)),
-        Err(_) => false,
-    }
-}
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Keyword {
@@ -343,25 +118,257 @@ impl From<String> for Keyword {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Identifier {
-    Keyword(Keyword),
-    Variable(String),
+pub type Key = String;
+
+pub trait Port {
+    fn new() -> Object;
 }
 
-
-impl PartialEq for Object {
-    fn eq(&self, other: &Self) -> bool {
-        let a = match self {
-            Object::Number(n) => n,
-            _ => panic!("Cannot compare non-number object"),
-        };
-
-        let b = match other {
-            Object::Number(n) => n,
-            _ => panic!("Cannot compare non-number object"),
-        };
-
-        a == b
+impl Port for Object {
+    fn new() -> Object {
+        Rc::new(RefCell::new(Value::Port))
     }
 }
+pub trait ObjectExt {
+    fn as_string(&self) -> Result<String, Object>;
+    fn as_variable_string(&self) -> Result<String, Object>;
+    fn is_boolean(&self) -> bool;
+    fn is_bytevector(&self) -> bool;
+    fn is_character(&self) -> bool;
+    fn is_number(&self) -> bool;
+    fn is_string(&self) -> bool;
+    fn is_vector(&self) -> bool;
+    fn is_eof(&self) -> bool;
+    fn is_error(&self) -> bool;
+    fn is_keyword(&self) -> bool;
+    fn is_map(&self) -> bool;
+    fn is_env(&self) -> bool;
+    fn is_null(&self) -> bool;
+    fn is_pair(&self) -> bool;
+    fn is_port(&self) -> bool;
+    fn is_procedure(&self) -> bool;
+    fn is_quotation(&self) -> bool;
+    fn is_unspecified(&self) -> bool;
+    fn is_variable(&self) -> bool;    
+    fn new_boolean(value: bool) -> Object;
+    fn new_bytevector(value: Object) -> Object;
+    fn new_character(value: char) -> Object;
+    fn new_number(value: String) -> Object;
+    fn new_string(value: String) -> Object;
+    fn new_vector(value: Object) -> Object;
+    fn new_eof() -> Object;
+    fn new_error(value: String) -> Object;
+    fn new_keyword(value: Keyword) -> Object;
+    fn new_map() -> Object;
+    fn new_procedure(value: Procedure) -> Object;
+    fn new_quotation(value: Object) -> Object;
+    fn new_variable(value: String) -> Object;
+    fn null() -> Object;
+    fn unspecified() -> Object;
+
+}
+
+impl ObjectExt for Object {
+
+    fn as_string(&self) -> Result<String, Object> {
+        match self.deref().borrow().deref() {
+            Value::String(value) => Ok(value.clone()),
+            _ => Err(Object::new_error(format!("not a string"))),
+        }
+    }
+
+    fn as_variable_string(&self) -> Result<String, Object> {
+        match self.deref().borrow().deref() {
+            Value::Variable(value) => Ok(value.clone()),
+            _ => Err(Object::new_error(format!("not a variable"))),
+        }
+    }
+
+    fn is_boolean(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Boolean(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_bytevector(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Bytevector(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_character(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Character(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_number(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Number(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_string(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::String(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_vector(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Vector(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_eof(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Eof => true,
+            _ => false,
+        }
+    }
+
+    fn is_error(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Error(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_keyword(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Keyword(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_map(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Map(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_env(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Env(_, _) => true,
+            _ => false,
+        }
+    }
+
+    fn is_null(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Null => true,
+            _ => false,
+        }
+    }
+
+    fn is_pair(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Pair(_, _) => true,
+            _ => false,
+        }
+    }
+
+    fn is_port(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Port => true,
+            _ => false,
+        }
+    }
+
+    fn is_procedure(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Procedure(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_quotation(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Quotation(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_unspecified(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Unspecified => true,
+            _ => false,
+        }
+    }
+
+    fn is_variable(&self) -> bool {
+        match self.deref().borrow().deref() {
+            Value::Variable(_) => true,
+            _ => false,
+        }
+    }
+
+    fn new_boolean(value: bool) -> Object {
+        Rc::new(RefCell::new(Value::Boolean(value)))
+    }
+
+    fn new_bytevector(value: Object) -> Object {
+        Rc::new(RefCell::new(Value::Bytevector(value)))
+    }
+
+    fn new_character(value: char) -> Object {
+        Rc::new(RefCell::new(Value::Character(value)))
+    }
+
+    fn new_number(value: String) -> Object {
+        Rc::new(RefCell::new(Value::Number(value)))
+    }
+
+    fn new_string(value: String) -> Object {
+        Rc::new(RefCell::new(Value::String(value)))
+    }
+
+    fn new_vector(value: Object) -> Object {
+        Rc::new(RefCell::new(Value::Vector(value)))
+    }
+
+    fn new_eof() -> Object {
+        Rc::new(RefCell::new(Value::Eof))
+    }
+
+    fn new_error(value: String) -> Object {
+        Rc::new(RefCell::new(Value::Error(Rc::new(RefCell::new(Value::String(value))))))
+    }
+
+    fn new_keyword(value: Keyword) -> Object {
+        Rc::new(RefCell::new(Value::Keyword(value)))
+    }
+
+    fn null() -> Object {
+        Rc::new(RefCell::new(Value::Null))
+    }
+
+    fn new_procedure(value: Procedure) -> Object {
+        Rc::new(RefCell::new(Value::Procedure(value)))
+    }
+
+    fn new_quotation(value: Object) -> Object {
+        Rc::new(RefCell::new(Value::Quotation(value)))
+    }
+
+    fn unspecified() -> Object {
+        Rc::new(RefCell::new(Value::Unspecified))
+    }
+
+    fn new_variable(value: String) -> Object {
+        Rc::new(RefCell::new(Value::Variable(value)))
+    }
+
+    fn new_map() -> Object {
+        Rc::new(RefCell::new(Value::Map(HashMap::new())))
+    }
+
+}
+
