@@ -13,7 +13,7 @@ mod lexer;
 
 use std::iter::{once, from_fn};
 
-use crate::object::{Object, ObjectExt, Keyword};
+use crate::object::{Object, ObjectExt, Keyword, Boolean, Character, Number, AthirString, Bytevector, Vector};
 use crate::read::lexer::{Lexer, Token};
 use crate::stdlib::base::*;
 
@@ -205,7 +205,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let operator = self.expr(rdepth)?;
         let operands = self.operands(rdepth)?;
 
-        cons(operator, operands)
+        cons(&operator, &operands)
     }
 
     fn operands(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -272,7 +272,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let mut defs = true;
 
         for expr in exprs.clone().into_iter() {
-            if crate::eval::is_definition_expr(expr) {
+            if crate::eval::is_definition_expr(&expr) {
                 if defs == false {
                     return Err(Object::new_error("definitions must precede expressions".to_string()));
                 }
@@ -315,12 +315,12 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
         let exprs = self.zero_or_more(Read::expr, rdepth)?;
         
-        let is_all_defs = exprs.iter().all(|node| crate::eval::is_definition_expr(node.clone()));
-        let is_all_defs = Object::new_boolean(is_all_defs);
+        let is_all_defs = exprs.iter().all(|node| crate::eval::is_definition_expr(node));
+        let is_all_defs = <Object as Boolean>::new(is_all_defs);
 
         let exprs = crate::eval::list(exprs)?;
 
-        let tagged = cons(exprs, is_all_defs)?;
+        let tagged = cons(&exprs, &is_all_defs)?;
 
         crate::eval::list(vec!(begin, tagged))
 
@@ -730,10 +730,10 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
             | Token::String(_) => {
                 match self.lexer.next() {
                     Some(token) => match token {
-                            Token::Boolean(b) => Ok(Object::new_boolean(b)),
-                            Token::Character(c) => Ok(Object::new_character(c)),
-                            Token::Number(n) => Ok(Object::new_number(n)),
-                            Token::String(s) => Ok(Object::new_string(s)),
+                            Token::Boolean(b) => Ok(<Object as Boolean>::new(b)),
+                            Token::Character(c) => Ok(<Object as Character>::new(c)),
+                            Token::Number(n) => Ok(<Object as Number>::new(n)),
+                            Token::String(s) => Ok(<Object as AthirString>::new(s)),
                             _ => Err(Object::new_error("unexpected token".to_string())),
                             // _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string())),
                         },
@@ -924,7 +924,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 match self.peek_or_eof()? {
                     Token::Dot => {
                         self.dot(rdepth)?;
-                        crate::eval::list_not_null_terminated(ids, self.identifier(rdepth)?)
+                        crate::eval::list_not_null_terminated(ids, &self.identifier(rdepth)?)
                     },
                     _ => crate::eval::list(ids),
                 }
@@ -1278,7 +1278,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 match self.peek_or_eof()? {
                     Token::Dot => {
                         self.dot(rdepth + 1)?;
-                        crate::eval::list_not_null_terminated(data, self.datum(rdepth + 1)?)
+                        crate::eval::list_not_null_terminated(data, &self.datum(rdepth + 1)?)
                     },
                     _ => crate::eval::list(data),
                 }
@@ -1295,7 +1295,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         match self.peek_or_eof()? {
             Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => {
                 match self.lexer.next() {
-                    Some(Token::Number(n)) => Ok(Object::new_number(n)),
+                    Some(Token::Number(n)) => Ok(<Object as Number>::new(n)),
                     _ => return Err(Object::new_eof()),
                 }
             },
@@ -1308,7 +1308,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         self.sharpopen(rdepth)?;
         let data = self.zero_or_more(Read::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        Ok(Object::new_vector(crate::eval::list(data)?))
+        Ok(<Object as Vector>::new(crate::eval::list(data)?))
     }
 
     fn bytevector(&mut self, rdepth: usize) -> Result<Object, Object> {
@@ -1316,7 +1316,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
         let data = self.zero_or_more(Read::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        Ok(Object::new_bytevector(crate::eval::list(data)?))
+        Ok(<Object as Bytevector>::new(crate::eval::list(data)?))
     }
 
     fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> Result<Object, Object>, rdepth: usize) -> Result<Vec<Object>, Object> {
@@ -1402,7 +1402,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 let next = self.lexer.next();
                 match next {
                     Some(token) => match token {
-                            Token::String(s) => Ok(Object::new_string(s)),
+                            Token::String(s) => Ok(<Object as AthirString>::new(s)),
                             _ => Err(Object::new_error("unexpected token".to_string())),
                             // _ => Err(unexpected(rdepth, token.to_string(), "string".to_string())),
                         },

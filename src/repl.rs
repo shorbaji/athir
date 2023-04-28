@@ -11,7 +11,7 @@ pub fn repl() -> Result<Object, Object> {
         let expr = read(port.clone());
 
         match expr {
-            Ok(expr) => { print(eval(expr, env.clone())?)?; },
+            Ok(expr) => { print(eval(&expr, &env)?)?; },
             Err(err) => { return Err(err); }
         };
     }
