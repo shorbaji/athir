@@ -1,22 +1,21 @@
 /// TODOs
 ///
-/// P0
-/// - ctrl-d exists as eof
+/// [P0]
 /// - error recovery with rdepth
+/// - eval testing
 /// - port & reader support for stdin
-/// - port & reader support for file
 /// - port & reader support for string
+/// 
+/// [P1]
+/// - port & reader support for file
+/// - print 
 /// - standard library read 
 /// - standard library write
 /// - standard library char
-/// - eval testing
 /// - main should return a result
 /// - better error messages
-/// - printing of env 
-/// - printing of lists 
 /// - use &Object instead of Object
 /// - number
-/// - standard library eval/environment
 /// - standard library cxr
 /// - standard library base
 
