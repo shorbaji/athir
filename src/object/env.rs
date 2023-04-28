@@ -94,6 +94,7 @@ impl Env for Object {
             ("char?", Procedure::Unary(Object::is_character)),
             ("vector?", Procedure::Unary(Object::is_vector)),
             ("len", Procedure::Unary(Object::len)),
+            ("read", Procedure::Unary(crate::read::read))
         );
 
         for (symbol, proc) in pairs.into_iter() {

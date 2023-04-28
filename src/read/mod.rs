@@ -17,7 +17,7 @@ use crate::object::{Object, Keyword, Boolean, Character, Number, AthirString, By
 use crate::read::lexer::{Lexer, Token};
 use std::io::Write;
 
-pub fn read(port: Object) -> Result<Object, Object> {
+pub fn read(port: &Object) -> Result<Object, Object> {
     match port {
         port if matches!(*port.is_port()?.borrow(), Value::Boolean(true)) => {
             print!("> ");
