@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::object::{Value, Object, Procedure, Lambda, Keyword, Env, Pair, AthirError };
+use crate::object::{Value, Object, Procedure, Lambda, Keyword, Env, Pair, AthirError};
 
 pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
     match *expr.borrow() {
@@ -11,29 +11,27 @@ pub fn eval(expr: &Object, env: &Object) -> Result<Object, Object> {
         | Value::Number(_) 
         | Value::String(_)
         | Value::Vector(_) => Ok(expr.clone()),
+        | Value::Quotation(ref datum) => Ok(datum.clone()),
         | Value::Symbol(_) => env.lookup(expr),
         | Value::Pair(ref car, ref cdr) => {
             match *car.borrow() {
-                Value::Keyword(Keyword::If) => iff(&cdr, env),
-                Value::Keyword(Keyword::Lambda) => lambda(&cdr, env),
-                Value::Keyword(Keyword::Define) => define(&cdr, env),
-                Value::Keyword(Keyword::Set) => assignment(&cdr, env),
-                Value::Keyword(Keyword::Quote) => quote(&cdr),
-                _ => {
-                    let operator = eval(&car, env)?;
-                    let operands = evlis(&cdr, env)?;
-
-                    let borrow = operator.borrow();
-                    match *borrow {
-                        Value::Procedure(_) => <Object as Procedure>::apply(&operator, &operands),
-                        Value::Lambda(_, _, _) => <Object as Procedure>::apply(&operator, &operands),
-                        _ => Err(<Object as AthirError>::new(format!("not a procedure"))),
-                    }
-                }
+                Value::Keyword(Keyword::If) => iff(cdr, env),
+                Value::Keyword(Keyword::Lambda) => lambda(cdr, env),
+                Value::Keyword(Keyword::Define) => define(cdr, env),
+                Value::Keyword(Keyword::Set) => set(cdr, env),
+                Value::Keyword(Keyword::Quote) => quote(cdr),
+                _ => apply(&eval(car, env)?, &evlis(cdr, env)?),                    
             }
         },
-        | Value::Quotation(ref quoted) => Ok(quoted.clone()),
         _ => Err(<Object as AthirError>::new(format!("Malformed expression"))),
+    }
+}
+
+fn apply(operator: &Object, operands: &Object) -> Result<Object, Object> {
+    match *operator.borrow() {
+        Value::Procedure(_) => <Object as Procedure>::apply(&operator, &operands),
+        Value::Lambda(_, _, _) => <Object as Procedure>::apply(&operator, &operands),
+        _ => Err(<Object as AthirError>::new(format!("not a procedure"))),
     }
 }
 
@@ -70,7 +68,7 @@ fn define(expr: &Object, env: &Object) -> Result<Object, Object> {
     env.insert(&var, &val)
 }
 
-fn assignment(expr: &Object, env: &Object) -> Result<Object, Object> {
+fn set(expr: &Object, env: &Object) -> Result<Object, Object> {
     env.lookup(&expr.car()?)?;
     define(expr, env)
 }

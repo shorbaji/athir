@@ -6,6 +6,7 @@ use crate::object::{Object, Value, Boolean, Number, AthirError};
 pub trait Pair {
     fn new(car: Object, cdr: Object) -> Object;
     fn is_pair(&self) -> Result<Object, Object>;
+    fn is_atom(&self) -> Result<Object, Object>;
     fn as_pair(&self) -> Result<Object, Object>;
     fn cons(&self, cdr: &Object) -> Result<Object, Object>;
     fn car(&self) -> Result<Object, Object>;
@@ -33,6 +34,13 @@ impl Pair for Object {
         }
     }
 
+    fn is_atom(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Pair(_, _) => Ok(<Object as Boolean>::new(false)),
+            _ => Ok(<Object as Boolean>::new(true)),
+        }
+    }
+    
     fn as_pair(&self) -> Result<Object, Object> {
         match *self.borrow() {
             Value::Pair(_, _) => Ok(self.clone()),
