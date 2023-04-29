@@ -1,5 +1,4 @@
 use crate::object::{Value, Object,};
-use crate::eval::Eval;
 
 impl Object {
     pub fn new_lambda(formals: Object, body: Object, parent: Object) -> Object {

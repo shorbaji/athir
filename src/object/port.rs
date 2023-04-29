@@ -1,14 +1,55 @@
 use crate::object::{ Object, Value,};
+#[derive(Debug, Clone, PartialEq)]
+
+pub enum Port {
+    Stdin,
+    File,
+    String,
+}
+
+impl From::<std::io::Stdin> for Object {
+    fn from(_: std::io::Stdin) -> Object {
+        Object::new(Value::Port(Port::Stdin))
+    }
+}
+
+impl From<Port> for Object {
+    fn from(port: Port) -> Object {
+        Object::new(Value::Port(port))
+    }
+}
 
 impl Object {
     pub fn new_port() -> Object {
-        Object::new(Value::Port)
+        Object::new(Value::Port(Port::Stdin))
     }
 
     pub fn is_port(&self) -> Result<Object, Object> {
-        Ok(Object::from(matches!(*self.borrow(), Value::Port)))
+        Ok(Object::from(matches!(*self.borrow(), Value::Port(_))))
     }
 
+    pub fn read(&self) -> Result<Object, Object> {
+        match *self.borrow() {
+            Value::Port(Port::Stdin) => {
+                use std::io::Write;
+                use crate::read::StdinRead;
+
+                print!("> ");
+                std::io::stdout().flush().unwrap();
+                
+                let expr = StdinRead::new().next();
+    
+                match expr {
+                    Some(Ok(expr)) => Ok(expr),
+                    Some(Err(err)) => Err(err),
+                    None => Err(Object::new_eof()),
+                }
+            },
+            Value::Port(_) => Err(Object::new_error(format!("not implemented"))),
+            _ => Err(Object::new_error(format!("not a port"))),
+        }
+    }
+    
     // fn is_input_port(&self) -> Result<Object, Object>;
     // fn is_output_port(&self) -> Result<Object, Object>;
     // fn is_textual_port(&self) -> Result<Object, Object>;

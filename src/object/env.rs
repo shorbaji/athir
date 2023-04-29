@@ -65,7 +65,7 @@ impl Object {
             ("symbol?", BuiltIn::Unary(Object::is_symbol)),
             ("vector?", BuiltIn::Unary(Object::is_vector)),
             ("len", BuiltIn::Unary(Object::len)),
-            ("read", BuiltIn::Unary(crate::read::read))
+            ("read", BuiltIn::Unary(Object::read)),
         );
 
         for (symbol, kind) in pairs.into_iter() {

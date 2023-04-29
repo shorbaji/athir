@@ -2,6 +2,7 @@ use crate::object::{Object, Value, };
 
 #[derive(Clone)]
 pub enum BuiltIn {
+    Nullary(fn() -> Result<Object, Object>),
     Unary(fn(&Object) -> Result<Object, Object>),
     Binary(fn(&Object, &Object) -> Result<Object, Object>),
     Variadic(fn(&Object) -> Result<Object, Object>),
@@ -42,6 +43,7 @@ impl Object {
 impl std::fmt::Debug for BuiltIn {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
+            BuiltIn::Nullary(_) => write!(f, "Nullary"),
             BuiltIn::Unary(_) => write!(f, "Unary"),
             BuiltIn::Binary(_) => write!(f, "Binary"),
             BuiltIn::Variadic(_) => write!(f, "Variadic"),

@@ -15,25 +15,6 @@ use std::iter::{once, from_fn};
 
 use crate::object::{Object, Keyword, Value,};
 use crate::read::lexer::{Lexer, Token};
-use std::io::Write;
-
-pub fn read(port: &Object) -> Result<Object, Object> {
-    match port {
-        port if matches!(*port.is_port()?.borrow(), Value::Boolean(true)) => {
-            print!("> ");
-            std::io::stdout().flush().unwrap();
-            
-            let expr = StdinRead::new().next();
-
-            match expr {
-                Some(Ok(expr)) => Ok(expr),
-                Some(Err(err)) => Err(err),
-                None => Err(Object::new_eof()),
-            }
-        },
-        _ => Err(Object::new_error("Not a port".to_string())),
-    }
-}
 
 pub struct StdinRead {
     read: Read<std::io::Lines<std::io::StdinLock<'static>>>,

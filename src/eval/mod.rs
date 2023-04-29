@@ -3,15 +3,9 @@ mod tests;
 
 use crate::object::{Value, Object, Keyword};
 
-pub trait Eval {
-    fn eval(&self, env: &Object) -> Result<Object, Object>;
-    fn evlis(&self, env: &Object) -> Result<Object, Object>;
-    fn apply(&self, operands: &Object) -> Result<Object, Object>;
-}
+impl Object {
 
-impl Eval for Object {
-
-    fn eval(&self, env: &Object) -> Result<Object, Object> {
+    pub fn eval(&self, env: &Object) -> Result<Object, Object> {
         match *self.borrow() {
             Value::Boolean(_)
             | Value::Bytevector(_) 

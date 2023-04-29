@@ -18,6 +18,7 @@ pub mod procedure;
 
 pub use crate::object::keyword::Keyword;
 pub use crate::object::procedure::BuiltIn;
+pub use crate::object::port::Port;
 
 use std::cell::{Ref, RefMut, RefCell};
 use std::collections::HashMap;
@@ -42,7 +43,7 @@ pub enum Value {
     Null,
     Number(String),
     Pair(Object, Object),
-    Port,
+    Port(Port),
     Builtin(BuiltIn), 
     Lambda(Object, Object, Object),
     Quotation(Object),
