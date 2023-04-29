@@ -1,19 +1,19 @@
 mod boolean;
 mod bytevector;
 mod character;
+mod env;
 mod error;
 mod keyword;
 mod lambda;
 mod map;
 mod number;
 mod pair;
+mod port;
+mod procedure;
 mod string;
 mod symbol;
 mod vector;
 
-pub mod env;
-pub mod port;
-pub mod procedure;
 
 
 pub use crate::object::keyword::Keyword;

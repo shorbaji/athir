@@ -6,7 +6,7 @@ use crate::object::Keyword::*;
 impl Object {
     pub fn eval(&self, env: &Object) -> Result<Object, Object> {
         match *self.borrow() {
-            _ if self.quotable()?.into() => self.quote(),
+            _ if self.is_quotable()?.into() => self.quote(),
             Symbol(_) => env.lookup(self),
             Quotation(ref datum) => datum.quote(),
             Pair(ref car, ref cdr) => {
@@ -40,7 +40,7 @@ impl Object {
         }
     }
     
-    fn apply(&self, operands: &Object) -> Result<Object, Object> {
+    pub fn apply(&self, operands: &Object) -> Result<Object, Object> {
         match *self.borrow() {
             Builtin(_) => self.apply_as_builtin(operands),
             Closure(ref formals, ref body, ref parent) => self.apply_as_lambda(formals, body, parent, operands),
@@ -48,7 +48,7 @@ impl Object {
         }
     }
 
-    fn quotable(&self) -> Result<Object, Object> {
+    fn is_quotable(&self) -> Result<Object, Object> {
         Ok(Object::from(self.is_boolean()?.into() 
                             || self.is_bytevector()?.into()
                             || self.is_character()?.into()
@@ -58,8 +58,11 @@ impl Object {
     }
 
     fn iff(&self,env: &Object) -> Result<Object, Object> {
+        println!("IF");
+        println!("{:?}", self);
+
         match *self.car()?.eval(env)?.borrow() {        
-            Boolean(_) => self.cddr()?.eval(env),
+            Boolean(false) => self.caddr()?.eval(env),
             _ => self.cadr()?.eval(env),
         }
     }
