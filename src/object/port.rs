@@ -1,11 +1,13 @@
-use crate::object::{ Object, Boolean, Value, AthirError};
-use std::rc::Rc;
-use std::cell::RefCell;
+use crate::object::{ Object, Value,};
 
-pub trait Port {
-    fn new() -> Object;
-    fn as_port(&self) -> Result<Object, Object>;
-    fn is_port(&self) -> Result<Object, Object>;
+impl Object {
+    pub fn new_port() -> Object {
+        Object::new(Value::Port)
+    }
+
+    pub fn is_port(&self) -> Result<Object, Object> {
+        Ok(Object::from(matches!(*self.borrow(), Value::Port)))
+    }
 
     // fn is_input_port(&self) -> Result<Object, Object>;
     // fn is_output_port(&self) -> Result<Object, Object>;
@@ -50,23 +52,5 @@ pub trait Port {
     // fn write_u8(object: Object, port: Object) -> Result<Object, Object>;
     // fn write_bytevector(object: Object, port: Object, start: Object, end: Object) -> Result<Object, Object>;
     // fn flush_output_port(port: Object) -> Result<Object, Object>;
-}
 
-impl Port for Object {
-    fn new() -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Port)),
-        }
-    }
-
-    fn is_port(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_port().is_ok()))
-    }
-
-    fn as_port(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Port => Ok(self.clone()),
-            _ => Err(<Object as AthirError>::new("not a port".to_string())),
-        }
-    }
 }

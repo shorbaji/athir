@@ -1,28 +1,21 @@
-use crate::object::{Object, Value, Boolean, AthirError};
-use std::rc::Rc;
-use std::cell::RefCell;
+use crate::object::{Object, Value, };
 
-pub trait AthirString {
-    fn new(value: String) -> Object;
-    fn is_string(&self) -> Result<Object, Object>;
-    fn as_string(&self) -> Result<String, Object>;
+impl From <String> for Object {
+    fn from(value: String) -> Object {
+        Object::new(Value::String(value))
+    }
 }
 
-impl AthirString for Object {
-    fn new(value: String) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::String(value))),
+impl Object {
+    pub fn as_string(&self) -> Result<String, Object> {
+        match *self.borrow() {
+            Value::String(ref value) => Ok(value.clone()),
+            _ => Err(Object::new_error(format!("not a string"))),
         }
     }
 
-    fn as_string(&self) -> Result<String, Object> {
-        match *self.borrow() {
-            Value::String(ref value) => Ok(value.clone()),
-            _ => Err(<Object as AthirError>::new(format!("not a string"))),
-        }
-    }
-    fn is_string(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_string().is_ok()))
+    pub fn is_string(&self) -> Result<Object, Object> {
+        Ok(Object::from(matches!(*self.borrow(), Value::String(_))))
     }
 }
 

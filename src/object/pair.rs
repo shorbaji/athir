@@ -1,82 +1,51 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 
-use crate::object::{Object, Value, Boolean, Number, AthirError};
+use crate::object::{Object, Value,};
 
-pub trait Pair {
-    fn new(car: Object, cdr: Object) -> Object;
-    fn is_pair(&self) -> Result<Object, Object>;
-    fn is_atom(&self) -> Result<Object, Object>;
-    fn as_pair(&self) -> Result<Object, Object>;
-    fn cons(&self, cdr: &Object) -> Result<Object, Object>;
-    fn car(&self) -> Result<Object, Object>;
-    fn cdr(&self) -> Result<Object, Object>;
-    fn caar(&self) -> Result<Object, Object>;
-    fn cadr(&self) -> Result<Object, Object>;
-    fn cdar(&self) -> Result<Object, Object>;
-    fn cddr(&self) -> Result<Object, Object>;
-    fn caddr(&self) -> Result<Object, Object>;
-    fn cdadr(&self) -> Result<Object, Object>;
-    fn len(&self) -> Result<Object, Object>;
-}
-
-impl Pair for Object {
-    fn new(car: Object, cdr: Object) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Pair(car, cdr))),
-        }
+impl Object {
+    fn new_pair(car: Object, cdr: Object) -> Object {
+        Object::new(Value::Pair(car, cdr))
     }
 
-    fn is_pair(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Pair(_, _) => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
-        }
+    pub fn is_pair(&self) -> Result<Object, Object> {
+        Ok(Object::from(matches!(*self.borrow(), Value::Pair(_, _))))
     }
 
-    fn is_atom(&self) -> Result<Object, Object> {
+    pub fn is_atom(&self) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Pair(_, _) => Ok(<Object as Boolean>::new(false)),
-            _ => Ok(<Object as Boolean>::new(true)),
+            Value::Pair(_, _) => Ok(Object::from(false)),
+            _ => Ok(Object::from(true)),
         }
     }
     
-    fn as_pair(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Pair(_, _) => Ok(self.clone()),
-            _ => Err(<Object as AthirError>::new(format!("not a pair"))),
-        }
+    pub fn cons(&self, cdr: &Object) -> Result<Object, Object> {
+        Ok(Object::new_pair(self.clone(), cdr.clone()))
     }
 
-    fn cons(&self, cdr: &Object) -> Result<Object, Object> {
-        Ok(<Object as Pair>::new(self.clone(), cdr.clone()))
-    }
-
-    fn car(&self) -> Result<Object, Object> { 
+    pub fn car(&self) -> Result<Object, Object> { 
         match *self.borrow() {
             Value::Pair(ref car, _) => Ok(car.clone()),
-            _ => Err(<Object as AthirError>::new(format!("not a pair"))),
+            _ => Err(Object::new_error(format!("not a pair"))),
         }
     }
 
-    fn cdr(&self) -> Result<Object, Object> { 
+    pub fn cdr(&self) -> Result<Object, Object> { 
         match *self.borrow() {
             Value::Pair(_, ref cdr) => Ok(cdr.clone()),
-            _ => Err(<Object as AthirError>::new(format!("not a pair"))),
+            _ => Err(Object::new_error(format!("not a pair"))),
         }
     }
 
-    fn caar(&self) -> Result<Object, Object> { self.car()?.car() }
-    fn cadr(&self) -> Result<Object, Object> { self.cdr()?.car() }
-    fn cdar(&self) -> Result<Object, Object> { self.car()?.cdr() }
-    fn cddr(&self) -> Result<Object, Object> { self.cdr()?.cdr() }
-    fn caddr(&self) -> Result<Object, Object> { self.cddr()?.car() }
-    fn cdadr(&self) -> Result<Object, Object> { self.cadr()?.cdr() }
+    pub fn caar(&self) -> Result<Object, Object> { self.car()?.car() }
+    pub fn cadr(&self) -> Result<Object, Object> { self.cdr()?.car() }
+    pub fn cdar(&self) -> Result<Object, Object> { self.car()?.cdr() }
+    pub fn cddr(&self) -> Result<Object, Object> { self.cdr()?.cdr() }
+    pub fn caddr(&self) -> Result<Object, Object> { self.cddr()?.car() }
+    pub fn cdadr(&self) -> Result<Object, Object> { self.cadr()?.cdr() }
     
-    fn len(&self) -> Result<Object, Object> {
+    pub fn len(&self) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Null => Ok(<Object as Number>::new("0".to_string())),
-            _ => self.cdr()?.len()?.plus(&<Object as Number>::new("1".to_string())),
+            Value::Null => Ok(Object::new_number("0".to_string())),
+            _ => self.cdr()?.len()?.plus(&Object::new_number("1".to_string())),
         }
     }
 

@@ -16,21 +16,8 @@ pub mod port;
 pub mod procedure;
 
 
-pub use crate::object::boolean::Boolean;
-pub use crate::object::bytevector::Bytevector;
-pub use crate::object::character::Character;
-pub use crate::object::env::Env;
-pub use crate::object::error::AthirError;
 pub use crate::object::keyword::Keyword;
-pub use crate::object::lambda::Lambda;
-pub use crate::object::map::Map;
-pub use crate::object::number::Number;
-pub use crate::object::pair::Pair;
-pub use crate::object::port::Port;
-pub use crate::object::procedure::{Procedure, ProcedureKind};
-pub use crate::object::string::AthirString;
-pub use crate::object::symbol::Symbol;
-pub use crate::object::vector::Vector;
+pub use crate::object::procedure::BuiltIn;
 
 use std::cell::{Ref, RefMut, RefCell};
 use std::collections::HashMap;
@@ -56,7 +43,7 @@ pub enum Value {
     Number(String),
     Pair(Object, Object),
     Port,
-    Procedure(ProcedureKind), 
+    Builtin(BuiltIn), 
     Lambda(Object, Object, Object),
     Quotation(Object),
     String(String),
@@ -84,7 +71,7 @@ impl Object {
     
         let bool = *a.borrow() ==  *b.borrow();
     
-        Ok(<Object as Boolean>::new(bool))
+        Ok(Object::from(bool))
     }
 
     pub fn is_eof(&self) -> bool {
@@ -96,8 +83,8 @@ impl Object {
 
     pub fn is_null(&self) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Null => Ok(<Object as Boolean>::new(true)),
-            _ => Ok(<Object as Boolean>::new(false)),
+            Value::Null => Ok(Object::from(true)),
+            _ => Ok(Object::from(false)),
         }
     }
 

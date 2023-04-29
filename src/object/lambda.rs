@@ -1,33 +1,19 @@
-use crate::object::{Value, Object, Env, Pair, AthirError, Boolean };
+use crate::object::{Value, Object,};
 use crate::eval::Eval;
 
-pub trait Lambda {
-    fn new(formals: Object, body: Object, parent: Object) -> Object;
-    fn as_lambda(&self) -> Result<Object, Object>;
-    fn is_lambda(&self) -> Result<Object, Object>;
-    fn apply_as_lambda(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object>;
-}
-
-impl Lambda for Object {
-    fn new(formals: Object, body: Object, parent: Object) -> Object {
+impl Object {
+    pub fn new_lambda(formals: Object, body: Object, parent: Object) -> Object {
         Object::new(Value::Lambda(formals, body, parent))
     }
 
-    fn as_lambda(&self) -> Result<Object, Object> {
-        match *self.borrow() {
-            Value::Lambda(_, _, _) => Ok(self.clone()),
-            _ => Err(<Object as AthirError>::new(format!("not a lambda"))),
-        }
+    pub fn is_lambda(&self) -> Result<Object, Object> {
+        Ok(Object::from(matches!(*self.borrow(), Value::Lambda(_, _, _))))
     }
 
-    fn is_lambda(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_lambda().is_ok()))
-    }
-
-    fn apply_as_lambda(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object> {
+    pub fn apply_as_lambda(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object> {
     
         if args.len()? == formals.len()? {
-            let new_env = <Object as Env>::new_env_with_parent(parent);
+            let new_env = Object::new_env_with_parent(parent);
     
             let mut args = args.clone();
             let mut formal:Object;
@@ -57,7 +43,7 @@ impl Lambda for Object {
     
             Ok(result)
         } else {
-            Err(<Object as AthirError>::new(format!("Wrong number of arguments")))
+            Err(Object::new_error(format!("Wrong number of arguments")))
         }
     
     }

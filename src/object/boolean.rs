@@ -1,30 +1,23 @@
-use crate::object::{Object, Value, AthirError};
-use std::rc::Rc;
-use std::cell::RefCell;
+use crate::object::{Object, Value};
 
-pub trait Boolean {
-    fn new(value: bool) -> Object;
-    fn is_boolean(&self) -> Result<Object, Object>;
-    fn as_boolean(&self) -> Result<bool, Object>;
+impl From::<bool> for Object {
+    fn from(value: bool) -> Object {
+        Object::new(Value::Boolean(value))
+    }
 }
 
-impl Boolean for Object {
-    fn new(value: bool) -> Object {
-        Object {
-            value: Rc::new(RefCell::new(Value::Boolean(value))),
-        }
-    }
-
-    fn is_boolean(&self) -> Result<Object, Object> {
-        Ok(<Object as Boolean>::new(self.as_boolean().is_ok()))
-    }
-
-    fn as_boolean(&self) -> Result<bool, Object> {
+impl Into::<Result<bool, Object>> for &Object {
+    fn into(self) -> Result<bool, Object> {
         match *(self.borrow()) {
-            Value::Boolean(ref value) => Ok(*value),
-            _ => Err(<Object as AthirError>::new(format!("not a boolean"))),
+            Value::Boolean(value) => Ok(value),
+            _ => Err(Object::new_error(format!("not a boolean"))),
         }
     }
+}
 
+impl Object {
+    pub fn is_boolean(&self) -> Result<Object, Object> {
+        Ok(Object::from(matches!(*self.borrow(), Value::Boolean(_))))
+    }
 }
 

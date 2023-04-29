@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::object::{Value, Object, Procedure, Lambda, Keyword, Env, Pair, AthirError};
+use crate::object::{Value, Object, Keyword};
 
 pub trait Eval {
     fn eval(&self, env: &Object) -> Result<Object, Object>;
@@ -36,7 +36,7 @@ impl Eval for Object {
                     }
                 }
             },
-            _ => Err(<Object as AthirError>::new(format!("Malformed expression"))),
+            _ => Err(Object::new_error(format!("Malformed expression"))),
         }
     }
 
@@ -44,15 +44,15 @@ impl Eval for Object {
         match *self.borrow() {
             Value::Null => Ok(Object::new(Value::Null)),
             Value::Pair(ref car, ref cdr) => car.eval(env)?.cons(&cdr.evlis(env)?),
-            _ => Err(<Object as AthirError>::new("Malformed args".to_string())),
+            _ => Err(Object::new_error("Malformed args".to_string())),
         }
     }
     
     fn apply(&self, operands: &Object) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Procedure(_) => self.apply_as_builtin(operands),
+            Value::Builtin(_) => self.apply_as_builtin(operands),
             Value::Lambda(ref formals, ref body, ref parent) => self.apply_as_lambda(formals, body, parent, operands),
-            _ => Err(<Object as AthirError>::new(format!("not a procedure"))),
+            _ => Err(Object::new_error(format!("not a procedure"))),
         }
     }
             
@@ -72,7 +72,7 @@ fn lambda(expr: &Object, env: &Object) -> Result<Object, Object> {
     let formals = expr.car()?;
     let body = expr.cadr()?;
 
-    Ok(<Object as Lambda>::new(formals, body, env.clone()))
+    Ok(Object::new_lambda(formals, body, env.clone()))
 }
 
 fn define(expr: &Object, env: &Object) -> Result<Object, Object> {

@@ -1,3 +1,5 @@
+use crate::object::{Object, Value};
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Keyword {
     And,
@@ -76,3 +78,9 @@ impl From<String> for Keyword {
     }
 }
 
+
+impl From<Keyword> for Object {
+    fn from(value: Keyword) -> Self {
+        Object::new(Value::Keyword(value))
+    }
+}
