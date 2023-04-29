@@ -24,8 +24,6 @@ pub enum Token {
     #[regex(r"\.")]
     Dot,
 
-    Eof,
-
     #[error]
     Error,
 
@@ -100,7 +98,6 @@ impl std::fmt::Display for Token {
             Token::SharpU8Open => format!("#u8("),
             Token::String(s) => format!("{}", s),
             Token::Whitespace => format!(" "),
-            Token::Eof => format!("eof"),
         };
         write!(f, "{}", s)
     }
