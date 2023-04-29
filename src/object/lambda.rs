@@ -1,8 +1,8 @@
 use crate::object::{Value, Object,};
 
 impl Object {
-    pub fn new_lambda(formals: Object, body: Object, parent: Object) -> Object {
-        Object::new(Value::Closure(formals, body, parent))
+    pub fn new_lambda(formals: &Object, body: &Object, parent: &Object) -> Object {
+        Object::new(Value::Closure(formals.clone(), body.clone(), parent.clone()))
     }
 
     pub fn is_lambda(&self) -> Result<Object, Object> {
@@ -10,7 +10,6 @@ impl Object {
     }
 
     pub fn apply_as_lambda(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object> {
-    
         if args.len()? == formals.len()? {
             let new_env = Object::new_env_with_parent(parent);
     
@@ -21,7 +20,6 @@ impl Object {
             while !matches!(*formals.borrow(), Value::Null) {
                 formal = formals.car()?;
                 let arg = args.car()?;
-    
                 new_env.insert(&formal, &arg)?;
     
                 formals = formals.cdr()?;
@@ -35,7 +33,7 @@ impl Object {
             let mut result = Object::new(Value::Unspecified);
     
             while !matches!(*body.borrow(), Value::Null) {
-                expr = formals.car()?;
+                expr = body.car()?;
                 result = expr.eval(&new_env)?;
                 body = body.cdr()?;
             };

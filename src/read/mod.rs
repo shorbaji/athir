@@ -67,12 +67,9 @@ impl<T> Iterator for Read<T> where T: Iterator<Item = Result<String, std::io::Er
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.expr(0) {
-            Ok(expr) if expr.is_eof() => None,
+            Err(expr) if expr.is_eof() => None,     
             Ok(expr) => Some(Ok(expr)),
-            Err(err) => {
-                // self.recover(&err);
-                Some(Err(err))
-            },
+            Err(err) => Some(Err(err)),
         }
 
     }
@@ -88,7 +85,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
 
 #[doc(hidden)]
 impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {    
-    // fn recover(&mut self, err: &Error) {
+    // fn recover(&mut self, err: &Object) {
     //     match &err {
     //         Error::UnexpectedToken{depth, unexpected: _, expected: _} => {
     //             if *depth == 0 {
@@ -401,7 +398,8 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                 let formals = self.def_formals(rdepth + 1)?;
                 self.paren_right(rdepth + 1)?;
                 let body = self.body(rdepth)?;
-                Self::list(vec!(keyword, var, formals, body))
+
+                Self::list(vec!(keyword, var, formals , body))
             },
             _ => Err(Object::new_error("expected identifier or open parenthesis".to_string())),
             // token @ _ => Err(unexpected(1, token.to_string(), "identifier or open paren".to_string())),
@@ -790,7 +788,7 @@ impl<T> Read<T> where T: Iterator<Item = Result<String, std::io::Error>> {
                             _ => Err(Object::new_error("unexpected token".to_string())),
                             // _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string())),
                         },
-                    None => Ok(Object::new_eof()),
+                    None => Err(Object::new_eof()),
                 }
             }
             _ => Err(Object::new_error("unexpected token".to_string())),

@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod tests;
 
-use crate::object::{Value::*, Object};
+use crate::object::{Value::*, Object, Value};
 use crate::object::Keyword::*;
 impl Object {
-
     pub fn eval(&self, env: &Object) -> Result<Object, Object> {
         match *self.borrow() {
             _ if self.quotable()?.into() => self.quote(),
@@ -21,6 +20,7 @@ impl Object {
                         _ => Err(Object::new_error(format!("Unknown keyword"))),
                     }
                     _ => {
+
                         let operator = car.eval(env)?;
                         let operands = cdr.evlis(env)?;
 
@@ -44,7 +44,7 @@ impl Object {
         match *self.borrow() {
             Builtin(_) => self.apply_as_builtin(operands),
             Closure(ref formals, ref body, ref parent) => self.apply_as_lambda(formals, body, parent, operands),
-            _ => Err(Object::new_error(format!("not a procedure"))),
+            _ => Err(Object::new_error(format!("apply: not a procedure"))),
         }
     }
 
@@ -68,14 +68,27 @@ impl Object {
         let formals = self.car()?;
         let body = self.cadr()?;
     
-        Ok(Object::new_lambda(formals, body, env.clone()))
+        Ok(Object::new_lambda(&formals, &body, env))
     }
     
     fn define(&self, env: &Object) -> Result<Object, Object> {
         let var = self.car()?;
-        let val = self.cadr()?.eval(env)?;
-    
-        env.insert(&var, &val)
+
+        let expr = self.cadr()?;
+        let rest = self.cddr()?;
+
+        if rest.is_null()?.into() {
+            env.insert(
+                &var,
+                &expr
+            )?;
+        } else {
+            env.insert(
+                &var, 
+                &self.cdr()?.lambda(env)?
+            )?;
+        }
+        Ok(Object::new(Value::Unspecified))
     }
     
     fn set(&self, env: &Object) -> Result<Object, Object> {
