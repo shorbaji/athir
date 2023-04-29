@@ -84,3 +84,9 @@ impl From<Keyword> for Object {
         Object::new(Value::Keyword(value))
     }
 }
+
+impl Object {
+    pub fn is_keyword(&self) -> Result<Object, Object> {
+        Ok(Object::from(matches!(*self.borrow(), Value::Keyword(_))))
+    }
+}

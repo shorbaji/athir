@@ -45,7 +45,7 @@ pub enum Value {
     Pair(Object, Object),
     Port(Port),
     Builtin(BuiltIn), 
-    Lambda(Object, Object, Object),
+    Closure(Object, Object, Object),
     Quotation(Object),
     String(String),
     Symbol(String),

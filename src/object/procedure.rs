@@ -8,14 +8,15 @@ pub enum BuiltIn {
     Variadic(fn(&Object) -> Result<Object, Object>),
 }
 
-impl From<Object> for bool {
-    fn from(value: Object) -> Self {
-        match *value.borrow() {
-            Value::Boolean(b) => b,
-            _ => true,
-        }
-    }
-}
+// impl From<Object> for bool {
+//     fn from(value: Object) -> Self {
+//         match *value.borrow() {
+//             Value::Boolean(b) => b,
+//             _ => true,
+//         }
+//     }
+// }
+
 impl Object {
     pub fn new_procedure(value: Value) -> Object {
         Object::new(value)

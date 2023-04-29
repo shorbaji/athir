@@ -1,27 +1,25 @@
 #[cfg(test)]
 mod tests;
 
-use crate::object::{Value, Object, Keyword};
-
+use crate::object::{Value::*, Object};
+use crate::object::Keyword::*;
 impl Object {
 
     pub fn eval(&self, env: &Object) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Boolean(_)
-            | Value::Bytevector(_) 
-            | Value::Character(_) 
-            | Value::Number(_) 
-            | Value::String(_)
-            | Value::Vector(_) => Ok(self.clone()),
-            | Value::Quotation(ref datum) => Ok(datum.clone()),
-            | Value::Symbol(_) => env.lookup(self),
-            | Value::Pair(ref car, ref cdr) => {
-                match *car.borrow() {
-                    Value::Keyword(Keyword::If) => iff(cdr, env),
-                    Value::Keyword(Keyword::Lambda) => lambda(cdr, env),
-                    Value::Keyword(Keyword::Define) => define(cdr, env),
-                    Value::Keyword(Keyword::Set) => set(cdr, env),
-                    Value::Keyword(Keyword::Quote) => quote(cdr),
+            _ if self.quotable()?.into() => self.quote(),
+            Symbol(_) => env.lookup(self),
+            Quotation(ref datum) => datum.quote(),
+            Pair(ref car, ref cdr) => {
+                match car {
+                    _ if car.is_keyword()?.into() => match *car.borrow() {
+                        Keyword(If) => cdr.iff( env),
+                        Keyword(Lambda) => cdr.lambda(env),
+                        Keyword(Define) => cdr.define(env),
+                        Keyword(Set) => cdr.set(env),
+                        Keyword(Quote) => cdr.quote(),    
+                        _ => Err(Object::new_error(format!("Unknown keyword"))),
+                    }
                     _ => {
                         let operator = car.eval(env)?;
                         let operands = cdr.evlis(env)?;
@@ -36,51 +34,58 @@ impl Object {
 
     fn evlis(&self, env: &Object) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Null => Ok(Object::new(Value::Null)),
-            Value::Pair(ref car, ref cdr) => car.eval(env)?.cons(&cdr.evlis(env)?),
+            Null => Ok(Object::new(Null)),
+            Pair(ref car, ref cdr) => car.eval(env)?.cons(&cdr.evlis(env)?),
             _ => Err(Object::new_error("Malformed args".to_string())),
         }
     }
     
     fn apply(&self, operands: &Object) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Builtin(_) => self.apply_as_builtin(operands),
-            Value::Lambda(ref formals, ref body, ref parent) => self.apply_as_lambda(formals, body, parent, operands),
+            Builtin(_) => self.apply_as_builtin(operands),
+            Closure(ref formals, ref body, ref parent) => self.apply_as_lambda(formals, body, parent, operands),
             _ => Err(Object::new_error(format!("not a procedure"))),
         }
     }
-            
-}
 
-fn iff(expr: &Object, env: &Object) -> Result<Object, Object> {
-    let test = expr.car()?;
-    let borrow = test.borrow();
-    
-    match *borrow {
-        Value::Boolean(_) => expr.cddr()?.eval(env),
-        _ => expr.cadr()?.eval(env),
+    fn quotable(&self) -> Result<Object, Object> {
+        Ok(Object::from(self.is_boolean()?.into() 
+                            || self.is_bytevector()?.into()
+                            || self.is_character()?.into()
+                            || self.is_number()?.into()
+                            || self.is_string()?.into() 
+                            || self.is_vector()?.into()))
     }
+
+    fn iff(&self,env: &Object) -> Result<Object, Object> {
+        match *self.car()?.eval(env)?.borrow() {        
+            Boolean(_) => self.cddr()?.eval(env),
+            _ => self.cadr()?.eval(env),
+        }
+    }
+    
+    fn lambda(&self, env: &Object) -> Result<Object, Object> {
+        let formals = self.car()?;
+        let body = self.cadr()?;
+    
+        Ok(Object::new_lambda(formals, body, env.clone()))
+    }
+    
+    fn define(&self, env: &Object) -> Result<Object, Object> {
+        let var = self.car()?;
+        let val = self.cadr()?.eval(env)?;
+    
+        env.insert(&var, &val)
+    }
+    
+    fn set(&self, env: &Object) -> Result<Object, Object> {
+        env.lookup(&self.car()?)?;
+        self.define(env)
+    }
+    
+    fn quote(&self) -> Result<Object, Object> {
+        Ok(self.clone())
+    }
+    
 }
 
-fn lambda(expr: &Object, env: &Object) -> Result<Object, Object> {
-    let formals = expr.car()?;
-    let body = expr.cadr()?;
-
-    Ok(Object::new_lambda(formals, body, env.clone()))
-}
-
-fn define(expr: &Object, env: &Object) -> Result<Object, Object> {
-    let var = expr.car()?;
-    let val = expr.cadr()?.eval(env)?;
-
-    env.insert(&var, &val)
-}
-
-fn set(expr: &Object, env: &Object) -> Result<Object, Object> {
-    env.lookup(&expr.car()?)?;
-    define(expr, env)
-}
-
-fn quote(expr: &Object) -> Result<Object, Object> {
-    Ok(expr.cadr()?)
-}

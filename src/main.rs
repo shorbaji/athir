@@ -1,7 +1,6 @@
 /// TODOs
 ///
 /// [P0]
-/// - port & reader support for stdin
 /// - port & reader support for string
 /// - port & reader support for file
 /// - eval testing
@@ -23,7 +22,5 @@ mod print;
 mod repl;
 
 fn main() -> Result<crate::object::Object, crate::object::Object> {
-    println!("athir (c) 2023 Athir LLC");
-
     repl::repl()
 }

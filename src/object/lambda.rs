@@ -2,11 +2,11 @@ use crate::object::{Value, Object,};
 
 impl Object {
     pub fn new_lambda(formals: Object, body: Object, parent: Object) -> Object {
-        Object::new(Value::Lambda(formals, body, parent))
+        Object::new(Value::Closure(formals, body, parent))
     }
 
     pub fn is_lambda(&self) -> Result<Object, Object> {
-        Ok(Object::from(matches!(*self.borrow(), Value::Lambda(_, _, _))))
+        Ok(Object::from(matches!(*self.borrow(), Value::Closure(_, _, _))))
     }
 
     pub fn apply_as_lambda(&self, formals: &Object, body: &Object, parent: &Object, args: &Object) -> Result<Object, Object> {
