@@ -55,10 +55,10 @@ impl Object {
         Ok(Object::from(matches!(*self.borrow(), Value::Port(_))))
     }
 
-    pub fn new_port_from_string(s: &String) -> Object {
-        Object::new(Value::Port(Port::String(s.clone())))
+    pub fn new_port_from_string(s: &Object) -> Result<Object, Object> {
+        Ok(Object::new(Value::Port(Port::String(s.as_string().clone()?))))
     }
-    
+
     pub fn read(&self) -> Result<Object, Object> {
         match *self.borrow() {
             Value::Port(Port::Stdin) => self.read_from_stdin(),

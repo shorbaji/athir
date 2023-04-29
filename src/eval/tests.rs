@@ -2,7 +2,7 @@ use crate::object::Object;
 
 #[test]
 fn test_boolean() {
-    let port = Object::new_port_from_string(&"1".to_string());
+    let port = Object::new_port_from_string(&Object::from("1".to_string())).unwrap();
 
     let expr = port.read().unwrap();
 

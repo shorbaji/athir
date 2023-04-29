@@ -68,6 +68,7 @@ impl Object {
             ("read", BuiltIn::Unary(Object::read)),
             ("display", BuiltIn::Unary(Object::display)),
             ("new-line", BuiltIn::Unary(Object::new_line)),
+            ("new-port-from-string", BuiltIn::Unary(Object::new_port_from_string))
         );
 
         for (symbol, kind) in pairs.into_iter() {
