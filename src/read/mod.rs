@@ -16,6 +16,26 @@ use std::iter::{once, from_fn};
 use crate::object::{Object, Keyword, Value,};
 use crate::read::lexer::{Lexer, Token};
 
+pub struct StringRead {
+    read: Read<std::vec::IntoIter<Result<String, std::io::Error>>>,
+}
+
+impl StringRead {
+    pub fn new(source: String) -> Self {
+        Self {
+            read: Read::new(vec!(Ok(source)).into_iter()),
+        }
+    }
+}
+
+impl Iterator for StringRead {
+    type Item = Result<Object, Object>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.read.next()
+    }
+}
+
 pub struct StdinRead {
     read: Read<std::io::Lines<std::io::StdinLock<'static>>>,
 }

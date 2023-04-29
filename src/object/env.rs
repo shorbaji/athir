@@ -66,6 +66,8 @@ impl Object {
             ("vector?", BuiltIn::Unary(Object::is_vector)),
             ("len", BuiltIn::Unary(Object::len)),
             ("read", BuiltIn::Unary(Object::read)),
+            ("display", BuiltIn::Unary(Object::display)),
+            ("new-line", BuiltIn::Unary(Object::new_line)),
         );
 
         for (symbol, kind) in pairs.into_iter() {
