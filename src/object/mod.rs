@@ -19,6 +19,7 @@ mod vector;
 pub use crate::object::keyword::Keyword;
 pub use crate::object::procedure::BuiltIn;
 pub use crate::object::port::Port;
+pub use crate::object::error::Error;
 
 use std::cell::{Ref, RefMut, RefCell};
 use std::collections::HashMap;
@@ -37,7 +38,7 @@ pub enum Value {
     Character(char),
     Eof,
     Env(Object, Object),
-    Error(Object),
+    Error(Error),
     Keyword(Keyword),
     Map(HashMap<String, Object>),
     Null,
@@ -61,7 +62,7 @@ impl std::fmt::Debug for Value {
             Value::Character(c) => write!(f, "<#char: {}>", c),
             Value::Eof => write!(f, "#<eof>"),
             Value::Env(_, _) => write!(f, "#<env>"),
-            Value::Error(e) => write!(f, "#<error: {:?}>", e.as_string().unwrap()),
+            Value::Error(e) => write!(f, "#<error: {:?}>", e),
             Value::Keyword(k) => write!(f, "#<keyword: {:?}>", k),
             Value::Map(m) => write!(f, "#<map: {:?}>", m),
             Value::Null => write!(f, "#<null>"),
@@ -126,6 +127,10 @@ impl Object {
             Value::Unspecified => Ok(Object::from(true)),
             _ => Ok(Object::from(false)),
         }
+    }
+
+    pub fn unspecified() -> Object {
+        Object::new(Value::Unspecified)
     }
     
     pub fn new_eof() -> Object {

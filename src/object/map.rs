@@ -18,10 +18,10 @@ impl Object {
                 let key = symbol.to_key()?;
                 match hm.get(&key) {
                     Some(val) => Ok(val.clone()),
-                    None => Err(Object::new_error(format!("unbound variable"))),
+                    None => Err(Object::runtime_error("unbound variable")?),
                 }
             },
-            _ => Err(Object::new_error(format!("not a map"))),
+            _ => Err(Object::runtime_error("not a map")?),
         }
     }
 
@@ -32,7 +32,7 @@ impl Object {
                 hm.insert(key, val.clone());
                 Ok(val.clone())
             },
-            _ => Err(Object::new_error(format!("not a map"))),
+            _ => Err(Object::runtime_error("not a map")?),
         }
     }
 }

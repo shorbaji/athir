@@ -12,7 +12,7 @@ impl Object {
     pub fn to_key(&self) -> Result<String, Object> {
         match *self.borrow() {
             Value::Symbol(ref value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a variable"))),
+            _ => Err(Object::runtime_error("not a symbol")?),
         }
     }
 

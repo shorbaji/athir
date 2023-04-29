@@ -10,7 +10,7 @@ impl Into<Result<char, Object>> for Object {
     fn into(self) -> Result<char, Object> {
         match *self.borrow() {
             Value::Character(ref value) => Ok(*value),
-            _ => Err(Object::new_error(format!("not a character"))),
+            _ => Err(Object::runtime_error("not a character")?),
         }
     }
 }

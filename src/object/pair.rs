@@ -24,14 +24,14 @@ impl Object {
     pub fn car(&self) -> Result<Object, Object> { 
         match *self.borrow() {
             Value::Pair(ref car, _) => Ok(car.clone()),
-            _ => Err(Object::new_error(format!("not a pair"))),
+            _ => Err(Object::runtime_error("not a pair")?),
         }
     }
 
     pub fn cdr(&self) -> Result<Object, Object> { 
         match *self.borrow() {
             Value::Pair(_, ref cdr) => Ok(cdr.clone()),
-            _ => Err(Object::new_error(format!("not a pair"))),
+            _ => Err(Object::runtime_error("not a pair")?),
         }
     }
 

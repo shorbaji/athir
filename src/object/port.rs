@@ -63,8 +63,8 @@ impl Object {
         match *self.borrow() {
             Value::Port(Port::Stdin) => self.read_from_stdin(),
             Value::Port(Port::String(ref s)) => self.read_from_string(s),
-            Value::Port(_) => Err(Object::new_error(format!("not implemented"))),
-            _ => Err(Object::new_error(format!("not a port"))),
+            Value::Port(_) => Err(Object::runtime_error("not implemented")?),
+            _ => Err(Object::runtime_error("not a port")?),
         }
     }
 
@@ -101,7 +101,7 @@ impl Object {
 
         match std::fs::File::open(path) {
             Ok(file) => Ok(Object::from(file)),
-            Err(err) => Err(Object::new_error(format!("failed to open file: {}", err))),
+            Err(err) => Err(Object::runtime_error(format!("failed to open file: {}", err).as_str())?),
         }
 
     }

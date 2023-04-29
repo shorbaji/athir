@@ -1,9 +1,11 @@
 #[cfg(test)]
 mod tests;
 
-use crate::object::{Value::*, Object, Value};
-use crate::object::Keyword::*;
+use crate::object::{Object, Value::{Symbol, Quotation, Pair, Keyword, Builtin, Closure, Null, Boolean}};
+use crate::object::Keyword::{If, Lambda, Define, Set, Quote};
+
 impl Object {
+
     pub fn eval(&self, env: &Object) -> Result<Object, Object> {
         match *self.borrow() {
             _ if self.is_quotable()?.into() => self.quote(),
@@ -17,7 +19,7 @@ impl Object {
                         Keyword(Define) => cdr.define(env),
                         Keyword(Set) => cdr.set(env),
                         Keyword(Quote) => cdr.quote(),    
-                        _ => Err(Object::new_error(format!("Unknown keyword"))),
+                        _ => Err(Object::runtime_error("Unknown keyword")?),
                     }
                     _ => {
 
@@ -28,7 +30,7 @@ impl Object {
                     }
                 }
             },
-            _ => Err(Object::new_error(format!("Malformed expression"))),
+            _ => Err(Object::runtime_error("Malformed expression")?),
         }
     }
 
@@ -36,7 +38,7 @@ impl Object {
         match *self.borrow() {
             Null => Ok(Object::new(Null)),
             Pair(ref car, ref cdr) => car.eval(env)?.cons(&cdr.evlis(env)?),
-            _ => Err(Object::new_error("Malformed args".to_string())),
+            _ => Err(Object::runtime_error("Malformed args")?),
         }
     }
     
@@ -44,7 +46,7 @@ impl Object {
         match *self.borrow() {
             Builtin(_) => self.apply_as_builtin(operands),
             Closure(ref formals, ref body, ref parent) => self.apply_as_lambda(formals, body, parent, operands),
-            _ => Err(Object::new_error(format!("apply: not a procedure"))),
+            _ => Err(Object::runtime_error("apply: not a procedure")?),
         }
     }
 
@@ -58,10 +60,7 @@ impl Object {
     }
 
     fn iff(&self,env: &Object) -> Result<Object, Object> {
-        println!("IF");
-        println!("{:?}", self);
-
-        match *self.car()?.eval(env)?.borrow() {        
+        match *self.car()?.eval(env)?.borrow() {
             Boolean(false) => self.caddr()?.eval(env),
             _ => self.cadr()?.eval(env),
         }
@@ -91,7 +90,7 @@ impl Object {
                 &self.cdr()?.lambda(env)?
             )?;
         }
-        Ok(Object::new(Value::Unspecified))
+        Ok(Object::unspecified())
     }
     
     fn set(&self, env: &Object) -> Result<Object, Object> {

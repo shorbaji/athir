@@ -40,7 +40,7 @@ impl Object {
     
             Ok(result)
         } else {
-            Err(Object::new_error(format!("Wrong number of arguments")))
+            Err(Object::runtime_error("Wrong number of arguments")?)
         }
     
     }

@@ -4,7 +4,7 @@ impl Into::<Result<bool, Object>> for &Object {
     fn into(self) -> Result<bool, Object> {
         match *(self.borrow()) {
             Value::Boolean(value) => Ok(value),
-            _ => Err(Object::new_error(format!("not a boolean"))),
+            _ => Err(Object::runtime_error("not a boolean")?),
         }
     }
 }

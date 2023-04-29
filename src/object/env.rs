@@ -13,14 +13,14 @@ impl Object {
 
     pub fn lookup(&self, symbol: &Object) -> Result<Object, Object> {
         match *self.borrow() {
-            Value::Null => Err(Object::new_error(format!("unbound variable"))),
+            Value::Null => Err(Object::runtime_error("unbound variable")?),
             Value::Env(ref parent, ref hm) => {
                 match hm.map_lookup(symbol) {
                     Ok(val) => Ok(val),
                     Err(_) => parent.lookup(symbol),
                 }
             },
-            _ => Err(Object::new_error(format!("not an env"))),
+            _ => Err(Object::runtime_error("not an env")?),
         }
     }
 
@@ -29,7 +29,7 @@ impl Object {
             Value::Env(_, ref hm) => {
                 hm.map_insert(symbol, val)
             },
-            _ => Err(Object::new_error(format!("not an env"))),
+            _ => Err(Object::runtime_error("not an env")?),
         }
     }
 

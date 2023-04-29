@@ -10,7 +10,7 @@ impl Object {
     pub fn as_string(&self) -> Result<String, Object> {
         match *self.borrow() {
             Value::String(ref value) => Ok(value.clone()),
-            _ => Err(Object::new_error(format!("not a string"))),
+            _ => Err(Object::runtime_error("not a string")?),
         }
     }
 

@@ -1,12 +1,11 @@
 /// TODOs
 ///
 /// [P0]
-/// - eval testing
+/// - error recovery with rdepth
 /// - call/cc
 /// - tail recursion
 /// 
 /// [P1]
-/// - error recovery with rdepth
 /// - better errors
 /// - number
 /// - standard library base
@@ -14,7 +13,8 @@
 /// - standard library char
 /// - standard library string
 /// - standard library cxr
-/// - port & reader support for file
+/// - port from/to file
+/// - result as an Object
 
 mod object;
 

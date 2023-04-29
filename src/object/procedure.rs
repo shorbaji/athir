@@ -26,7 +26,7 @@ impl Object {
             Value::Builtin(BuiltIn::Unary(f)) => f(&args.car()?),
             Value::Builtin(BuiltIn::Binary(f)) => f(&args.car()?, &args.cadr()?),
             Value::Builtin(BuiltIn::Variadic(f)) => f(args),
-            _ => Err(Object::new_error(format!("not a procedure"))),
+            _ => Err(Object::runtime_error("not a procedure")?),
         }
     }
     

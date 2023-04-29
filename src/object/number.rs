@@ -17,10 +17,10 @@ impl Object {
                         let result = num.parse::<i64>().unwrap() + other_num.parse::<i64>().unwrap();
                         Ok(Object::new_number(result.to_string()))
                     },
-                    _ => Err(Object::new_error(format!("Not a number"))),
+                    _ => Err(Object::runtime_error("Not a number")?),
                 }
             },
-            _ => Err(Object::new_error(format!("Not a number"))),
+            _ => Err(Object::runtime_error("Not a number")?),
         }
     }
     
@@ -34,7 +34,7 @@ impl Object {
                 Value::Number(ref num) => {
                     result += num.parse::<i64>().unwrap();
                 },
-                _ => return Err(Object::new_error("error with plus".to_string())),
+                _ => return Err(Object::runtime_error("error with plus")?),
             }
             args = args.cdr()?;
         }
@@ -51,7 +51,7 @@ impl Object {
                 Value::Number(ref num) => {
                     result *= num.parse::<i64>().unwrap();
                 },
-                _ => return Err(Object::new_error("error with multiply".to_string())),
+                _ => return Err(Object::runtime_error("error with multiply")?),
             }
             args = args.cdr()?;
         }
@@ -67,7 +67,7 @@ impl Object {
             Value::Number(ref num) => {
                 result = num.parse::<i64>().unwrap();
             },
-            _ => return Err(Object::new_error("error with minus".to_string())),
+            _ => return Err(Object::runtime_error("error with minus")?),
         }
     
         let mut args = args.cdr()?;
@@ -77,7 +77,7 @@ impl Object {
                 Value::Number(ref num) => {
                     result -= num.parse::<i64>().unwrap();
                 },
-                _ => return Err(Object::new_error("error with minus".to_string())),
+                _ => return Err(Object::runtime_error("error with minus")?),
             }
             args = args.cdr()?;
         }
