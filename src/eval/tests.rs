@@ -1,246 +1,155 @@
-use crate::object::{Object, Value};
+use super::*;
+use crate::stdlib::base::read;
+use crate::env::global_env;
+use crate::value::V;
+use crate::alloc::A;
 
+fn test(code: &str, predicate: fn(&V) -> bool) {
+    let mut e: R = A::null();
+    let env = global_env();
+    let port = A::port_string(code.to_string());
 
-fn result_from_str(s: &str) -> Object {
-    let port = Object::new_port_from_string(&Object::from(s.to_string())).unwrap();
-    let expr = port.read().unwrap();
-    let env = Object::new_global_env();
-    
-    expr.eval(&env).unwrap()
-
-}
-
-fn test_x_yields_x(s: &str, p: fn(&Object) -> Result<Object, Object>) {
-
-    let result = result_from_str(s);
-
-    assert!(<Object as Into<bool>>::into(p(&result).unwrap()));    
-}
-
-#[test]
-fn test_boolean_yields_boolean() {
-    test_x_yields_x("#t", |x| x.is_boolean());
-}
-
-#[test]
-fn test_bytevector_yields_bytevector() {
-    test_x_yields_x("#u8(1 2 3)", |x| x.is_bytevector());
-}
-
-#[test]
-fn test_char_yields_char() {
-    test_x_yields_x("#\\a", |x| x.is_character());
-}
-
-#[test]
-fn test_number_yields_number() {
-    test_x_yields_x("1", |x| x.is_number());
-}
-
-#[test]
-fn test_pair_yields_pair() {
-    test_x_yields_x("'(1 . 2)", |x| x.is_pair());
-}
-
-#[test]
-fn test_procedure_yields_procedure() {
-    test_x_yields_x("(lambda (x) x)", |x| x.is_procedure());
-}
-
-#[test]
-fn test_string_yields_string() {
-    test_x_yields_x("\"'a\"", |x| x.is_string());
-}
-
-#[test]
-fn test_symbol_yields_symbol() {
-    test_x_yields_x("'foo", |x| x.is_symbol());
-}
-
-#[test]
-fn test_vector_yields_vector() {
-    test_x_yields_x("#(1 2 3)", |x| x.is_vector());
-}
-
-#[test]
-fn test_define_yields_unspecified() {
-    test_x_yields_x("(define x 1)", |x| x.is_unspecified());
-}
-
-#[test]
-fn test_define_function_yields_unspecified() {
-    test_x_yields_x("(define (f x) x)", |x| x.is_unspecified());
-}
-
-#[test]
-fn test_add_two() {
-    let result = result_from_str("(+ 1 2)");
-    assert_eq!(result, Object::new_number("3".to_string()));
-}
-
-#[test]
-fn test_lambda_invocation() {
-    let result = result_from_str("((lambda (x) x) 1)");
-    assert_eq!(result, Object::new_number("1".to_string()));
-}
-
-
-#[test]
-fn test_quote_list() {
-    let result = result_from_str("(quote (a b c))");
-
-    assert_eq!(result.len().unwrap(), Object::new_number("3".to_string()));
-    assert_eq!(result.car().unwrap(), Object::new_symbol("a".to_string()));
-    assert_eq!(result.cadr().unwrap(), Object::new_symbol("b".to_string()));
-    assert_eq!(result.caddr().unwrap(), Object::new_symbol("c".to_string()));
-
-}
-
-#[test]
-fn test_boolean() {
-    let result = result_from_str("#t");
-    assert_eq!(result, Object::from(true));
-}
-
-#[test]
-fn test_bytevector() {
-    match *result_from_str("#u8(1 2 3)").borrow() {
-        Value::Bytevector(ref v) => {
-            assert_eq!(v.len().unwrap(), Object::new_number("3".to_string()));
-            assert_eq!(v.car().unwrap(), Object::new_number("1".to_string()));
-            assert_eq!(v.cadr().unwrap(), Object::new_number("2".to_string()));
-            assert_eq!(v.caddr().unwrap(), Object::new_number("3".to_string()));
-        },
-        _ => panic!("expected bytevector"),
+    loop {
+        let expr = read(Some(&port));
+        if let V::EofObject = expr.deref().borrow().deref() {
+            break;
+        }
+        e = start(&A::continuation(eval, &env, &A::null()), &expr);   
     }
+
+    println!("{:?}", e.deref().borrow().deref());
+    assert!(predicate(e.deref().borrow().deref()));
 }
 
 #[test]
-fn test_character() {
-    let result = result_from_str("#\\a");
-    assert_eq!(result, Object::from('a'));
+fn test_eval_boolean() {
+    test("#t", |e| matches!(e, V::Boolean(b) if b == &true));
 }
 
 #[test]
-fn test_number() {
-    let result = result_from_str("1");
-    assert_eq!(result, Object::new_number("1".to_string()));
+fn test_eval_bytevector() {
+    test("#u8(1 2 3)", |e| matches!(e, V::Bytevector(_) ));
 }
 
 #[test]
-fn test_string() {
-    let result = result_from_str("\"foo\"");
-    assert_eq!(result, Object::from("foo".to_string()));
+fn test_eval_character() {
+    test("#\\a", |e| matches!(e, V::Char(c) if c == &'a'));
 }
 
 #[test]
-fn test_vector() {
-    match *result_from_str("#(1 2 3)").borrow() {
-        Value::Vector(ref v) => {
-            assert_eq!(v.len().unwrap(), Object::new_number("3".to_string()));
-            assert_eq!(v.car().unwrap(), Object::new_number("1".to_string()));
-            assert_eq!(v.cadr().unwrap(), Object::new_number("2".to_string()));
-            assert_eq!(v.caddr().unwrap(), Object::new_number("3".to_string()));
-        },
-        _ => panic!("expected vector"),
-    }
+fn test_eval_null() {
+    test("'()", |e| matches!(e, V::Null));
 }
 
 #[test]
-fn test_quote_short_atom() {
-    let result = result_from_str("'a");
-    assert_eq!(result, Object::new_symbol("a".to_string()));
+fn test_eval_number() {
+    test("42", |e| matches!(e, V::Number(n) if n == &"42".to_string()));
 }
 
 #[test]
-fn test_quote_atom() {
-    let result = result_from_str("(quote a)");
-    assert_eq!(result, Object::new_symbol("a".to_string()));
+fn test_eval_pair() {
+    test("(cons 1 2)", |e| matches!(e, V::Pair(_, _) ));
 }
 
 #[test]
-fn test_quote_short_list() {
-    let result = result_from_str("'(a b c)");
-
-    assert_eq!(result.len().unwrap(), Object::new_number("3".to_string()));
-    assert_eq!(result.car().unwrap(), Object::new_symbol("a".to_string()));
-    assert_eq!(result.cadr().unwrap(), Object::new_symbol("b".to_string()));
-    assert_eq!(result.caddr().unwrap(), Object::new_symbol("c".to_string()));
-
+fn test_eval_port() {
+    test("(open-input-string \"hello\")", |e| matches!(e, V::Port(_) ));
 }
 
 #[test]
-fn test_lookup() {
-    let result = result_from_str("+");
-    assert_eq!(result.is_procedure().unwrap(), Object::from(true));
+fn test_eval_procedure() {
+    test("(lambda (x) x)", |e| matches!(e, V::Procedure(_) ));
 }
 
 #[test]
-fn test_if_consequent() {
-    let result = result_from_str("(if #t 1 2)");
-    assert_eq!(result, Object::new_number("1".to_string()));
+fn test_eval_string() {
+    test("\"hello\"", |e| matches!(e, V::String(s) if s == &"hello".to_string()));
 }
 
 #[test]
-fn test_if_alternative() {
-    let result = result_from_str("(if #f 1 2)");
-    assert_eq!(result, Object::new_number("2".to_string()));
+fn test_eval_vector() {
+    test("#(1 2 3)", |e| matches!(e, V::Vector(_) ));
+}
+
+#[test]
+fn test_eval_symbol_not_found() {
+    test("x", |e| matches!(e, V::Error(_)));
+}
+
+#[test]
+fn test_eval_symbol_found() {
+    test("identity", |e| matches!(e, V::Procedure(_)));
+}
+
+#[test]
+fn test_quote_short() {
+    test("'x", |e| matches!(e, V::Symbol(s) if s == &"x".to_string()));
+}
+
+#[test]
+fn test_quote_long() {
+    test("(quote x)", |e| matches!(e, V::Symbol(s) if s == &"x".to_string()));
+}
+
+#[test]
+fn test_procedure_call_built_in() {
+    test("(identity 1)", |e| matches!(e, V::Number(n) if n == &"1".to_string()));
+}
+
+#[test]
+fn test_procedure_call_lambda() {
+    test("((lambda (x) x) 1)", |e| matches!(e, V::Number(n) if n == &"1".to_string()));
+}
+
+#[test]
+fn test_procedure_call_lambda_nested() {
+    test("((lambda (x) ((lambda (x) x) x)) 1)", |e| matches!(e, V::Number(n) if n == &"1".to_string()));
 }
 
 #[test]
 fn test_lambda() {
-    let result = result_from_str("(lambda (x) x)");
-    assert_eq!(result.is_procedure().unwrap(), Object::from(true));
+    test("(lambda (x) x)", |e| matches!(e, V::Procedure(_)));
+}
+
+#[test]
+fn test_if() {
+    test("(if #t 1 2)", |e| matches!(e, V::Number(n) if n == &"1".to_string()));
+}
+
+#[test]
+fn test_if_false() {
+    test("(if #f 1 2)", |e| matches!(e, V::Number(n) if n == &"2".to_string()));
+}
+
+#[test]
+fn test_if_compound_test() {
+    test("(if (identity #t) 1 2)", |e| matches!(e, V::Number(n) if n == &"1".to_string()));
+}
+
+#[test]
+fn test_if_test_not_boolean() {
+    test("(if 1 1 2)", |e| matches!(e, V::Number(n) if n == &"1".to_string()));
 }
 
 #[test]
 fn test_define() {
-    let result = result_from_str("(define x 1)");
-    assert_eq!(result.is_unspecified().unwrap(), Object::from(true));
+    test("(define x 1) x", |e| matches!(e, V::Number(n) if n == &"1".to_string()));
 }
 
 #[test]
-fn test_define_function() {
-    let result = result_from_str("(define (f x) x)");
-    assert_eq!(result.is_unspecified().unwrap(), Object::from(true));
+fn test_define_lambda() {
+    test("(define x (lambda (x) x)) (x 1)", |e| matches!(e, V::Number(n) if n == &"1".to_string()));
 }
 
 #[test]
-fn test_procedure_call() {
-    let result = result_from_str("((lambda (x) x) 1)");
-    assert_eq!(result, Object::new_number("1".to_string()));
+fn test_set_after_define() {
+    test("(define x 1) (set! x 2) x", |e| matches!(e, V::Number(n) if n == &"2".to_string()));
 }
 
 #[test]
-fn test_builtin_procedure_call() {
-    let result = result_from_str("(+ 1 2)");
-    assert_eq!(result, Object::new_number("3".to_string()));
+fn test_set_without_define_error() {
+    test("(set! x 2)", |e| matches!(e, V::Error(_)));
 }
 
-#[test]
-fn test_apply() {
-    let result = result_from_str("(apply + '(1 2 3))");
-    assert_eq!(result, Object::new_number("6".to_string()));
-}
 
-// #[test]
-// fn test_set() {
-//     let env = Object::new_global_env();
 
-//     let s = "(define x 1) (set! x 2) x";
-
-//     let port = Object::new_port_from_string(&Object::from(s.to_string())).unwrap();
-
-//     let expr = port.read().unwrap();  
-//     let result = expr.eval(&env).unwrap();
-//     assert_eq!(result.is_unspecified().unwrap(), Object::from(true));
-
-//     let expr = port.read().unwrap();  
-//     let result = expr.eval(&env).unwrap();
-//     assert_eq!(result.is_unspecified().unwrap(), Object::from(true));
-
-//     let expr = port.read().unwrap();  
-//     let result = expr.eval(&env).unwrap();
-//     assert_eq!(result, Object::new_number("2".to_string()));
-
-// }

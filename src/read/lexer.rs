@@ -37,21 +37,10 @@ pub use token::Token;
 /// It holds a Peekable iterator over the tokens produced by the DelimitedLexer 
 /// It also holds a source which is an iterator over strings of input.
 
-#[derive(Debug)]
-pub struct Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Error>> {
-    inner: Peekable<std::vec::IntoIter<Token>>,
-    source: T,
-}
-
-
-impl<T> Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Error>>{
-    pub fn new(source: T) -> Self {
-        Self {
-            inner: vec!().into_iter().peekable(), 
-            source,
-        }
-    }
-
+pub trait Lexer {
+    fn read_line(&mut self) -> Option<String>;
+    fn get_tokens(&mut self) -> &mut Peekable<std::vec::IntoIter<Token>>;
+    fn set_tokens(&mut self, tokens: Peekable<std::vec::IntoIter<Token>>);
     /// refresh
     /// 
     /// This function:
@@ -63,18 +52,13 @@ impl<T> Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Err
     /// - returns the iterator
 
     fn refresh(&mut self) -> std::result::Result<Peekable<std::vec::IntoIter<Token>>, std::io::Error> {
-        match self.source.next() {
-            Some(Ok(line)) => {
+        match self.read_line() {
+            Some(line) => {
                 let lexer = DelimitedLexer::new(&line);
                 let tokens = lexer.collect::<Vec<Token>>();
                 Ok(tokens.into_iter().peekable())
             },
-            Some(Err(err)) => {
-                Err(err) 
-            },
-            None => {
-                Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "No more input"))
-            }
+            None => Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "No more input")),
         }
     }
 
@@ -83,38 +67,39 @@ impl<T> Lexer<T> where T: Iterator<Item=std::result::Result<String, std::io::Err
     /// if no more tokens are available from the current Peekable iterator
     /// then this function calls refresh to get a new one
     ///
-    pub fn peek(&mut self) -> Option<&Token> {
-        while self.inner.peek().is_none() {
+    fn peek(&mut self) -> Option<Token> {
+        while self.get_tokens().peek().is_none() {
             match self.refresh() {
-                Ok(inner) => self.inner = inner,
+                Ok(inner) => self.set_tokens(inner),
                 Err(_) => return None,
             }
         }
 
-        self.inner.peek()
+        match self.get_tokens().peek() {
+            Some(token) => Some(token.clone()),
+            None => None,
+        }
     }
 
-}
-
-impl<T> Iterator for Lexer<T> 
-    where T: Iterator<Item=std::result::Result<String, std::io::Error>> {
-    type Item = Token;
-
-    /// next
-    /// 
-    /// if no more tokens are available from the current Peekable iterator
-    /// then this function calls refresh to get a new one
-    fn next(&mut self) -> Option<Self::Item> {
-        while self.inner.peek().is_none() {
+    fn get_next_token(&mut self) -> Option<Token> {
+        while self.get_tokens().peek().is_none() {
             match self.refresh() {
-                Ok(inner) => self.inner = inner,
-                Err(err) => {
-                    println!("Error refreshing: {}", err);
-                    return None;
-                }
+                Ok(inner) => self.set_tokens(inner),
+                Err(_) => return None,
             }
         }
-        
-        self.inner.next()
+
+        self.get_tokens().next()
+    }
+
+    fn peek_next_token(&mut self) -> Option<Token> {
+        while self.get_tokens().peek().is_none() {
+            match self.refresh() {
+                Ok(inner) => self.set_tokens(inner),
+                Err(_) => return None,
+            }
+        }
+
+        self.get_tokens().peek().cloned()
     }
 }

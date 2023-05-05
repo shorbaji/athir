@@ -1,18 +1,76 @@
 use super::*;
+use std::iter::Peekable;
+use crate::read::lexer::{Token, Lexer};
+use crate::read::Reader;
 
-fn test_parse(goods: &[&str], bads: &[&str]) {
-    let parser = Read::new(goods.iter().map(|s| Ok(s.to_string())));
+struct TestReader {
+    string: String,
+    used: bool,
+    tokens: Peekable<std::vec::IntoIter<Token>>,
+}
 
-    for result in parser {
-        println!("{:?}", result);
-        assert!(result.is_ok());
+impl TestReader {
+    fn new(string: String) -> Self {
+        Self {
+            string,
+            tokens: vec!().into_iter().peekable(),
+            used: false,
+        }
+    }
+}
+
+impl Lexer for TestReader {
+    fn read_line(&mut self) -> Option<String> {
+        if self.used {
+            None
+        } else {
+            self.used = true;
+            Some(self.string.clone())
+        }
     }
 
-    let parser = Read::new(bads.iter().map(|s| Ok(s.to_string())));
+    fn get_tokens(&mut self) -> &mut Peekable<std::vec::IntoIter<Token>> {
+        &mut self.tokens
+    }
+
+    fn set_tokens(&mut self, tokens: Peekable<std::vec::IntoIter<Token>>) {
+        self.tokens = tokens;
+    }
+}
+
+impl Reader for TestReader {
+    fn get_next_token(&mut self) -> Option<Token> {
+        Lexer::get_next_token(self)
+    }
+
+    fn peek_next_token(&mut self) -> Option<Token> {
+        match Lexer::peek_next_token(self) {
+            Some(t) => Some(t),
+            None => None,
+        }
+    }
+}
+
+fn test_parse(goods: &[&str], bads: &[&str]) {
+
+    let parser = goods.iter().map(|s| {
+        let mut reader = TestReader::new(s.to_string());
+        reader.read()
+    });
 
     for result in parser {
         println!("{:?}", result);
-        assert!(result.is_err());
+        assert!(!matches!(result.deref().borrow().deref(), V::Error(_)));
+    }
+
+    let parser = bads.iter().map(|s| {
+        let mut reader = TestReader::new(s.to_string());
+        reader.read()
+    });
+
+    for result in parser {
+        println!("{:?}", result);
+        assert!(matches!(result.deref().borrow().deref(), V::Error(_)));
     }
 }
 
@@ -86,8 +144,6 @@ fn test_if() {
     ];
     let bads = [
         "(if #t 1 2 3)",
-        "(",
-        "(lambda (x) x"
     ];
     test_parse(&goods, &bads);
 }

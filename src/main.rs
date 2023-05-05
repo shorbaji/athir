@@ -1,29 +1,15 @@
-/// TODOs
-///
-/// [P0]
-/// - error recovery with rdepth
-/// - call/cc
-/// - tail recursion
-/// 
-/// [P1]
-/// - better errors
-/// - number
-/// - standard library base
-/// - standard library write
-/// - standard library char
-/// - standard library string
-/// - standard library cxr
-/// - port from/to file
-/// - result as an Object
 
-mod object;
-
-mod read;
+mod alloc;
+mod env; 
 mod eval;
-mod print;
-
+mod read;
 mod repl;
+mod stdlib;
+mod value;
 
-fn main() -> Result<crate::object::Object, crate::object::Object> {
-    repl::repl()
+use repl::repl;
+
+fn main() {
+    println!("Athir Scheme v0.0.3 (c) 2023 Athir LLC");
+    repl();
 }
