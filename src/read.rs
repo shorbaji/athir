@@ -1,5 +1,5 @@
 
-//! Rthir parser/reader module.
+//! Athir parser/reader module.
 
 //! Deviations from R7RS:
 //! - string inline hex escapes not implemented
@@ -21,9 +21,33 @@ use crate::alloc::{A, R};
 use crate::read::lexer::Token;
 use crate::value::{V, Keyword, Error};
 
+/// Reader trait
+/// 
+/// Implements the reader/parser for the Athir interpreter
+/// Requires a get_next_token() function that returns the next token from the input stream
+/// Requires a peek_next_token() function that returns the next token from the input stream without consuming it
+/// Provides a read() function that reads an expression from the input stream
+/// Read function is implemented as a recursive descent parser
 pub trait Reader {
+
+    // required functions
     fn get_next_token(&mut self) -> Option<Token>;
     fn peek_next_token(&mut self) -> Option<Token>;
+    
+    // provided function
+
+
+    /// read()
+    /// the starting point for the recursive descent parser is the expr() function
+    /// 
+    /// The parser implements an error recovery strategy that 1) keeps track of the depth of the parsing,
+    /// i.e. the number of left parentheses encountered minus the number of right parentheses encountered
+    /// and 2) skips to the next right parenthesis when an error is encountered in a compound expression
+    /// To implement this strategy, the parser maintains the depth value. The depth value is incremented
+    /// when a left parenthesis is encountered and decremented when a right parenthesis is encountered.
+    /// We start with a depth of zero which is passed on to the entry point of the parser, the expr() function.
+    /// 
+    /// Recovery is implemented by the recover() function
     
     fn read(&mut self) -> R {
         match self.expr(0) {
@@ -32,6 +56,7 @@ pub trait Reader {
         }
     }
 
+    /// the error recovery function
     fn recover(&mut self, error: &R) {
         match error.deref().borrow().deref() {
             V::Error(Error::Syntax { ref depth, .. }) => {
@@ -1434,12 +1459,6 @@ pub trait Reader {
     }
 
     fn peek_or_eof(&mut self) -> Result<Token, R> {
-        self.peek().ok_or(A::eof_object())
+        self.peek_next_token().ok_or(A::eof_object())
     }
-
-    fn peek(&mut self) -> Option<Token> {
-        // self.lexer.peek().ok_or(SyntaxError::EndOfInput))
-        self.peek_next_token()
-    }
-
 }
