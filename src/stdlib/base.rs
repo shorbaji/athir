@@ -1,6 +1,7 @@
 use crate::value::V;
 use crate::alloc::{A, R};
 use std::ops::{Deref, DerefMut};
+use crate::eval::apply;
 
 //
 // Equivalence predicates
@@ -154,6 +155,10 @@ pub fn is_procedure(e: &R) -> R {
         V::Procedure(_) => A::boolean(true),
         _ => A::boolean(false)
     }
+}
+
+pub fn call_cc(e: &R, r: &R, k: &R) -> (R, R) {
+    apply(&car(e), &cons(k, &A::null()), r, k)
 }
 
 //

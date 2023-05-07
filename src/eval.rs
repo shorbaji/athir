@@ -1,3 +1,11 @@
+//! # Eval
+//! 
+//! The eval module implements the eval function which evaluates an expression in an environment
+//! This is implemented with a trampoline (driver loop) which takes a continuation and an expression
+//! and calls the continuation with the expression
+//! The continuation returns a new continuation and a new expression to the trampoline
+//! 
+
 #[cfg(test)]
 mod tests;
 
@@ -8,39 +16,46 @@ use crate::alloc::{A, R};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
-pub fn start(k: &R, e: &R) -> R{
+
+/// The trampline (driver loop) takes a continuation and an expression and calls the continuation with the expressios
+///
+/// There are three types of continuations:
+/// 
+/// 1. Continuation - a continuation that only captures the environment (r) and continuation (k) in which it is created (Procedure::Continuation)
+///     this is accompanied with a ternary function f(e, r, k)
+/// 
+/// 2. ContinuationPlus - a continuation that also captures an additional object (o) 
+///    this is accompanied with a quaternary function f(e, o, r, k)
+/// 
+/// 3. ContinuationNull - the null continuation which terminates the driver loop
+/// 
+pub fn trampoline(k: &R, e: &R) -> R{
     let mut k = k.clone();
     let mut e = e.clone();
 
     loop {
-        (k, e) = resume(&k, &e);
-
-        if let V::Null = k.deref().borrow().deref() {
-            return e;
-        }
+        (k, e) = match k.deref().borrow().deref() {
+            V::Procedure(Procedure::Continuation { f, r, k }) => f(&e, r, k),
+            V::Procedure(Procedure::ContinuationPlus { f, o, r, k }) => f(&e, o, r, k),
+            V::Procedure(Procedure::ContinuationNull) => { println!(""); std::process::exit(0) },
+            _ => panic!("not a continuation {:?}", k)
+        }    
     }
 }
 
-fn resume(k: &R, e: &R) -> (R, R) {
-    match k.deref().borrow().deref() {
-        V::Procedure(Procedure::Continuation { f, r, k }) => f(e, r, k),
-        V::Procedure(Procedure::ContinuationPlus { f, o, r, k }) => f(e, o, r, k),
-        V::Procedure(Procedure::ContinuationNull) => { println!(""); std::process::exit(0) },
-        _ => panic!("not a continuation {:?}", k)
-    }
-}
-
-pub fn eval_program(_e: &R, program: &R, r: &R, k: &R) -> (R, R) {
+/// The eval_program function evaluates a program which is a list of expressions
+pub fn _eval_program(_e: &R, program: &R, r: &R, k: &R) -> (R, R) {
     match program.deref().borrow().deref() {
         V::Null => (k.clone(), A::null()),
         V::Pair(car, cdr) => {
-            let then = A::continuation_plus(eval_program, cdr, &r, &k);
+            let then = A::continuation_plus(_eval_program, cdr, &r, &k);
             (A::continuation(eval, r, &then), car.clone())
         },
         _ => (k.clone(), A::runtime_error(format!("expected a program as a list of exprs {:?}", program)))
     }
 }
 
+/// The eval function evaluates an expression in an environment
 pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
     match e.deref().borrow().deref() {
         V::Boolean(_) 
@@ -70,6 +85,7 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
     }
 }
 
+/// Evaluate a define expression
 fn eval_define(e: &R, r: &R, k: &R) -> (R, R) {
     let var = car(e);
     let val = cadr(e);
@@ -78,6 +94,7 @@ fn eval_define(e: &R, r: &R, k: &R) -> (R, R) {
     (A::continuation(eval, r, &then), val)
 }
 
+/// Evaluate a set expression
 fn eval_set(e: &R, r: &R, k: &R) -> (R, R) {
     let var = car(e);
     let val = cadr(e);
@@ -113,6 +130,7 @@ fn eval_define_or_set_cont(val: &R, var: &R, r: &R, k: &R) -> (R, R) {
     }
 }
 
+/// Evaluate an if expression
 fn eval_if(e: &R, r: &R, k: &R) -> (R, R) {
     let test = car(e);
     let rest = cdr(e);
@@ -128,6 +146,7 @@ fn eval_if_cont(test: &R, rest: &R, r: &R, k: &R) -> (R, R) {
     }
 }
 
+/// Evaluate a lambda expression
 fn eval_lambda(e: &R, r: &R, k: &R) -> (R, R) {
     let formals = car(e);
     let body = cdr(e);
@@ -138,24 +157,31 @@ fn eval_lambda(e: &R, r: &R, k: &R) -> (R, R) {
     (k.clone(), A::closure(&formals, &body, &env))
 }
 
+/// Evaluate a quote expression
 fn eval_quote(e: &R, _r: &R, k: &R) -> (R, R) {
     (k.clone(), car(e))
 }
 
+/// Evaluate an application expression
 fn eval_application(operator: &R, operands: &R, r: &R, k: &R) -> (R, R) {
     let then = A::continuation_plus(eval_operator_cont, operands, r, k);
+
+    // note: we evaluate the operator before the operands
     (A::continuation(eval, r, &then), operator.clone())
 }
 
+/// Evaluate the operands after the operator
 fn eval_operator_cont(e: &R, o: &R, r: &R, k: &R) -> (R, R) {
     let then = A::continuation_plus(eval_operands_cont, e, r, k);
     (A::continuation(evlis, r, &then), o.clone())
 }
 
+/// Apply the evaluated operator to the evaluated operands
 fn eval_operands_cont(operands: &R, operator: &R, r: &R, k: &R) -> (R, R) {
     apply(operator, operands, r, k)
 }
 
+/// Evaluate a list of expressions
 pub fn evlis(ls: &R, r: &R, k: &R) -> (R, R) {
     match ls.deref().borrow().deref() {
         V::Null => (k.clone(), A::null()),
@@ -176,7 +202,10 @@ fn eval_cdr_cont(cdr: &R, car: &R, _r: &R, k: &R) -> (R, R) {
     (k.clone(), cons(car, cdr))
 }
 
-fn apply(operator: &R, operands: &R, r: &R, k: &R) -> (R, R) {
+#[doc(hidden)]
+/// Apply a procedure to a list of arguments
+/// pub for call/cc which applies a procedure to the current continuation
+pub fn apply(operator: &R, operands: &R, r: &R, k: &R) -> (R, R) {
     match operator.deref().borrow().deref() {
         V::Procedure(Procedure::PrimitiveUnary(f,_ )) => (k.clone(), f(&car(operands))),
         V::Procedure(Procedure::PrimitiveBinary(f, _)) => (k.clone(), f(&car(operands), &cadr(operands))),
@@ -187,8 +216,8 @@ fn apply(operator: &R, operands: &R, r: &R, k: &R) -> (R, R) {
                 _ => (k.clone(), A::runtime_error(format!("not a list {:?}", operands)))
         },
         V::Procedure(Procedure::PrimitiveERK(f, _)) => f(operands, r, k),
-        V::Procedure(Procedure::Continuation { f:_ , r:_, k:_ }) => resume(operator, &car(operands)),
-        V::Procedure(Procedure::ContinuationPlus { f:_, o:_, r:_, k: _ }) => resume(operator, &car(operands)),
+        V::Procedure(Procedure::Continuation { f:_ , r:_, k:_ }) => (operator.clone(), car(operands)),
+        V::Procedure(Procedure::ContinuationPlus { f:_, o:_, r:_, k: _ }) => (operator.clone(), car(operands)),
         _  => (k.clone(), A::runtime_error(format!("not a procedure {:?}", operator))),
     }
 }
@@ -245,8 +274,4 @@ fn lookup(s: &String, r: &R) -> R {
     } else {
         A::runtime_error("not an environment".to_string())
     }
-}
-
-pub fn call_cc(e: &R, r: &R, k: &R) -> (R, R) {
-    apply(&car(e), &cons(k, &A::null()), r, k)
 }

@@ -14,7 +14,7 @@ fn test(code: &str, predicate: fn(&V) -> bool) {
         if let V::EofObject = expr.deref().borrow().deref() {
             break;
         }
-        e = start(&A::continuation(eval, &env, &A::null()), &expr);   
+        e = trampoline(&A::continuation(eval, &env, &A::null()), &expr);   
     }
 
     println!("{:?}", e.deref().borrow().deref());

@@ -1,5 +1,5 @@
 use crate::alloc::{R, A};
-use crate::eval::{call_cc, evlis};
+use crate::eval::evlis;
 use crate::stdlib::base::*;
 use crate::stdlib::cxr::*;
 

@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use crate::alloc::{A, R};
 use crate::env::global_env;
-use crate::eval::{eval, start};
+use crate::eval::{eval, trampoline};
 use crate::stdlib::base::{car, cons, read};
 use crate::value::{V};
 
@@ -12,10 +12,6 @@ use crate::value::{V};
 /// 
 /// Implements the read eval print loop by starting the interpreter driver loop (trampline) with
 /// the initial continuation to prompt the user for input and then read
-/// 
-/// The driver loop (trampoline) is implemented by the start() function in src/eval.rs
-/// It takes a continuation and an expression and calls the continuation with the expression
-/// The continuation returns a new continuation and a new expression to the trampoline
 /// 
 
 pub fn repl() {
@@ -28,7 +24,7 @@ pub fn repl() {
     let ports = cons(&A::port_stdin(), &A::port_stdout());
 
     // start the interpreter driver loop (trampoline) with the read continuation and the pair of ports
-    start(&k, &ports);
+    trampoline(&k, &ports);
 }
 
 /// The read continuation function prompts the user for input and then reads the input
