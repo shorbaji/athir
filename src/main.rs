@@ -10,6 +10,6 @@ mod value;
 use repl::repl;
 
 fn main() {
-    println!("Athir Scheme v0.0.3 (c) 2023 Athir LLC");
+    println!("Athir Scheme {} (c) 2023 Athir LLC", env!("CARGO_PKG_VERSION"));
     repl();
 }
