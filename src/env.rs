@@ -1,3 +1,7 @@
+//! # Environment
+//! 
+//! This module contains the global_env() function that populates a global environment with primitive functions
+//! 
 use crate::alloc::{R, A};
 use crate::eval::evlis;
 use crate::stdlib::base::*;

@@ -1,3 +1,8 @@
+//! # Allocator
+//! 
+//! Allocates new values and returns references to them.
+//! Currently uses Rust's Rc<RefCell<...>> for reference counting and interior mutability.
+//! 
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::HashMap;

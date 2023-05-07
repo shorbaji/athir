@@ -182,6 +182,7 @@ fn eval_operands_cont(operands: &R, operator: &R, r: &R, k: &R) -> (R, R) {
 }
 
 /// Evaluate a list of expressions
+/// pub for use by the list primitive
 pub fn evlis(ls: &R, r: &R, k: &R) -> (R, R) {
     match ls.deref().borrow().deref() {
         V::Null => (k.clone(), A::null()),
