@@ -1,3 +1,8 @@
+//! # cxr
+//! 
+//! cxr functions are used to access the elements of a list.
+//! R7RS section 6.1 Standard procedures - cxr library
+//! 
 use crate::alloc::R;
 use crate::stdlib::base::{car, cdr, caar, cadr, cdar, cddr};
 

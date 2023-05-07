@@ -1,3 +1,7 @@
+//! Base library
+//! 
+//! R7RS section 6.1. Standard procedures - base library
+//! 
 use crate::value::V;
 use crate::alloc::{A, R};
 use std::ops::{Deref, DerefMut};
