@@ -1,15 +1,47 @@
 use crate::read::lexer::Token;
 use crate::read::lexer::Lexer;
+use std::iter::Peekable;
 
-fn test_input<T>(input: &str, expected: T)
-where
-    T: IntoIterator<Item = Token>,
+struct TestLexer {
+    string: String,
+    used: bool,
+    tokens: Peekable<std::vec::IntoIter<Token>>,
+}
+
+impl TestLexer {
+    fn new(string: String) -> Self {
+        Self {
+            string,
+            tokens: vec!().into_iter().peekable(),
+            used: false,
+        }
+    }
+}
+impl Lexer for TestLexer {
+    fn read_line(&mut self) -> Option<String> {
+        if self.used {
+            None
+        } else {
+            self.used = true;
+            Some(self.string.clone())
+        }
+    }
+
+    fn get_tokens(&mut self) -> &mut Peekable<std::vec::IntoIter<Token>> {
+        &mut self.tokens
+    }
+
+    fn set_tokens(&mut self, tokens: Peekable<std::vec::IntoIter<Token>>) {
+        self.tokens = tokens;
+    }
+}
+
+fn test_input(input: &str, expected: Vec<Token>)
 {
-    let source = vec![Ok(input.to_string())].into_iter();
-    let mut lex = Lexer::new(source);
+    let mut lex = TestLexer::new(input.to_string());
     
     for token in expected {
-        assert_eq!(lex.next(), Some(token));
+        assert_eq!(lex.get_next_token(), Some(token));
     }
 }
 

@@ -1,31 +1,15 @@
-//! **athir** is a Cloud Lisp engine
-//!
-//! Language features are:
-//! - native multi-tenancy with first-class identity (and access management)
-//! - a universal, supra-global, persistent scope
-//! - a universal distributed VM
-//!
-//! Modules are:
-//! - a lexical analyzer
-//! - a repl
-//! - tools including a lexeme generator and a regex generator
 
-mod read;
+mod alloc;
+mod env; 
 mod eval;
+mod read;
 mod repl;
+mod stdlib;
+mod value;
 
 use repl::repl;
 
-/// Main entry point
-///
-/// At the moment, the main function simply prints a welcome message and calls the REPL.
-/// This will evolve into launching a server and listening for connections or setting up a remote REPL to a server
-fn main() -> std::io::Result<()> {
-
-
-    env_logger::init();
-
-    println!("athir (c) 2023 Athir LLC");
+fn main() {
+    println!("Athir Scheme {} (c) 2023 Athir LLC", env!("CARGO_PKG_VERSION"));
     repl();
-    Ok(())
 }
