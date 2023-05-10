@@ -11,7 +11,6 @@
 mod tests;
 pub mod lexer;
 
-
 use std::ops::Deref;
 use std::iter::{once, from_fn};
 

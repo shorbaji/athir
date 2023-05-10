@@ -24,9 +24,6 @@ pub enum Token {
     #[regex(r"\.")]
     Dot,
 
-    #[error]
-    Error,
-
     #[regex(r"(;[^(\r\n|\r|\n)]*)", logos::skip)]
     Comment,
 
@@ -87,7 +84,6 @@ impl std::fmt::Display for Token {
             Token::Directive => format!("#"),
             Token::VerticalLineIdentifier(s) => format!("|{}|", s),
             Token::Dot => format!("."),
-            Token::Error => format!("error"),
             Token::Identifier(s) => format!("{}", s),
             Token::Number(n) => format!("{}", n),
             Token::ParenLeft => format!("("),

@@ -35,41 +35,47 @@ impl Iterator for DelimitedLexer<'_> {
         // If the next token is a boolean, character, directive, dot, identifier (without vertical lines), number
         // then we need to check if the lexeme after it starts with a delimiter.
         match self.inner.peek()? {
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::Dot
-            | Token::Directive 
-            | Token::Identifier(_)
-            | Token::Number(_) => {
+            Ok(Token::Boolean(_))
+            | Ok(Token::Character(_))
+            | Ok(Token::Dot)
+            | Ok(Token::Directive)
+            | Ok(Token::Identifier(_))
+            | Ok(Token::Number(_)) => {
                 let token = self.inner.next()?; // Consume the token
 
                 match self.inner.peek() {
                     Some(next) => match next {
-                        Token::Error
-                        | Token::Whitespace
-                        | Token::ParenRight
-                        | Token::ParenLeft
-                        | Token::String(_)
-                        | Token::Comment
-                        | Token::VerticalLineIdentifier(_)=> Some(token),
-                        _ => { self.inner.next(); Some(Token::Error)
+                        Err(_)
+                        | Ok(Token::Whitespace)
+                        | Ok(Token::ParenRight)
+                        | Ok(Token::ParenLeft)
+                        | Ok(Token::String(_))
+                        | Ok(Token::Comment)
+                        | Ok(Token::VerticalLineIdentifier(_))=> Some(token.unwrap()),
+                        _ => { self.inner.next(); None
                         }
                     },
-                    None => Some(token),
+                    None => Some(token.unwrap()),
                 }
             },
-            Token::VerticalLineIdentifier(id) => {
+            Ok(Token::VerticalLineIdentifier(id)) => {
                 let token = Token::Identifier(id.clone());
                 self.inner.next();
                 Some(token)
             },
-            Token::Whitespace => {
-                while let Some(Token::Whitespace) = self.inner.peek() {
+            Ok(Token::Whitespace) => {
+                while let Some(Ok(Token::Whitespace)) = self.inner.peek() {
                     self.inner.next();
                 }
-                self.inner.next()
+                match self.inner.next() {
+                    Some(Ok(token)) => Some(token),
+                    _ => None,
+                }
             },
-            _ => self.inner.next(),    
+            _ => match self.inner.next() {
+                Some(Ok(token)) => Some(token),
+                _ => None,
+            }    
         }
     }
 }    
