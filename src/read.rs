@@ -9,6 +9,7 @@
 
 #[cfg(test)]
 mod tests;
+
 pub mod lexer;
 
 use std::ops::Deref;

@@ -37,7 +37,7 @@ pub fn trampoline(k: &R, e: &R) -> R{
         (k, e) = match k.deref().borrow().deref() {
             V::Procedure(Procedure::Continuation { f, r, k }) => f(&e, r, k),
             V::Procedure(Procedure::ContinuationPlus { f, o, r, k }) => f(&e, o, r, k),
-            V::Procedure(Procedure::ContinuationNull) => { println!(""); std::process::exit(0) },
+            V::Procedure(Procedure::ContinuationNull) => { return e },
             _ => panic!("not a continuation {:?}", k)
         }    
     }

@@ -12,7 +12,8 @@ fn test(code: &str, predicate: fn(&V) -> bool) {
 
     loop {
         let expr = read(Some(&port));
-        if let V::EofObject = expr.deref().borrow().deref() {
+        let borrow = expr.deref().borrow();
+        if let V::EofObject = borrow.deref() {
             break;
         }
         e = trampoline(&A::continuation(eval, &env, &A::continuation_null()), &expr);   

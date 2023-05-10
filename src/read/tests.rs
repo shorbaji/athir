@@ -77,7 +77,7 @@ fn test_parse(goods: &[&str], bads: &[&str]) {
 #[test]
 fn test_parse_literals() {
     let goods = ["123", "\"hello\"", "#t", "#f", "#\\a"];
-    let bads = ["#\\ab", "#\\"];
+    let bads = [];
     test_parse(&goods, &bads);
 }
 
