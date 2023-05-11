@@ -1,11 +1,14 @@
 // TODO 
-// - [ ] Lexer for number-specific tokens
-// - [ ] Parser for numbers
-// - [ ] Apply parser to existin lexer's to_number() function
-// - [ ] Uncomment eval tests
-// - [ ] Uncomment lexer test_number()
+// - [x] Lexer for number-specific tokens
+// - [x] Parser for numbers
+// - [x] Apply parser to existin lexer's to_number() function
 // - [x] link value::Number to pub enum V
-// - [ ] Tests
+// - [x] Uncomment lexer test_number()
+// - [ ] More tests for number parsing
+// - [ ] Guard for out of bound integers and floats in number parser with errors
+// - [ ] Uncomment eval tests
+// - [ ] expose number built-ins to global env
+// - [ ] add more number built-ins
 
 mod alloc;
 mod env; 

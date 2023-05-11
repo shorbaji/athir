@@ -317,7 +317,7 @@ fn real_sign_uinteger(
                 exact: real.exact,
                 value: RealValue::Integer {
                     positive: sign,
-                    value: isize::from_str_radix(s, 2).unwrap() as u32,
+                    value: s.parse().unwrap(),
                 },
             },
         });
@@ -326,6 +326,16 @@ fn real_sign_uinteger(
     match token? {
         Ok(DecimalNumberToken::Backslash) => real_sign_uinteger_backslash(lex, real, sign, s),
         Ok(DecimalNumberToken::Dot) => real_sign_uinteger_dot(lex, Some(real.exact), real.clone(), Some(sign), Some(s)),
+        Ok(DecimalNumberToken::I) => Some(Number::Complex {
+            real: real.clone(),
+            imag: Real {
+                exact: real.exact,
+                value: RealValue::Integer {
+                    positive: sign,
+                    value: s.parse().unwrap(),
+                },
+            },
+        }),
         _ => None,
     }
 }
@@ -480,8 +490,8 @@ fn real_sign_uinteger_backslash_uinteger(
                 exact: real.exact,
                 value: RealValue::Rational {
                     positive: sign,
-                    num: isize::from_str_radix(s1, 2).unwrap() as u32,
-                    den: isize::from_str_radix(s2, 2).unwrap() as u32,
+                    num: s1.parse().unwrap(),
+                    den: s2.parse().unwrap(),
                 },
             },
         }),
@@ -562,7 +572,7 @@ fn real_at_uinteger(
                 exact: real.exact,
                 value: RealValue::Integer {
                     positive: sign.unwrap_or(true),
-                    value: isize::from_str_radix(s, 2).unwrap() as u32,
+                    value: s.parse().unwrap(),
                 },
             },
         });
@@ -624,7 +634,7 @@ pub enum DecimalNumberToken {
     #[regex(r"(\+inf\.0|\+INF\.0)")]
     InfPlus,
 
-    #[regex(r"((\-inf\.0)|(\-INF\.0))")]
+    #[regex(r"((-inf\.0)|(-INF\.0))")]
     InfMinus,
 
     #[token("-")]
