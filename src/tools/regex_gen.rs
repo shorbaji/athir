@@ -42,20 +42,23 @@ mod regex_generator {
                 complexc, complexe, complexd, complexb, complexf, complexg, complexa, complexh,
             );
             let num = format!("({}{})", prefix, complex);
-            num
+            (num, prefix, real, ureal, uinteger)            
         }};
     }
 
     pub fn gen_regex() {
         let explicit_sign = r"(\+|-)";
 
-        let num2 = number_regex!("(0|1)", "(#b)", false);
-        let num8 = number_regex!("[0-7]", "(#o)", false);
-        let num10 = number_regex!("([0-9])", "((#d)?)", true);
-        let num16 = number_regex!("([0-9a-fA-F])", "(#x)", false);
+        let (num2, prefix2, real2, ureal2, uinteger2) = number_regex!("(0|1)", "(#b)", false);
+        let (num8, prefix8, real8, ureal8, uinteger8)= number_regex!("[0-7]", "(#o)", false);
+        let (num10, prefix10, real10, ureal10, uinteger10) = number_regex!("([0-9])", "((#d)?)", true);
+        let (num16, prefix16, real16, ureal16, uinteger16) = number_regex!("([0-9a-fA-F])", "(#x)", false);
         let number = format!("({}|{}|{}|{})", num2, num8, num10, num16);
 
         let digit = r"[0-9]".to_string();
+        let exponent_marker = "(e|E)";
+        let sign = r"((\+|-)?)";
+        let suffix = format!(r"(({}{}({}+))?)", exponent_marker, sign, digit);
         let digit16 = r"[0-9a-fA-F]";
         let line_ending = r"(\r\n|\r|\n)";
         let intraline_whitespace = r"( |\t)";
@@ -152,6 +155,12 @@ mod regex_generator {
             boolean_long_true, boolean_long_false, boolean_short
         );
 
+        let decimal10a = format!("({}+{})", digit, suffix);
+        let decimal10b = format!(r"(\.{}+{})", digit, suffix);
+        let decimal10c = format!(r"({}+\.{}*{})", digit, digit, suffix);
+        let decimal10 = format!("({}|{}|{})", decimal10a, decimal10b, decimal10c);
+
+
         println!("boolean:\n{}\n", boolean);
         println!("character:\n{}\n", character);
         // println!("identifier:\n{}\n", identifier);
@@ -164,6 +173,36 @@ mod regex_generator {
         println!("directive:\n{}\n", directive);
         println!("number:\n{}\n", number);
         println!("string:\n{}\n", string);
+
+        println!("prefix2:\n{}\n", prefix2);
+        println!("prefix8:\n{}\n", prefix8);
+        println!("prefix10:\n{}\n", prefix10);
+        println!("prefix16:\n{}\n", prefix16);
+
+        println!("ureal2:\n{}\n", ureal2);
+        println!("ureal8:\n{}\n", ureal8);
+        println!("ureal10:\n{}\n", ureal10);
+        println!("ureal16:\n{}\n", ureal16);
+
+        println!("real2:\n{}\n", real2);
+        println!("real8:\n{}\n", real8);
+        println!("real10:\n{}\n", real10);
+        println!("real16:\n{}\n", real16);
+
+        println!("uinteger2:\n{}\n", uinteger2);
+        println!("uinteger8:\n{}\n", uinteger8);
+        println!("uinteger10:\n{}\n", uinteger10);
+        println!("uinteger16:\n{}\n", uinteger16);
+
+        println!("suffix:\n{}\n", suffix);
+
+        println!("decimal10:\n{}\n", decimal10);
+
+        println!("num2:\n{}\n", num2);
+        println!("num8:\n{}\n", num8);
+        println!("num10:\n{}\n", num10);
+        println!("num16:\n{}\n", num16);
+
     }
 }
 

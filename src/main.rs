@@ -1,3 +1,11 @@
+// TODO 
+// - [ ] Lexer for number-specific tokens
+// - [ ] Parser for numbers
+// - [ ] Apply parser to existin lexer's to_number() function
+// - [ ] Uncomment eval tests
+// - [ ] Uncomment lexer test_number()
+// - [x] link value::Number to pub enum V
+// - [ ] Tests
 
 mod alloc;
 mod env; 

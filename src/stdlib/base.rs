@@ -6,6 +6,7 @@ use crate::value::V;
 use crate::alloc::{A, R};
 use std::ops::{Deref, DerefMut};
 use crate::eval::apply;
+use crate::value::number::Number;
 
 //
 // Equivalence predicates
@@ -69,7 +70,7 @@ pub fn cdr(e: &R) -> R {
 }
 
 pub fn len(e: &R) -> R {
-    fn len_acc(e: &R, acc: i32) -> i32 {
+    fn len_acc(e: &R, acc: u32) -> u32 {
         match e.deref().borrow().deref() {
             V::Null => acc,
             V::Pair(_, cdr) => len_acc(cdr, acc + 1),
@@ -77,7 +78,7 @@ pub fn len(e: &R) -> R {
         }
     }
 
-    A::number(format!("{}", len_acc(e, 0)))
+    A::number(Number::from(len_acc(e, 0)))
 }
 
 pub fn is_null(e: &R) -> R {

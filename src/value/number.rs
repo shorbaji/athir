@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests;
-mod real;
+pub mod real;
 
 use std::ops::{Add, Sub, Mul, Div, Neg};
 use real::{Real, Integer, Irrational};

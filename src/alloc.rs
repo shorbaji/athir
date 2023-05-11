@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-use crate::value::{V, port::Port, Keyword, Procedure, Error};
+use crate::value::{V, port::Port, Keyword, Procedure, Error, number::Number};
 
 #[derive(Clone, Debug)]
 pub struct R {
@@ -48,8 +48,8 @@ impl A {
         R::new(V::Null)
     }
     
-    pub fn number(s: String) -> R {
-        R::new(V::Number(s))
+    pub fn number(n: Number) -> R {
+        R::new(V::Number(n))
     }
 
     pub fn pair(car: &R, cdr: &R) -> R {

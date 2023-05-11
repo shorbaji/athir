@@ -23,7 +23,6 @@
 mod tests;
 
 mod delimited;
-mod number;
 mod token;
 
 use std::iter::Peekable;

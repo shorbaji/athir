@@ -1313,7 +1313,7 @@ pub trait Reader {
 
     fn uinteger10(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
-            Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => {
+            Token::Number(n) if n.is_integer() => {
                 match self.get_next_token() {
                     Some(Token::Number(n)) => Ok(A::number(n)),
                     _ => return Err(A::eof_object()),

@@ -5,13 +5,14 @@ use std::collections::HashMap;
 use port::Port;
 use crate::alloc::R;
 
+use number::Number;
 pub enum V {
     Boolean(bool),
     Bytevector(R),
     Char(char),
     EofObject,
     Null,
-    Number(String),
+    Number(Number),
     Pair(R, R),
     Port(Port),
     Procedure(Procedure),
@@ -34,7 +35,7 @@ impl std::fmt::Debug for V {
             V::Char(c) => write!(f, "Char({})", c),
             V::EofObject => write!(f, "EofObject"),
             V::Null => write!(f, "Null"),
-            V::Number(n) => write!(f, "Number({})", n),
+            V::Number(n) => write!(f, "Number({:?})", n),
             V::Pair(car, cdr) => write!(f, "Pair({:?}, {:?})", car, cdr),
             V::Port(p) => write!(f, "Port {:?}", p),
             V::Procedure(p) => write!(f, "Procedure {:?}", p),
