@@ -5,4 +5,5 @@
 pub mod nondecimal;
 pub mod decimal;
 
-pub use nondecimal::{parse_number, NonDecimalNumberToken};
+pub use nondecimal::parse_nondecimal;
+pub use decimal::parse_decimal;

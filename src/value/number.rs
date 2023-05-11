@@ -139,7 +139,6 @@ impl Number {
     }
 
     pub fn simplify(&self) -> Self {
-        println!("SIMPLIFYING {:?}", self);
         match self {
             Number::Real(r) => Number::Real(r.simplify()),
             Number::Complex{real, imag} => Number::Complex{real: real.simplify(), imag: imag.simplify()},

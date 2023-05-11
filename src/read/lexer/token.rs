@@ -7,7 +7,9 @@ use crate::value::number::Number;
 
 mod number;
 
-use number::{parse_number};
+use number::{parse_nondecimal};
+
+use self::number::parse_decimal;
 
 #[derive(Logos, Debug, PartialEq, Clone)]
 pub enum Token {
@@ -168,23 +170,18 @@ fn to_string(lex: &mut Lexer<Token>) -> Option<String> {
     Some(s)
 }
 
-fn number_parse(lex: &mut Lexer<Token>, radix: usize) -> Option<Number> {
-    // Some(lex.slice().to_string())
-    Some(Number::from(42))
-}
-
 fn binary_number_parse(lex: &mut Lexer<Token>) -> Option<Number> {
-    parse_number(lex.slice(), 2)
+    parse_nondecimal(lex.slice(), 2)
 }
 
 fn octal_number_parse(lex: &mut Lexer<Token>) -> Option<Number> {
-    parse_number(lex.slice(), 8)    
+    parse_nondecimal(lex.slice(), 8)    
 }
 
 fn hexadecimal_number_parse(lex: &mut Lexer<Token>) -> Option<Number> {
-    parse_number(lex.slice(), 16)
+    parse_nondecimal(lex.slice(), 16)
 }
 
 fn decimal_number_parse(lex: &mut Lexer<Token>) -> Option<Number> {
-    Some(Number::from(42))
+    parse_decimal(lex.slice()).map(|n| n.simplify())
 }

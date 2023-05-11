@@ -62,7 +62,7 @@ pub enum NonDecimalNumberToken {
 
 }
 
-pub fn parse_number(s: &str, radix: u32) -> Option<Number> {
+pub fn parse_nondecimal(s: &str, radix: u32) -> Option<Number> {
     let mut lex = NonDecimalNumberToken::lexer(s);
 
     num(&mut lex, radix)
@@ -89,8 +89,6 @@ fn num(lex: &mut Lexer<NonDecimalNumberToken>, r: u32) -> Option<Number> {
 }
 
 fn infnan(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, value: RealValue, sign: bool) -> Option<Number> {
-    let token = lex.next()?;
-
     real(lex, r, Real { exact: true, value: value }, Some(sign))
 }
 
@@ -308,6 +306,9 @@ fn real(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, real: Real, sign: Option
             real: Real::from(0),
             imag: Real::from(1),
         }),
+        Ok(NonDecimalNumberToken::Uinteger2) if r == 2 => real_sign_uinteger(lex, r, real, sign.unwrap_or(true), lex.slice()),
+        Ok(NonDecimalNumberToken::Uinteger8) if r == 8 => real_sign_uinteger(lex, r, real, sign.unwrap_or(true), lex.slice()),
+        Ok(NonDecimalNumberToken::Uinteger16) if r == 16 => real_sign_uinteger(lex, r, real, sign.unwrap_or(true), lex.slice()),
         _ => None,
     }
 }
