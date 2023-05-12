@@ -1,18 +1,3 @@
-// TODO 
-// - [x] Lexer for number-specific tokens
-// - [x] Parser for numbers
-// - [x] Apply parser to existin lexer's to_number() function
-// - [x] link value::Number to pub enum V
-// - [x] Uncomment lexer test_number()
-// - [x] real @ uinteger dot ...
-// - [x] More tests for number parsing
-// - [x] Uncomment eval tests
-// - [x] expose number built-ins to global env
-// - [x] +, -, *, and / variadic functions in global env
-// - [x] Guard for out of bound integers and floats in number parser with errors
-// - [ ] make noise when there is a lexical or parse error
-// - [ ] add more number built-ins such as sqrt, remainder, quotient, etc
-
 mod alloc;
 mod env; 
 mod eval;

@@ -1,10 +1,10 @@
 use std::io::Write;
 use std::ops::Deref;
 
-use crate::alloc::{A, R};
-use crate::env::global_env;
-use crate::eval::{eval, trampoline};
-use crate::stdlib::base::{car, cons, read};
+use crate::alloc::{A, R}; // A is the allocator, R is the reference type
+use crate::env::global_env; // global_env() returns the global environment
+use crate::eval::{eval, trampoline}; // eval() evaluates an expression, trampoline() is the interpreter driver loop
+use crate::stdlib::base::{car, cons, read}; // required base functions
 use crate::value::{V};
 
 ///
@@ -20,8 +20,11 @@ pub fn repl() {
     // Create the initial read continuation which 
     let k = A::continuation(read_cont, &env, &A::continuation_null());
 
-    // Create a pair of ports for stdin and stdout
-    let ports = cons(&A::port_stdin(), &A::port_stdout());
+    // Allocate a pair of ports for/with stdin and stdout
+    let ports = cons(
+        &A::port_stdin(), 
+        &A::port_stdout() 
+    );
 
     // start the interpreter driver loop (trampoline) with the read continuation and the pair of ports
     trampoline(&k, &ports);

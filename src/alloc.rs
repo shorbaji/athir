@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-use crate::value::{V, port::Port, Keyword, Procedure, Error, number::Number};
+use crate::value::{V, port::Port, Keyword, procedure::Procedure, Error, number::Number};
 
 #[derive(Clone, Debug)]
 pub struct R {

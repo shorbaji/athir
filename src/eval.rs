@@ -10,25 +10,23 @@
 mod tests;
 
 use crate::stdlib::base::{car, cdr, cons, cadr};
-use crate::value::{V, Procedure, Keyword};
+use crate::value::{V, procedure::Procedure, Keyword};
 use crate::alloc::{A, R};
 
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
 
-/// The trampline (driver loop) takes a continuation and an expression and calls the continuation with the expressios
+/// The trampline (driver loop) takes a continuation and an expression and calls the continuation with the expressions
 ///
 /// There are three types of continuations:
-/// 
 /// 1. Continuation - a continuation that only captures the environment (r) and continuation (k) in which it is created (Procedure::Continuation)
 ///     this is accompanied with a ternary function f(e, r, k)
-/// 
 /// 2. ContinuationPlus - a continuation that also captures an additional object (o) 
 ///    this is accompanied with a quaternary function f(e, o, r, k)
-/// 
 /// 3. ContinuationNull - the null continuation which terminates the driver loop
 /// 
+
 pub fn trampoline(k: &R, e: &R) -> R{
     let mut k = k.clone();
     let mut e = e.clone();
@@ -152,8 +150,6 @@ fn eval_lambda(e: &R, r: &R, k: &R) -> (R, R) {
     let body = cdr(e);
     let env = r.clone();
 
-    println!("formals: {:?}", formals);
-    println!("body: {:?}", body);
     (k.clone(), A::closure(&formals, &body, &env))
 }
 
