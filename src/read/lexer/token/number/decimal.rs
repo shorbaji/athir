@@ -1,5 +1,5 @@
 use logos::{Lexer, Logos};
-use crate::value::number::{Number, real::{Real, RealValue}};
+use crate::value::{number::{Number, real::{Real, RealValue, Irrational, Integer}}};
 
 pub fn parse_decimal(s: &str) -> Option<Number> {
     let mut lex = DecimalNumberToken::lexer(s);
@@ -102,7 +102,13 @@ fn uinteger(
 ) -> Option<Number> {
     let token = lex.next();
 
-    let int: u32 = s.parse().unwrap();
+    let int= s.parse::<Integer>();
+
+    if let Err(_) = int {
+        return None;
+    }
+
+    let int = int.unwrap() as u32;
 
     let real = Real {
         exact: exact.unwrap_or(true),
@@ -141,9 +147,18 @@ fn uinteger_dot(
     let token = lex.next();
 
     if None == token && s.is_some() {
+
+        let value = s.unwrap().parse::<Irrational>();
+
+        if let Err(_) = value {
+            return None;
+        }
+
+        let value = value.unwrap();
+
         return Some(Number::Real(Real {
             exact: exact.unwrap_or(true),
-            value: RealValue::Irrational(s.unwrap().parse().unwrap())
+            value: RealValue::Irrational(value)
         }));
     }
 
@@ -163,7 +178,18 @@ fn uinteger_dot_uinteger(
 ) -> Option<Number> {
     let token = lex.next();
 
-    let r = Real { exact: exact.unwrap_or(true), value: RealValue::Irrational(format!("{}.{}", s.unwrap(), t.unwrap()).parse().unwrap()) };
+    let value = format!("{}.{}", s.unwrap(), t.unwrap()).parse::<Irrational>();
+
+    if let Err(_) = value {
+        return None;
+    }
+
+    let value = value.unwrap();
+
+    let r = Real {
+        exact: exact.unwrap_or(true),
+        value: RealValue::Irrational(value)
+    };
 
     if None == token && s.is_some() && t.is_some() {
         return Some(Number::Real(r));
@@ -229,9 +255,17 @@ fn uinteger_dot_uinteger_e_uinteger(
         u.unwrap_or("")
     );
 
+    let value = s.parse::<Irrational>();
+
+    if let Err(_) = value {
+        return None;
+    }
+
+    let value = value.unwrap();
+
     let r = Real {
         exact: exact.unwrap_or(true),
-        value: RealValue::Irrational(s.parse().unwrap()),
+        value: RealValue::Irrational(value),
     };
 
     real(lex, r, sign)
@@ -245,10 +279,18 @@ fn uinteger_backslash(
 ) -> Option<Number> {
     let token = lex.next()?;
 
+    let den = lex.slice().parse::<Integer>();
+
+    if let Err(_) = den {
+        return None;
+    }
+
+    let den = den.unwrap();
+    
     match token {
         Ok(DecimalNumberToken::Uinteger) => {
             let num = value;
-            let den = lex.slice().parse().unwrap();
+            let den = den;
 
             let value = RealValue::Rational {
                 positive: sign.unwrap_or(true),
@@ -319,6 +361,14 @@ fn real_sign_uinteger(
 ) -> Option<Number> {
     let token = lex.next();
 
+    let value = s.parse::<Integer>();
+
+    if let Err(_) = value {
+        return None;
+    }
+
+    let value = value.unwrap();
+
     if None == token {
         return Some(Number::Complex {
             real: real.clone(),
@@ -326,7 +376,7 @@ fn real_sign_uinteger(
                 exact: real.exact,
                 value: RealValue::Integer {
                     positive: sign,
-                    value: s.parse().unwrap(),
+                    value: value,
                 },
             },
         });
@@ -341,7 +391,7 @@ fn real_sign_uinteger(
                 exact: real.exact,
                 value: RealValue::Integer {
                     positive: sign,
-                    value: s.parse().unwrap(),
+                    value: value,
                 },
             },
         }),
@@ -359,12 +409,20 @@ fn real_sign_uinteger_dot(
 ) -> Option<Number> {
     let token = lex.next();
 
+    let value = s.unwrap().parse::<Irrational>();
+
+    if let Err(_) = value {
+        return None;
+    }
+
+    let value = value.unwrap();
+
     if None == token && s.is_some() {
         return Some(Number::Complex {
             real: real,
             imag: Real {
                 exact: exact.unwrap_or(true),
-                value: RealValue::Irrational(s.unwrap().parse().unwrap())
+                value: RealValue::Irrational(value),
             }
         });
     }
@@ -386,12 +444,20 @@ fn real_sign_uinteger_dot_uinteger(
 ) -> Option<Number> {
     let token = lex.next();
 
+    let value = format!("{}.{}", s.unwrap(), t.unwrap()).parse::<Irrational>();
+
+    if let Err(_) = value {
+        return None;
+    }
+
+    let value = value.unwrap();
+
     if None == token && s.is_some() && t.is_some() {
         return Some(Number::Complex {
             real: real,
             imag: Real {
                 exact: exact.unwrap_or(true),
-                value: RealValue::Irrational(format!("{}.{}", s.unwrap(), t.unwrap()).parse().unwrap())
+                value: RealValue::Irrational(value)
             }    
         });
     }
@@ -457,9 +523,17 @@ fn real_sign_uinteger_dot_uinteger_e_uinteger(
         u.unwrap_or("")
     );
 
+    let value = s.parse::<Irrational>();
+
+    if let Err(_) = value {
+        return None;
+    }
+
+    let value = value.unwrap();
+
     let imag = Real {
         exact: exact.unwrap_or(true),
-        value: RealValue::Irrational(s.parse().unwrap()),
+        value: RealValue::Irrational(value),
     };
 
     let token = _lex.next()?;
@@ -493,6 +567,20 @@ fn real_sign_uinteger_backslash_uinteger(
 ) -> Option<Number> {
     let token = lex.next()?;
 
+    let num = s1.parse::<Integer>();
+    let den = s2.parse::<Integer>();
+
+    if let Err(_) = num {
+        return None;
+    }
+
+    if let Err(_) = den {
+        return None;
+    }
+
+    let num = num.unwrap();
+    let den = den.unwrap();
+
     match token {
         Ok(DecimalNumberToken::I) => Some(Number::Complex {
             real: real.clone(),
@@ -500,8 +588,8 @@ fn real_sign_uinteger_backslash_uinteger(
                 exact: real.exact,
                 value: RealValue::Rational {
                     positive: sign,
-                    num: s1.parse().unwrap(),
-                    den: s2.parse().unwrap(),
+                    num: num,
+                    den: den,
                 },
             },
         }),
@@ -575,13 +663,21 @@ fn real_at_uinteger(
     let token = lex.next();
 
     if None == token {
+        let value = s.parse::<Integer>();
+
+        if let Err(_) = value {
+            return None;
+        }
+    
+        let value = value.unwrap();
+    
         return Some(Number::Complex {
             real: real.clone(),
             imag: Real {
                 exact: real.exact,
                 value: RealValue::Integer {
                     positive: sign.unwrap_or(true),
-                    value: s.parse().unwrap(),
+                    value: value,
                 },
             },
         });
@@ -678,9 +774,17 @@ fn real_at_uinteger_dot_uinteger_e_uinteger(
         u.unwrap_or("")
     );
 
+    let value = s.parse::<Irrational>();
+
+    if let Err(_) = value {
+        return None;
+    }
+
+    let value = value.unwrap();
+
     let imag = Real {
         exact: real.clone().exact,
-        value: RealValue::Irrational(s.parse().unwrap()),
+        value: RealValue::Irrational(value),
     };
 
     Some(Number::Complex {
@@ -698,6 +802,22 @@ fn real_at_uinteger_backslash(
 ) -> Option<Number> {
     let token = lex.next()?;
 
+    let num = s.parse::<Integer>();
+
+    if let Err(_) = num {
+        return None;
+    }
+
+    let num = num.unwrap();
+
+    let den = lex.slice().parse::<Integer>();
+
+    if let Err(_) = den {
+        return None;
+    }
+
+    let den = den.unwrap();
+
     match token {
         Ok(DecimalNumberToken::Uinteger) => Some(Number::Complex {
             real: real.clone(),
@@ -705,8 +825,8 @@ fn real_at_uinteger_backslash(
                 exact: real.exact,
                 value: RealValue::Rational {
                     positive: sign.unwrap_or(true),
-                    num: s.parse().unwrap(),
-                    den: lex.slice().parse().unwrap(),
+                    num: num,
+                    den: den,
                 },
             },
         }),

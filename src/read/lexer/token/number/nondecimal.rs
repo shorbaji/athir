@@ -154,7 +154,13 @@ fn uinteger(
 ) -> Option<Number> {
     let token = lex.next();
 
-    let int = isize::from_str_radix(s, r).unwrap() as u32;
+    let int = isize::from_str_radix(s, r);
+
+    if let Err(_) = int {
+        return None;
+    };
+    
+    let int = int.unwrap() as u32;
 
     let real = Real {
         exact: exact.unwrap_or(true),
@@ -208,7 +214,13 @@ fn uinteger_backslash_uinteger(
     s: &str,
 ) -> Option<Number> {
     let num = value;
-    let den = isize::from_str_radix(s, r).unwrap() as u32;
+    let den = isize::from_str_radix(s, r);
+    
+    if let Err(_) = den {
+        return None;
+    };
+
+    let den = den.unwrap() as u32;
 
     let value = RealValue::Rational {
         positive: sign.unwrap_or(true),
@@ -292,6 +304,14 @@ fn real_sign_uinteger(
 ) -> Option<Number> {
     let token = lex.next();
 
+    let value = isize::from_str_radix(s, r);
+
+    if let Err(_) = value {
+        return None;
+    };
+
+    let value = value.unwrap() as u32;
+
     if None == token {
         return Some(Number::Complex {
             real: real.clone(),
@@ -299,7 +319,7 @@ fn real_sign_uinteger(
                 exact: real.exact,
                 value: RealValue::Integer {
                     positive: sign,
-                    value: isize::from_str_radix(s, r).unwrap() as u32,
+                    value: value
                 },
             },
         });
@@ -313,7 +333,7 @@ fn real_sign_uinteger(
                 exact: real.exact,
                 value: RealValue::Integer {
                     positive: sign,
-                    value: isize::from_str_radix(s, r).unwrap() as u32,
+                    value: value,
                 },
             },
         }),
@@ -348,6 +368,22 @@ fn real_sign_uinteger_backslash_uinteger(
 ) -> Option<Number> {
     let token = lex.next()?;
 
+    let num = isize::from_str_radix(s1, r);
+
+    if let Err(_) = num {
+        return None;
+    };
+
+    let num = num.unwrap() as u32;
+
+    let den = isize::from_str_radix(s2, r);
+
+    if let Err(_) = den {
+        return None;
+    };
+
+    let den = den.unwrap() as u32;
+
     match token {
         Ok(NonDecimalNumberToken::I) => Some(Number::Complex {
             real: real.clone(),
@@ -355,8 +391,8 @@ fn real_sign_uinteger_backslash_uinteger(
                 exact: real.exact,
                 value: RealValue::Rational {
                     positive: sign,
-                    num: isize::from_str_radix(s1, r).unwrap() as u32,
-                    den: isize::from_str_radix(s2, r).unwrap() as u32,
+                    num: num,
+                    den: den,
                 },
             },
         }),
@@ -434,6 +470,14 @@ fn real_at_uinteger(
 ) -> Option<Number> {
     let token = lex.next();
 
+    let value = isize::from_str_radix(s, r);
+
+    if let Err(_) = value {
+        return None;
+    };
+
+    let value = value.unwrap() as u32;
+
     if None == token {
         return Some(Number::Complex {
             real: real.clone(),
@@ -441,7 +485,7 @@ fn real_at_uinteger(
                 exact: real.exact,
                 value: RealValue::Integer {
                     positive: sign.unwrap_or(true),
-                    value: isize::from_str_radix(s, r).unwrap() as u32,
+                    value: value,
                 },
             },
         });
@@ -462,6 +506,22 @@ fn real_at_uinteger_backslash(
 ) -> Option<Number> {
     let token = lex.next()?;
 
+    let num = isize::from_str_radix(s, r);
+
+    if let Err(_) = num {
+        return None;
+    };
+
+    let num = num.unwrap() as u32;
+
+    let den = isize::from_str_radix(lex.slice(), r);
+
+    if let Err(_) = den {
+        return None;
+    };
+
+    let den = den.unwrap() as u32;
+
     match token {
         Ok(NonDecimalNumberToken::Uinteger2)
         | Ok(NonDecimalNumberToken::Uinteger8)
@@ -471,8 +531,8 @@ fn real_at_uinteger_backslash(
                 exact: real.exact,
                 value: RealValue::Rational {
                     positive: sign.unwrap_or(true),
-                    num: isize::from_str_radix(s, r).unwrap() as u32,
-                    den: isize::from_str_radix(lex.slice(), r).unwrap() as u32,
+                    num: num,
+                    den: den,
                 },
             },
         }),
