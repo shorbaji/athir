@@ -9,9 +9,6 @@ pub enum NonDecimalNumberToken {
     #[token("/")]
     Backslash,
 
-    #[regex(r"(([0-9]+(((e|E)((\+|-)?)([0-9]+))?))|(\.[0-9]+(((e|E)((\+|-)?)([0-9]+))?))|([0-9]+\.[0-9]*(((e|E)((\+|-)?)([0-9]+))?)))", priority = 2)]
-    Decimal,
-
     #[regex(r"(#e|#E)")]
     Exact,
 
@@ -47,9 +44,6 @@ pub enum NonDecimalNumberToken {
 
     #[token("#x")]
     Radix16,
-
-    #[regex(r"(((e|E)((\+|-)?)([0-9]+))?)", priority = 2)]
-    Suffix,
 
     #[regex(r"[0-1]+", priority = 8)]
     Uinteger2,
@@ -114,6 +108,10 @@ fn exact(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, exact: bool) -> Option<
         Ok(NonDecimalNumberToken::Radix2) if r == 2 => prefix(lex, r, exact),
         Ok(NonDecimalNumberToken::Radix8) if r == 8 => prefix(lex, r, exact),
         Ok(NonDecimalNumberToken::Radix16) if r == 16 => prefix(lex, r, exact),
+        Ok(NonDecimalNumberToken::InfMinus) => infnan(lex, r, RealValue::NegInfinity, false),
+        Ok(NonDecimalNumberToken::InfPlus) => infnan(lex, r, RealValue::Infinity, true),
+        Ok(NonDecimalNumberToken::NanMinus) => infnan(lex, r, RealValue::Nan, false),
+        Ok(NonDecimalNumberToken::NanPlus) => infnan(lex, r, RealValue::Nan, true),
         _ => None,
     }
 }
@@ -124,42 +122,10 @@ fn prefix(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, exact: bool) -> Option
     match token {
         Ok(NonDecimalNumberToken::Plus) => sign(lex, r, true, Some(exact)),
         Ok(NonDecimalNumberToken::Minus) => sign(lex, r, false, Some(exact)),
-        Ok(NonDecimalNumberToken::InfPlus) => real(
-            lex,
-            r,
-            Real {
-                exact: exact,
-                value: RealValue::Infinity,
-            },
-            Some(true), // positive and can be followed by i
-        ),
-        Ok(NonDecimalNumberToken::InfMinus) => real(
-            lex,
-            r,
-            Real {
-                exact: exact,
-                value: RealValue::NegInfinity,
-            },
-            Some(false), // negative and can be followed by i
-        ),
-        Ok(NonDecimalNumberToken::NanMinus) => real(
-            lex,
-            r,
-            Real {
-                exact: exact,
-                value: RealValue::Nan,
-            },
-            Some(false), // negative and can be followed by i
-        ),
-        Ok(NonDecimalNumberToken::NanPlus) => real(
-            lex,
-            r,
-            Real {
-                exact: exact,
-                value: RealValue::Nan,
-            },
-            Some(true), // positive and can be followed by i
-        ),
+        Ok(NonDecimalNumberToken::InfPlus) => infnan(lex, r, RealValue::Infinity, true),
+        Ok(NonDecimalNumberToken::InfMinus) => infnan(lex, r, RealValue::NegInfinity, false),
+        Ok(NonDecimalNumberToken::NanMinus) => infnan(lex, r, RealValue::Nan, false),
+        Ok(NonDecimalNumberToken::NanPlus) => infnan(lex, r, RealValue::Nan, true),
         Ok(NonDecimalNumberToken::Uinteger2) if (r == 2) || (r == 8) || (r ==16) => uinteger(lex, r, Some(exact), None, lex.slice()),
         Ok(NonDecimalNumberToken::Uinteger8) if (r == 8) || (r == 16) => uinteger(lex, r, Some(exact), None, lex.slice()),
         Ok(NonDecimalNumberToken::Uinteger16) if r == 16 => uinteger(lex, r, Some(exact), None, lex.slice()),
@@ -168,16 +134,15 @@ fn prefix(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, exact: bool) -> Option
 }
 
 fn sign(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, sign: bool, exact: Option<bool>) -> Option<Number> {
+    println!("sign {:?}", sign);
     let token = lex.next()?;
+    println!("sign token {:?}", token);
 
     match token {
         Ok(NonDecimalNumberToken::Uinteger2) if (r == 2) || (r == 8) || (r ==16) => uinteger(lex, r, exact, Some(sign), lex.slice()),
         Ok(NonDecimalNumberToken::Uinteger8) if (r == 8) || (r == 16) => uinteger(lex, r, exact, Some(sign), lex.slice()),
         Ok(NonDecimalNumberToken::Uinteger16) if r == 16 => uinteger(lex, r, exact, Some(sign), lex.slice()),
-        Ok(NonDecimalNumberToken::I) => Some(Number::Complex {
-            real: Real::from(0),
-            imag: Real::from(1),
-        }),
+        Ok(NonDecimalNumberToken::I) => Some(Number::Complex { real: Real::from(0), imag: Real::from(1) }),
         _ => None,
     }
 }
@@ -189,6 +154,7 @@ fn uinteger(
     sign: Option<bool>,
     s: &str,
 ) -> Option<Number> {
+    println!("uinteger {:?}", sign);   
     let token = lex.next();
 
     let int = isize::from_str_radix(s, r).unwrap() as u32;
@@ -222,40 +188,72 @@ fn uinteger(
 fn uinteger_backslash(
     lex: &mut Lexer<NonDecimalNumberToken>,
     r: u32,
-    exact: Option<bool>,
     sign: Option<bool>,
+    exact: Option<bool>,
     value: u32,
 ) -> Option<Number> {
+    println!("uinteger_backslash: sign: {:?}", sign);
     let token = lex.next()?;
 
     match token {
-        Ok(NonDecimalNumberToken::Uinteger2) 
-        | Ok(NonDecimalNumberToken::Uinteger8)
-        | Ok(NonDecimalNumberToken::Uinteger16) => {
-            let num = value;
-            let den = isize::from_str_radix(lex.slice(), r).unwrap() as u32;
+        Ok(NonDecimalNumberToken::Uinteger2) if (r == 2) || (r == 8) || (r ==16) => uinteger_backslash_uinteger(lex, r, exact, sign, value, lex.slice()),
+        Ok(NonDecimalNumberToken::Uinteger8) if (r == 8) || (r == 16) => uinteger_backslash_uinteger(lex, r, exact, sign, value, lex.slice()),
+        Ok(NonDecimalNumberToken::Uinteger16) if (r == 16) => uinteger_backslash_uinteger(lex, r, exact, sign, value, lex.slice()),
+        _ => None,
+    }
+}
 
-            let value = RealValue::Rational {
-                positive: sign.unwrap_or(true),
-                num: num,
-                den: den,
-            };
+fn uinteger_backslash_uinteger(
+    lex: &mut Lexer<NonDecimalNumberToken>,
+    r: u32,
+    exact: Option<bool>,
+    sign: Option<bool>,
+    value: u32,
+    s: &str,
+) -> Option<Number> {
+    println!("uinteger_backslash_uinteger: sign: {:?}", sign);
+    println!("uinteger_backslash_uinteger: s: {:?}", s);
+    println!("uinteger_backslash_uinteger: value: {:?}", value);
+    println!("uinteger_backslash_uinteger: r: {:?}", r);
+    println!("uinteger_backslash_uinteger: exact: {:?}", exact);
 
-            let real = Real {
-                exact: exact.unwrap_or(true),
-                value: value,
-            };
+    let num = value;
+    let den = isize::from_str_radix(s, r).unwrap() as u32;
 
-            Some(Number::Real(real))
-        }
+    let value = RealValue::Rational {
+        positive: sign.unwrap_or(true),
+        num: num,
+        den: den,
+    };
+
+    let real = Real {
+        exact: exact.unwrap_or(true),
+        value: value,
+    };
+
+    let token = lex.next();
+
+    if None == token         {
+        return Some(Number::Real(real));
+    }
+
+    match token? {
+        Ok(NonDecimalNumberToken::At) => real_at(lex, r, real),
+        Ok(NonDecimalNumberToken::I) if sign.is_some() => Some(Number::Complex { real: Real::from(0) , imag: real }),
+        Ok(NonDecimalNumberToken::Minus) => real_sign(lex, r, real, false),
+        Ok(NonDecimalNumberToken::Plus) => real_sign(lex, r, real, true),
         _ => None,
     }
 }
 
 fn real(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, real: Real, sign: Option<bool>) -> Option<Number> {
-    let token = lex.next()?;
+    let token = lex.next();
 
-    match token {
+    if None == token {
+        return Some(Number::Real(real));
+    }
+
+    match token? {
         Ok(NonDecimalNumberToken::Minus) => real_sign(lex, r, real, false),
         Ok(NonDecimalNumberToken::Plus) => real_sign(lex, r, real, true),
         Ok(NonDecimalNumberToken::InfMinus) => real_infnan(lex, real, RealValue::NegInfinity),

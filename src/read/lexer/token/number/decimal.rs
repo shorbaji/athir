@@ -26,6 +26,7 @@ fn num(lex: &mut Lexer<DecimalNumberToken>) -> Option<Number> {
 }
 
 fn radix(lex: &mut Lexer<DecimalNumberToken>) -> Option<Number> {
+    println!("radix decimal");
     let token = lex.next()?;
 
     match token {
@@ -49,6 +50,13 @@ fn exact(lex: &mut Lexer<DecimalNumberToken>, exact: bool) -> Option<Number> {
     match token {
         Ok(DecimalNumberToken::Radix) => prefix(lex, exact),
         Ok(DecimalNumberToken::Dot) => uinteger_dot(lex, Some(exact), None, None), // got a dot with no sign and no pre-dot digits
+        Ok(DecimalNumberToken::InfMinus) => infnan(lex, RealValue::NegInfinity, false),
+        Ok(DecimalNumberToken::InfPlus) => infnan(lex, RealValue::Infinity, true),
+        Ok(DecimalNumberToken::NanMinus) => infnan(lex, RealValue::Nan, false),
+        Ok(DecimalNumberToken::NanPlus) => infnan(lex, RealValue::Nan, true),
+        Ok(DecimalNumberToken::Plus) => sign(lex, true, Some(exact)),
+        Ok(DecimalNumberToken::Minus) => sign(lex, false, Some(exact)),
+        Ok(DecimalNumberToken::Uinteger) => uinteger(lex, Some(exact), None, lex.slice()),
         _ => None,
     }
 }
@@ -64,11 +72,13 @@ fn prefix(lex: &mut Lexer<DecimalNumberToken>, exact: bool) -> Option<Number> {
         Ok(DecimalNumberToken::NanMinus) => infnan(lex, RealValue::Nan, false,),
         Ok(DecimalNumberToken::NanPlus) => infnan(lex, RealValue::Nan, true),
         Ok(DecimalNumberToken::Dot) => uinteger_dot(lex, Some(exact), None, None), // got a dot with no sign and no pre-dot digits
+        Ok(DecimalNumberToken::Uinteger) => uinteger(lex, Some(exact), None, lex.slice()),
         _ => None,
     }
 }
 
 fn infnan(lex: &mut Lexer<DecimalNumberToken>, value: RealValue, sign: bool) -> Option<Number> {
+    println!("infnan");
     real(lex, Real { exact: true, value: value }, Some(sign))
 }
 
@@ -92,6 +102,7 @@ fn uinteger(
     sign: Option<bool>,
     s: &str,
 ) -> Option<Number> {
+    println!("uinteger");
     let token = lex.next();
 
     let int: u32 = s.parse().unwrap();
@@ -119,6 +130,7 @@ fn uinteger(
         Ok(DecimalNumberToken::At) => real_at(lex, real),
         Ok(DecimalNumberToken::I) if sign.is_some() => Some(Number::Complex { real: real, imag: Real::from(1) }),
         Ok(DecimalNumberToken::Dot) => uinteger_dot(lex, exact, sign, Some(s)),
+        Ok(DecimalNumberToken::E) => uinteger_dot_uinteger_e(lex, exact, sign, Some(s), None),
         _ => None,
     }
 }
@@ -259,6 +271,7 @@ fn uinteger_backslash(
 }
 
 fn real(lex: &mut Lexer<DecimalNumberToken>, real: Real, sign: Option<bool>) -> Option<Number> {
+    println!("real: {:?}", real);
     let token = lex.next();
 
     if None == token {
@@ -283,6 +296,7 @@ fn real(lex: &mut Lexer<DecimalNumberToken>, real: Real, sign: Option<bool>) -> 
 }
 
 fn real_sign(lex: &mut Lexer<DecimalNumberToken>, real: Real, sign: bool) -> Option<Number> {
+    println!("real_sign: {}", lex.slice());
     let token = lex.next()?;
 
     match token {
@@ -308,6 +322,7 @@ fn real_sign_uinteger(
     sign: bool,
     s: &str,
 ) -> Option<Number> {
+    println!("real_sign_uinteger: {}", s);
     let token = lex.next();
 
     if None == token {
@@ -336,6 +351,7 @@ fn real_sign_uinteger(
                 },
             },
         }),
+        Ok(DecimalNumberToken::E) => real_sign_uinteger_dot_uinteger_e(lex, Some(real.exact), real.clone(), Some(sign), Some(s), None),
         _ => None,
     }
 }
@@ -400,6 +416,7 @@ fn real_sign_uinteger_dot_uinteger_e(
     s: Option<&str>,
     t: Option<&str>,
 ) -> Option<Number> {
+    println!("real_sign_uinteger_dot_uinteger_e");
     let token = lex.next()?;
 
     match token {
@@ -419,6 +436,7 @@ fn real_sign_uinteger_dot_uinteger_e_sign(
     t: Option<&str>,
     e_sign: Option<bool>,
 ) -> Option<Number> {
+    println!("real_sign_uinteger_dot_uinteger_e_sign");
     let token = lex.next()?;
 
     match token {
@@ -452,6 +470,7 @@ fn real_sign_uinteger_dot_uinteger_e_uinteger(
         value: RealValue::Irrational(s.parse().unwrap()),
     };
 
+    println!("real_sign_uinteger_dot_uinteger_e_uinteger: {}", s);
     let token = _lex.next()?;
 
     match token {
@@ -519,6 +538,7 @@ fn real_infnan(
 }
 
 fn real_at(lex: &mut Lexer<DecimalNumberToken>, real: Real) -> Option<Number> {
+    println!("real_at");
     let token = lex.next()?;
 
     match token {
@@ -528,7 +548,7 @@ fn real_at(lex: &mut Lexer<DecimalNumberToken>, real: Real) -> Option<Number> {
         Ok(DecimalNumberToken::NanPlus) => real_at_infnan(real, RealValue::Nan),
         Ok(DecimalNumberToken::Minus) => real_at_sign(lex, real, false),
         Ok(DecimalNumberToken::Plus) => real_at_sign(lex, real, true),
-        Ok(DecimalNumberToken::Uinteger) => real_at_uinteger(lex, real, None, lex.slice()),
+        Ok(DecimalNumberToken::Uinteger) => real_at_uinteger(lex, real, None, lex.slice()),        
         _ => None,
     }
 }
@@ -557,12 +577,12 @@ fn real_at_sign(lex: &mut Lexer<DecimalNumberToken>, real: Real, sign: bool) -> 
 }
 
 fn real_at_uinteger(
-    lex: &mut Lexer<DecimalNumberToken>,
-   
+    lex: &mut Lexer<DecimalNumberToken>,   
     real: Real,
     sign: Option<bool>,
     s: &str,
 ) -> Option<Number> {
+    println!("real_at_uinteger");
     let token = lex.next();
 
     if None == token {
@@ -580,8 +600,105 @@ fn real_at_uinteger(
 
     match token? {
         Ok(DecimalNumberToken::Backslash) => real_at_uinteger_backslash(lex, real, sign, s),
+        Ok(DecimalNumberToken::Dot) => real_at_uinteger_dot(lex, real, sign, s),
+        Ok(DecimalNumberToken::E) => real_at_uinteger_dot_uinteger_e(lex, real, sign, Some(s), None),
         _ => None,
     }
+}
+
+fn real_at_uinteger_dot(
+    lex: &mut Lexer<DecimalNumberToken>,
+   
+    real: Real,
+    sign: Option<bool>,
+    s: &str,
+) -> Option<Number> {
+    println!("real_at_uinteger_dot");
+    let token = lex.next()?;
+
+    match token {
+        Ok(DecimalNumberToken::Uinteger) => real_at_uinteger_dot_uinteger(lex, real, sign, s, lex.slice()),
+        Ok(DecimalNumberToken::E) => real_at_uinteger_dot_uinteger_e(lex, real, sign, Some(s), None),
+        _ => None,
+    }
+}
+
+fn real_at_uinteger_dot_uinteger(
+    lex: &mut Lexer<DecimalNumberToken>,
+    real: Real,
+    sign: Option<bool>,
+    s1: &str,
+    s2: &str,
+) -> Option<Number> {
+    let token = lex.next()?;
+
+    match token {
+        Ok(DecimalNumberToken::E) => real_at_uinteger_dot_uinteger_e(lex, real, sign, Some(s1), Some(s2)),
+        _ => None,
+    }
+}
+
+fn real_at_uinteger_dot_uinteger_e(
+    lex: &mut Lexer<DecimalNumberToken>,
+    real: Real,
+    sign: Option<bool>,
+    s1: Option<&str>,
+    s2: Option<&str>,
+) -> Option<Number> {
+    let token = lex.next()?;
+
+    match token {
+        Ok(DecimalNumberToken::Minus) => real_at_uinteger_dot_uinteger_e_sign(lex, real, sign, s1, s2, false),
+        Ok(DecimalNumberToken::Plus) => real_at_uinteger_dot_uinteger_e_sign(lex, real, sign, s1, s2, true),
+        Ok(DecimalNumberToken::Uinteger) => real_at_uinteger_dot_uinteger_e_uinteger(lex, real, sign, s1, s2, None, Some(lex.slice())),
+        _ => None,
+    }
+}
+
+fn real_at_uinteger_dot_uinteger_e_sign(
+    lex: &mut Lexer<DecimalNumberToken>,
+    real: Real,
+    sign: Option<bool>,
+    s1: Option<&str>,
+    s2: Option<&str>,
+    sign2: bool,
+) -> Option<Number> {
+    let token = lex.next()?;
+
+    match token {
+        Ok(DecimalNumberToken::Uinteger) => real_at_uinteger_dot_uinteger_e_uinteger(lex, real, sign, s1, s2, Some(sign2), Some(lex.slice())),
+        _ => None,
+    }
+}
+
+fn real_at_uinteger_dot_uinteger_e_uinteger(
+    _lex: &mut Lexer<DecimalNumberToken>,
+    real: Real,
+    sign: Option<bool>,
+    s: Option<&str>,
+    t: Option<&str>,
+    e_sign: Option<bool>,
+    u: Option<&str>,
+) -> Option<Number> {
+
+    let s = format!(
+        "{}{}.{}e{}{}",
+        sign.map(|s| if s { "" } else { "-" }).unwrap_or(""),
+        s.unwrap_or(""),
+        t.unwrap_or(""),
+        e_sign.map(|s| if s { "+" } else { "-" }).unwrap_or(""),
+        u.unwrap_or("")
+    );
+
+    let imag = Real {
+        exact: real.clone().exact,
+        value: RealValue::Irrational(s.parse().unwrap()),
+    };
+
+    Some(Number::Complex {
+        real: real,
+        imag: imag,
+    })
 }
 
 fn real_at_uinteger_backslash(

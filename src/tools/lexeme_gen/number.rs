@@ -189,7 +189,7 @@ impl fmt::Display for Prefix {
     }
 }
 
-type Uinteger = u64;
+type Uinteger = u32;
 
 fn uinteger_to_string(radix: &Radix, uinteger: &Uinteger) -> String {
     match radix {
@@ -203,7 +203,7 @@ fn uinteger_to_string(radix: &Radix, uinteger: &Uinteger) -> String {
 
 impl Randomizable for Uinteger {
     fn random() -> Self {
-        rand::random::<u64>()
+        rand::random::<u32>()
     }
 }
 

@@ -4,6 +4,7 @@
 // - [x] Apply parser to existin lexer's to_number() function
 // - [x] link value::Number to pub enum V
 // - [x] Uncomment lexer test_number()
+// - [ ] real @ uinteger dot ...
 // - [ ] More tests for number parsing
 // - [ ] Guard for out of bound integers and floats in number parser with errors
 // - [ ] Uncomment eval tests
