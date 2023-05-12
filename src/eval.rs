@@ -210,6 +210,7 @@ pub fn apply(operator: &R, operands: &R, r: &R, k: &R) -> (R, R) {
     match operator.deref().borrow().deref() {
         V::Procedure(Procedure::PrimitiveUnary(f,_ )) => (k.clone(), f(&car(operands))),
         V::Procedure(Procedure::PrimitiveBinary(f, _)) => (k.clone(), f(&car(operands), &cadr(operands))),
+        V::Procedure(Procedure::PrimitiveVariadic(f, _)) => (k.clone(), f(operands)),
         V::Procedure(Procedure::Closure { formals, body, env }) => apply_closure(formals, body, env, operands, r, k),
         V::Procedure(Procedure::PrimitiveOptionalUnary(f, _)) => match operands.deref().borrow().deref() {
                 V::Null => (k.clone(), f(None)),

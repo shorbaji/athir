@@ -26,7 +26,6 @@ fn num(lex: &mut Lexer<DecimalNumberToken>) -> Option<Number> {
 }
 
 fn radix(lex: &mut Lexer<DecimalNumberToken>) -> Option<Number> {
-    println!("radix decimal");
     let token = lex.next()?;
 
     match token {
@@ -78,7 +77,6 @@ fn prefix(lex: &mut Lexer<DecimalNumberToken>, exact: bool) -> Option<Number> {
 }
 
 fn infnan(lex: &mut Lexer<DecimalNumberToken>, value: RealValue, sign: bool) -> Option<Number> {
-    println!("infnan");
     real(lex, Real { exact: true, value: value }, Some(sign))
 }
 
@@ -102,7 +100,6 @@ fn uinteger(
     sign: Option<bool>,
     s: &str,
 ) -> Option<Number> {
-    println!("uinteger");
     let token = lex.next();
 
     let int: u32 = s.parse().unwrap();
@@ -271,7 +268,6 @@ fn uinteger_backslash(
 }
 
 fn real(lex: &mut Lexer<DecimalNumberToken>, real: Real, sign: Option<bool>) -> Option<Number> {
-    println!("real: {:?}", real);
     let token = lex.next();
 
     if None == token {
@@ -296,7 +292,6 @@ fn real(lex: &mut Lexer<DecimalNumberToken>, real: Real, sign: Option<bool>) -> 
 }
 
 fn real_sign(lex: &mut Lexer<DecimalNumberToken>, real: Real, sign: bool) -> Option<Number> {
-    println!("real_sign: {}", lex.slice());
     let token = lex.next()?;
 
     match token {
@@ -322,7 +317,6 @@ fn real_sign_uinteger(
     sign: bool,
     s: &str,
 ) -> Option<Number> {
-    println!("real_sign_uinteger: {}", s);
     let token = lex.next();
 
     if None == token {
@@ -416,7 +410,6 @@ fn real_sign_uinteger_dot_uinteger_e(
     s: Option<&str>,
     t: Option<&str>,
 ) -> Option<Number> {
-    println!("real_sign_uinteger_dot_uinteger_e");
     let token = lex.next()?;
 
     match token {
@@ -436,7 +429,6 @@ fn real_sign_uinteger_dot_uinteger_e_sign(
     t: Option<&str>,
     e_sign: Option<bool>,
 ) -> Option<Number> {
-    println!("real_sign_uinteger_dot_uinteger_e_sign");
     let token = lex.next()?;
 
     match token {
@@ -470,7 +462,6 @@ fn real_sign_uinteger_dot_uinteger_e_uinteger(
         value: RealValue::Irrational(s.parse().unwrap()),
     };
 
-    println!("real_sign_uinteger_dot_uinteger_e_uinteger: {}", s);
     let token = _lex.next()?;
 
     match token {
@@ -538,7 +529,6 @@ fn real_infnan(
 }
 
 fn real_at(lex: &mut Lexer<DecimalNumberToken>, real: Real) -> Option<Number> {
-    println!("real_at");
     let token = lex.next()?;
 
     match token {
@@ -582,7 +572,6 @@ fn real_at_uinteger(
     sign: Option<bool>,
     s: &str,
 ) -> Option<Number> {
-    println!("real_at_uinteger");
     let token = lex.next();
 
     if None == token {
@@ -613,7 +602,6 @@ fn real_at_uinteger_dot(
     sign: Option<bool>,
     s: &str,
 ) -> Option<Number> {
-    println!("real_at_uinteger_dot");
     let token = lex.next()?;
 
     match token {

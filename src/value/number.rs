@@ -130,8 +130,11 @@ impl Number {
         }
     }
 
-    fn sqrt(&self) -> Self {
-        panic!("number sqrt not implemented!")
+    pub fn sqrt(&self) -> Self {
+        match self {
+            Number::Real(r) => Number::Real(r.sqrt()),
+            Number::Complex{..} => panic!("Not implemented yet"),
+        }
     }
 
     pub fn simplify(&self) -> Self {

@@ -142,6 +142,83 @@ pub fn square(e: &R) -> R {
     }
 }
 
+pub fn sqrt(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::number(n.clone().sqrt()),
+        _ => panic!("not a number")
+    }
+}
+
+pub fn add(args: &R) -> R {
+    match args.deref().borrow().deref() {
+        V::Null => A::number(Number::from(0)),
+        V::Pair(car, cdr) => {
+            match car.deref().borrow().deref() {
+                V::Number(n) => {
+                    match add(cdr).deref().borrow().deref() {
+                        V::Number(m) => A::number(n.clone() + m.clone()),
+                        _ => A::runtime_error("invalid number in arguments".to_string())
+                    }
+                },
+                _ => A::runtime_error("invalid number in arguments".to_string())
+            }
+        },
+        _ => A::runtime_error("not a valid list".to_string())
+    }
+}
+
+pub fn sub(args: &R) -> R {
+    match args.deref().borrow().deref() {
+        V::Null => A::number(Number::from(0)),
+        V::Pair(car, cdr) => match car.deref().borrow().deref() {
+                V::Number(n) => {
+                    match add(cdr).deref().borrow().deref() {
+                        V::Number(m) => A::number(n.clone() - m.clone()),
+                        _ => A::runtime_error("invalid number in arguments".to_string())
+                    }
+                },
+                _ => A::runtime_error("invalid number in arguments".to_string())
+            },
+        _ => A::runtime_error("not a valid list".to_string())
+    }
+}
+
+pub fn mul(args: &R) -> R {
+    match args.deref().borrow().deref() {
+        V::Null => A::number(Number::from(1)),
+        V::Pair(car, cdr) => {
+            match car.deref().borrow().deref() {
+                V::Number(n) => {
+                    match mul(cdr).deref().borrow().deref() {
+                        V::Number(m) => A::number(n.clone() * m.clone()),
+                        _ => A::runtime_error("invalid number in arguments".to_string())
+                    }
+                },
+                _ => A::runtime_error("invalid number in arguments".to_string())
+            }
+        },
+        _ => A::runtime_error("not a valid list".to_string())
+    }
+}
+
+pub fn div(args: &R) -> R {
+    match args.deref().borrow().deref() {
+        V::Null => A::number(Number::from(1)),
+        V::Pair(car, cdr) => {
+            match car.deref().borrow().deref() {
+                V::Number(n) => {
+                    match mul(cdr).deref().borrow().deref() {
+                        V::Number(m) => A::number(n.clone() / m.clone()),
+                        _ => A::runtime_error("invalid number in arguments".to_string())
+                    }
+                },
+                _ => A::runtime_error("invalid number in arguments".to_string())
+            }
+        },
+        _ => A::runtime_error("not a valid list".to_string())
+    }
+}
+
 // pub fn plus(e1: &R, e2: &R) -> R {
 //     match (e1.deref().borrow().deref(), e2.deref().borrow().deref()) {
 //         (V::Number(n1), V::Number(n2)) => V::number(n1 + n2),

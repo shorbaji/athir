@@ -2,10 +2,11 @@ pub mod port;
 pub mod number;
 
 use std::collections::HashMap;
-use port::Port;
-use crate::alloc::R;
 
+use crate::alloc::R;
 use number::Number;
+use port::Port;
+
 pub enum V {
     Boolean(bool),
     Bytevector(R),
@@ -71,6 +72,7 @@ pub enum Procedure {
     ContinuationNull,
     PrimitiveUnary(fn(&R)->R, String),
     PrimitiveBinary(fn(&R, &R)->R, String),
+    PrimitiveVariadic(fn(&R)->R, String),
     PrimitiveERK(fn(&R, &R, &R)->(R, R), String),
     PrimitiveOptionalUnary(fn(Option<&R>)->R, String),
 }
@@ -84,6 +86,7 @@ impl std::fmt::Debug for Procedure {
             Procedure::ContinuationNull => write!(f, "ContinuationNull"),
             Procedure::PrimitiveUnary(_, s) => write!(f, "PrimitiveUnary({})", s),
             Procedure::PrimitiveBinary(_, s) => write!(f, "PrimitiveBinary({})", s),
+            Procedure::PrimitiveVariadic(_, s) => write!(f, "PrimitiveVariadic({})", s),
             Procedure::PrimitiveERK(_, s) => write!(f, "Primitive({})", s),
             Procedure::PrimitiveOptionalUnary(_, s) => write!(f, "PrimitiveOptionalUnary({})", s),
         }

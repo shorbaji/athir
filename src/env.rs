@@ -37,6 +37,10 @@ fn insert_cxr_library(map: &mut HashMap<String, R>) {
 }
 
 fn insert_base_library(map: &mut HashMap<String, R>) {
+    map.insert("+".to_string(), A::variadic(add, "+".to_string()));
+    map.insert("-".to_string(), A::variadic(sub, "-".to_string()));
+    map.insert("*".to_string(), A::variadic(mul, "*".to_string()));
+    map.insert("/".to_string(), A::variadic(div, "/".to_string()));
     map.insert("abs".to_string(), A::unary(abs, "abs".to_string()));
     map.insert("boolean?".to_string(), A::unary(is_boolean, "boolean?".to_string()));
     map.insert("bytevector?".to_string(), A::unary(is_bytevector, "bytevector?".to_string()));
@@ -79,6 +83,7 @@ fn insert_base_library(map: &mut HashMap<String, R>) {
     map.insert("read-line".to_string(), A::optional_unary(read_line, "read_line".to_string()));
     map.insert("read".to_string(), A::optional_unary(read, "read".to_string()));
     map.insert("real?".to_string(), A::unary(is_real, "real?".to_string()));
+    map.insert("sqrt".to_string(), A::unary(sqrt, "sqrt".to_string()));
     map.insert("square".to_string(), A::unary(square, "square".to_string()));
     map.insert("string?".to_string(), A::unary(is_string, "string?".to_string()));
     map.insert("symbol?".to_string(), A::unary(is_symbol, "symbol?".to_string()));

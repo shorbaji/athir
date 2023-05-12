@@ -134,9 +134,7 @@ fn prefix(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, exact: bool) -> Option
 }
 
 fn sign(lex: &mut Lexer<NonDecimalNumberToken>, r: u32, sign: bool, exact: Option<bool>) -> Option<Number> {
-    println!("sign {:?}", sign);
     let token = lex.next()?;
-    println!("sign token {:?}", token);
 
     match token {
         Ok(NonDecimalNumberToken::Uinteger2) if (r == 2) || (r == 8) || (r ==16) => uinteger(lex, r, exact, Some(sign), lex.slice()),
@@ -154,7 +152,6 @@ fn uinteger(
     sign: Option<bool>,
     s: &str,
 ) -> Option<Number> {
-    println!("uinteger {:?}", sign);   
     let token = lex.next();
 
     let int = isize::from_str_radix(s, r).unwrap() as u32;
@@ -192,7 +189,6 @@ fn uinteger_backslash(
     exact: Option<bool>,
     value: u32,
 ) -> Option<Number> {
-    println!("uinteger_backslash: sign: {:?}", sign);
     let token = lex.next()?;
 
     match token {
@@ -211,12 +207,6 @@ fn uinteger_backslash_uinteger(
     value: u32,
     s: &str,
 ) -> Option<Number> {
-    println!("uinteger_backslash_uinteger: sign: {:?}", sign);
-    println!("uinteger_backslash_uinteger: s: {:?}", s);
-    println!("uinteger_backslash_uinteger: value: {:?}", value);
-    println!("uinteger_backslash_uinteger: r: {:?}", r);
-    println!("uinteger_backslash_uinteger: exact: {:?}", exact);
-
     let num = value;
     let den = isize::from_str_radix(s, r).unwrap() as u32;
 

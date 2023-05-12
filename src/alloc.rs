@@ -120,6 +120,10 @@ impl A {
         R::new(V::Procedure(Procedure::PrimitiveBinary(f, s)))
     }
 
+    pub fn variadic(f: fn(&R)->R, s: String) -> R {
+        R::new(V::Procedure(Procedure::PrimitiveVariadic(f, s)))
+    }
+
     pub fn closure(formals: &R, body: &R, env: &R) -> R {
         R::new(V::Procedure(Procedure::Closure{ formals: formals.clone(), body: body.clone(), env: env.clone() }))
     }
