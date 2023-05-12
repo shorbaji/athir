@@ -1,6 +1,7 @@
 pub mod port;
 pub mod number;
 pub mod procedure;
+pub mod syntax;
 
 use std::collections::HashMap;
 
@@ -8,6 +9,7 @@ use crate::alloc::R;
 use number::Number;
 use port::Port;
 use procedure::Procedure;
+use syntax::TransformerSpec;
 
 pub enum V {
     Boolean(bool),
@@ -27,6 +29,7 @@ pub enum V {
     Error(Error),
     Keyword(Keyword),
     Quotation(R),
+    TransformerSpec(TransformerSpec),
     Unspecified,
 }
 
@@ -50,6 +53,7 @@ impl std::fmt::Debug for V {
             V::Error(s) => write!(f, "Error({:?})", s),
             V::Keyword(k) => write!(f, "Keyword({:?})", k),
             V::Quotation(q) => write!(f, "Quotation({:?})", q),
+            V::TransformerSpec(t) => write!(f, "TransformerSpec({:?})", t),
             V::Unspecified => write!(f, "Unspecified"),
         }
     }
