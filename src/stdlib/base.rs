@@ -23,6 +23,125 @@ pub fn is_number(e: &R) -> R {
     }
 }
 
+pub fn is_complex(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_complex()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_real(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_real()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_rational(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_rational()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_integer(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_integer()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_exact(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_exact()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_inexact(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_inexact()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_exact_integer(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_exact_integer()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_finite(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_finite()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_infinite(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_infinite()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_nan(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_nan()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_zero(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_zero()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_positive(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_positive()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_negative(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_negative()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_odd(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_odd()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn is_even(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::boolean(n.is_even()),
+        _ => A::boolean(false)
+    }
+}
+
+pub fn abs(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::number(n.clone().abs()),
+        _ => panic!("not a number")
+    }
+}
+
+pub fn square(e: &R) -> R {
+    match e.deref().borrow().deref() {
+        V::Number(n) => A::number(n.clone().square()),
+        _ => panic!("not a number")
+    }
+}
+
 // pub fn plus(e1: &R, e2: &R) -> R {
 //     match (e1.deref().borrow().deref(), e2.deref().borrow().deref()) {
 //         (V::Number(n1), V::Number(n2)) => V::number(n1 + n2),

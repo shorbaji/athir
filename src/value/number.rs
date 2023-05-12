@@ -17,10 +17,6 @@ pub enum Number {
 }
 
 impl Number {
-    pub fn is_number(&self) -> bool {
-        true
-    }
-
     pub fn is_complex(&self) -> bool {
         match self {
             Number::Complex{..} => true,
@@ -120,14 +116,14 @@ impl Number {
         }
     }
 
-    fn abs(self) -> Self {
+    pub fn abs(self) -> Self {
         match self {
             Number::Real(r) => Number::Real(r.abs()),
             Number::Complex{real, imag} => Number::Real(real.clone() * real + imag.clone() * imag).sqrt(),
         }
     }
 
-    fn square(self) -> Self {
+    pub fn square(self) -> Self {
         match self {
             Number::Real(r) => Number::Real(r.square()),
             Number::Complex{real, imag} => Number::Complex{real: real.clone() * real.clone() - imag.clone() * imag.clone(), imag: real.clone() * imag.clone() + real * imag},

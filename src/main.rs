@@ -4,12 +4,13 @@
 // - [x] Apply parser to existin lexer's to_number() function
 // - [x] link value::Number to pub enum V
 // - [x] Uncomment lexer test_number()
-// - [ ] real @ uinteger dot ...
-// - [ ] More tests for number parsing
+// - [x] real @ uinteger dot ...
+// - [x] More tests for number parsing
+// - [x] Uncomment eval tests
+// - [x] expose number built-ins to global env
+// - [ ] +, -, *, and / variadic functions in global env
 // - [ ] Guard for out of bound integers and floats in number parser with errors
-// - [ ] Uncomment eval tests
-// - [ ] expose number built-ins to global env
-// - [ ] add more number built-ins
+// - [ ] add more number built-ins such as sqrt, remainder, quotient, etc
 
 mod alloc;
 mod env; 

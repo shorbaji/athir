@@ -75,6 +75,25 @@ pub fn global_env() -> R {
     map.insert("peek-char".to_string(), A::optional_unary(peek_char, "peek_char".to_string()));
     map.insert("open-input-string".to_string(), A::unary(open_input_string, "open_input_string".to_string()));
 
+    map.insert("number?".to_string(), A::unary(is_number, "number?".to_string()));
+    map.insert("complex?".to_string(), A::unary(is_complex, "complex?".to_string()));
+    map.insert("real?".to_string(), A::unary(is_real, "real?".to_string()));
+    map.insert("rational?".to_string(), A::unary(is_rational, "rational?".to_string()));
+    map.insert("integer?".to_string(), A::unary(is_integer, "integer?".to_string()));
+    map.insert("exact?".to_string(), A::unary(is_exact, "exact?".to_string()));
+    map.insert("inexact?".to_string(), A::unary(is_inexact, "inexact?".to_string()));
+    map.insert("exact-integer?".to_string(), A::unary(is_exact_integer, "exact-integer?".to_string()));
+    map.insert("finite?".to_string(), A::unary(is_finite, "finite?".to_string()));
+    map.insert("infinite?".to_string(), A::unary(is_infinite, "infinite?".to_string()));
+    map.insert("nan?".to_string(), A::unary(is_nan, "nan?".to_string()));
+    map.insert("zero?".to_string(), A::unary(is_zero, "zero?".to_string()));
+    map.insert("positive?".to_string(), A::unary(is_positive, "positive?".to_string()));
+    map.insert("negative?".to_string(), A::unary(is_negative, "negative?".to_string()));
+    map.insert("odd?".to_string(), A::unary(is_odd, "odd?".to_string()));
+    map.insert("even?".to_string(), A::unary(is_even, "even?".to_string()));
+    map.insert("abs".to_string(), A::unary(abs, "abs".to_string()));
+    map.insert("square".to_string(), A::unary(square, "square".to_string()));
+
     // map.insert("+".to_string(), A::binary(plus, "+".to_string()));
 
 
