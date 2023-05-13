@@ -16,7 +16,6 @@ use crate::alloc::{A, R};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
-
 /// The trampline (driver loop) takes a continuation and an expression and calls the continuation with the expressions
 ///
 /// There are three types of continuations:
@@ -75,6 +74,8 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
                 V::Keyword(Keyword::Lambda) => (A::continuation(eval_lambda, r, k), cdr.clone()),
                 V::Keyword(Keyword::Quote) => (A::continuation(eval_quote, r, k), cdr.clone()),
                 V::Keyword(Keyword::Set) => (A::continuation(eval_set, r, k), cdr.clone()),
+                V::Keyword(Keyword::DefineSyntax) => (A::continuation(eval_define_syntax, r, k), cdr.clone()),
+                V::Keyword(Keyword::SyntaxRules) => (A::continuation(eval_syntax_rules, r, k), cdr.clone()),
                 V::Keyword(keyword) => (k.clone(), A::runtime_error(format!("eval error: keyword not implmeneted {:?}", keyword))),
                 _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
             }
@@ -91,6 +92,24 @@ fn eval_define(e: &R, r: &R, k: &R) -> (R, R) {
     let then = A::continuation_plus(eval_define_or_set_cont, &var, r, k);
     (A::continuation(eval, r, &then), val)
 }
+
+fn eval_define_syntax(e: &R, r: &R, k: &R) -> (R, R) {
+    let var = car(e);
+    let val = cadr(e);
+
+    println!("eval_define_syntax {:?}", var);
+    println!("eval_define_syntax {:?}", val);
+
+    let then = A::continuation_plus(eval_define_or_set_cont, &var, r, k);
+    (A::continuation(eval, r, &then), val)
+}
+
+fn eval_syntax_rules(e: &R, r: &R, k: &R) -> (R, R) {
+
+    println!("eval_syntax_rules - e {:?}", e);
+    (k.clone(), e.clone())
+}
+ 
 
 /// Evaluate a set expression
 fn eval_set(e: &R, r: &R, k: &R) -> (R, R) {
@@ -113,7 +132,7 @@ fn eval_set(e: &R, r: &R, k: &R) -> (R, R) {
 }
 
 fn eval_define_or_set_cont(val: &R, var: &R, r: &R, k: &R) -> (R, R) {
-    // Expression var is evaluated, and the resulting
+    // Expression val is evaluated, and the resulting
     // value is stored in the location to which var is bound.
 
     if let V::Symbol(s) = var.deref().borrow().deref() {

@@ -1,17 +1,16 @@
 use super::*;
-use crate::stdlib::base::read;
 use crate::env::global_env;
-use crate::value::{V, number::Number};
+use crate::value::{V, number::Number, port::Port};
 use crate::alloc::A;
-
+use crate::read::Reader;
 
 fn test(code: &str, predicate: fn(&V) -> bool) {
     let mut e: R = A::null();
     let env = global_env();
-    let port = A::port_string(code.to_string());
+    let mut port = Port::open_input_string(code.to_string());
 
     loop {
-        let expr = read(Some(&port));
+        let expr = port.read_expr();
         let borrow = expr.deref().borrow();
         if let V::EofObject = borrow.deref() {
             break;

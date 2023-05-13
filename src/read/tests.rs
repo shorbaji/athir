@@ -55,7 +55,7 @@ fn test_parse(goods: &[&str], bads: &[&str]) {
 
     let parser = goods.iter().map(|s| {
         let mut reader = TestReader::new(s.to_string());
-        reader.read()
+        reader.read_expr()
     });
 
     for result in parser {
@@ -65,7 +65,7 @@ fn test_parse(goods: &[&str], bads: &[&str]) {
 
     let parser = bads.iter().map(|s| {
         let mut reader = TestReader::new(s.to_string());
-        reader.read()
+        reader.read_expr()
     });
 
     for result in parser {

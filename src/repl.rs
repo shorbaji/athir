@@ -1,11 +1,13 @@
 use std::io::Write;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use crate::alloc::{A, R}; // A is the allocator, R is the reference type
 use crate::env::global_env; // global_env() returns the global environment
 use crate::eval::{eval, trampoline}; // eval() evaluates an expression, trampoline() is the interpreter driver loop
-use crate::stdlib::base::{car, cons, read}; // required base functions
+use crate::read::Reader; // Reader is the trait for reading expressions
+use crate::stdlib::base::{car, cons}; // required base functions
 use crate::value::{V};
+
 
 ///
 /// repl()
@@ -45,9 +47,14 @@ fn read_cont(e: &R, r: &R, k: &R) -> (R, R) {
     // stdin is the first port in the pair
     let stdin_port = car(e);
 
-    // Read the input from stdin and return the eval continuation and the expression read
-    (k, read(Some(&stdin_port)))
+    let expr = if let V::Port(p) = stdin_port.deref().borrow_mut().deref_mut() {
+        p.read_expr()
+    } else {
+        panic!("stdin is not a port");
+    };
 
+    // Read the input from stdin and return the eval continuation and the expression read
+    (k, expr)
 }
 
 /// The eval continuation function evaluates the expression read by the read continuation

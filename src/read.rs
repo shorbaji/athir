@@ -50,6 +50,13 @@ pub trait Reader {
     /// Recovery is implemented by the recover() function
     
     fn read(&mut self) -> R {
+        match self.datum(0) {
+            Ok(e) => e,
+            Err(e) => e,
+        }
+    }
+
+    fn read_expr(&mut self) -> R {
         match self.expr(0) {
             Ok(e) => e,
             Err(e) => e,
@@ -1045,7 +1052,6 @@ pub trait Reader {
 
         Ok(patterns)
     }
-
 
     fn pattern_with_paren_a(&mut self, rdepth: usize) -> Result<R, R> {
         // | <pattern>*
