@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
 
@@ -76,6 +77,6 @@ fn eval_cont(e: &R, ports: &R, r: &R, k: &R) -> (R, R) {
 /// The print continuation function prints the expression evaluated by the eval continuation
 /// It returns a read continuation and a null expression therefore completing the read eval print loop
 fn print_cont(e: &R, ports: &R, r: &R, k: &R) -> (R, R) {
-    println!("=> {:?}", e);
+    println!("=> {}", e.deref().borrow().deref());
     (A::continuation(read_cont, r, k), ports.clone())
 }

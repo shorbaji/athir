@@ -151,6 +151,12 @@ impl Neg for Real {
     }
 }
 
+impl std::fmt::Display for Real {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum RealValue {
     Integer{positive: bool, value: Integer},
@@ -468,5 +474,20 @@ impl From<Irrational> for RealValue {
     }
 }
 
+impl std::fmt::Display for RealValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            RealValue::Integer{positive: true, value: v} => write!(f, "{}", v),
+            RealValue::Integer{positive: false, value: v} => write!(f, "-{}", v),
+            RealValue::Rational{positive: true, num: n, den: d} => write!(f, "{}/{}", n, d),
+            RealValue::Rational{positive: false, num: n, den: d} => write!(f, "-{}/{}", n, d),
+            RealValue::Irrational(i) => write!(f, "{}", i),
+            RealValue::Infinity => write!(f, "+inf.0"),
+            RealValue::NegInfinity => write!(f, "-inf.0"),
+            RealValue::Nan => write!(f, "+nan.0"),
+        }
+    }
+}
 pub type Integer = u32;
 pub type Irrational = f32;
+

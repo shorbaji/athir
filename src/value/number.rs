@@ -256,3 +256,12 @@ impl PartialEq for Number {
     }
 }
 
+impl std::fmt::Display for Number {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            Number::Real(r) => write!(f, "{}", r),
+            Number::Complex{real, imag} => write!(f, "{} + {}i", real, imag),
+        }
+    }
+}
+

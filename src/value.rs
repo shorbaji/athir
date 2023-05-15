@@ -4,7 +4,7 @@ pub mod procedure;
 pub mod syntax;
 mod keyword;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref};
 
 use crate::alloc::R;
 use number::Number;
@@ -58,6 +58,30 @@ impl std::fmt::Debug for V {
     }
 }
 
+impl std::fmt::Display for V {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            V::Boolean(b) => write!(f, "{}", match b { true => "#t", false => "#f" }),
+            V::Bytevector(_) => write!(f, "#<bytevector>"),
+            V::Char(c) => write!(f, "#\\{}", c),
+            V::EofObject => write!(f, "#<eof-object>"),
+            V::Null => write!(f, "()"),
+            V::Number(n) => write!(f, "{}", n),
+            V::Pair(car, cdr) => write!(f, "({} . {})", car.deref().borrow().deref(), cdr.deref().borrow().deref()),
+            V::Port(p) => write!(f, "#<port {:?}>", p),
+            V::Procedure(p) => write!(f, "#<procedure {:?}>", p),
+            V::String(s) => write!(f, "\"{}\"", s),
+            V::Symbol(s) => write!(f, "{}", s),
+            V::Vector(_) => write!(f, "#<vector>"),
+
+            V::Env{ map:_, outer:_ } => write!(f, "#<env>"),
+            V::Error(s) => write!(f, "#<error {:?}>", s),
+
+            V::Transformer(t) => write!(f, "#<transformer>"),
+            V::Unspecified => write!(f, "#<unspecified>"),
+        }
+    }
+}
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     Syntax{depth: usize, message: String},
