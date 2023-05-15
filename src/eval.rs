@@ -10,7 +10,7 @@
 mod tests;
 
 use crate::stdlib::base::{car, cdr, cons, cadr};
-use crate::value::{V, procedure::Procedure, Keyword};
+use crate::value::{V, procedure::Procedure};
 use crate::alloc::{A, R};
 
 use std::collections::HashMap;
@@ -64,19 +64,20 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
         | V::Null => (k.clone(), e.clone()),
 
         V::Symbol(s) => (k.clone(), lookup(&s, r)),
-
-        V::Quotation(e) => (k.clone(), e.clone()),
-
         V::Pair(car, cdr) => {
             match car.deref().borrow().deref() {
-                V::Keyword(Keyword::Define) => (A::continuation(eval_define, r, k), cdr.clone()),
-                V::Keyword(Keyword::If) => (A::continuation(eval_if, r, k), cdr.clone()),
-                V::Keyword(Keyword::Lambda) => (A::continuation(eval_lambda, r, k), cdr.clone()),
-                V::Keyword(Keyword::Quote) => (A::continuation(eval_quote, r, k), cdr.clone()),
-                V::Keyword(Keyword::Set) => (A::continuation(eval_set, r, k), cdr.clone()),
-                V::Keyword(Keyword::DefineSyntax) => (A::continuation(eval_define_syntax, r, k), cdr.clone()),
-                V::Keyword(Keyword::SyntaxRules) => (A::continuation(eval_syntax_rules, r, k), cdr.clone()),
-                V::Keyword(keyword) => (k.clone(), A::runtime_error(format!("eval error: keyword not implmeneted {:?}", keyword))),
+                V::Symbol(s) => match s.as_str() {
+                    "define" => (A::continuation(eval_define, r, k), cdr.clone()),
+                    "if" => (A::continuation(eval_if, r, k), cdr.clone()),
+                    "lambda" => (A::continuation(eval_lambda, r, k), cdr.clone()),
+                    "quote" => (A::continuation(eval_quote, r, k), cdr.clone()),
+                    "set!" => (A::continuation(eval_set, r, k), cdr.clone()),
+                    "define-syntax" => (A::continuation(eval_define_syntax, r, k), cdr.clone()),
+                    // "syntax-rules" => (A::continuation(eval_syntax_rules, r, k), cdr.clone()),
+                    // TODO: implement the rest of the special forms
+                    // TODO: implement the detection and evaluation of macro uses
+                    _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
+                },
                 _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
             }
         },
@@ -97,19 +98,16 @@ fn eval_define_syntax(e: &R, r: &R, k: &R) -> (R, R) {
     let var = car(e);
     let val = cadr(e);
 
-    println!("eval_define_syntax {:?}", var);
-    println!("eval_define_syntax {:?}", val);
-
     let then = A::continuation_plus(eval_define_or_set_cont, &var, r, k);
-    (A::continuation(eval, r, &then), val)
+    (A::continuation(eval_syntax_rules, r, &then), val)
 }
 
-fn eval_syntax_rules(e: &R, r: &R, k: &R) -> (R, R) {
+fn eval_syntax_rules(e: &R, _r: &R, k: &R) -> (R, R) {
+    // TODO
+    // - evaluate e into a TransformerSpec object and then pass that back to k
 
-    println!("eval_syntax_rules - e {:?}", e);
     (k.clone(), e.clone())
 }
- 
 
 /// Evaluate a set expression
 fn eval_set(e: &R, r: &R, k: &R) -> (R, R) {

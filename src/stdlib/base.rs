@@ -412,7 +412,7 @@ pub fn is_port(e: &R) -> R {
 
 
 pub fn read(e: Option<&R>) -> R {
-    use crate::read::Reader;
+    use crate::read::DatumReader;
 
     let e = match e {
         Some(e) => e.clone(),
@@ -433,7 +433,7 @@ pub fn peek_char(e: Option<&R>) -> R {
 
     let x = match e.deref().borrow_mut().deref_mut() {
         V::Port(port) => match port.peek_char() {
-            Some(c) => A::char(c),
+            Some(c) => A::character(c),
             None => A::eof_object(),
         },
         _ => A::runtime_error(format!("not a port")),
@@ -449,7 +449,7 @@ pub fn read_char(e: Option<&R>) -> R {
 
     let x = match e.deref().borrow_mut().deref_mut() {
         V::Port(port) => match port.read_char() {
-            Some(c) => A::char(c),
+            Some(c) => A::character(c),
             None => A::eof_object(),
         },
         _ => A::runtime_error(format!("not a port")),

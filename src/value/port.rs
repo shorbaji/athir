@@ -1,6 +1,6 @@
 use std::iter::Peekable;
 use crate::read::lexer::{Token, Lexer};
-use crate::read::Reader;
+use crate::read::{Reader, DatumReader, ExprReader};
 
 #[derive(Debug, Clone)]
 pub enum PortKind {
@@ -41,6 +41,14 @@ impl Reader for Port {
             None => None,
         }
     }
+}
+
+impl DatumReader for Port {
+
+}
+
+impl ExprReader for Port {
+
 }
 
 impl Port {

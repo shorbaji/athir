@@ -1,7 +1,7 @@
 use crate::{value::number::Number, alloc::R};
 
 #[derive(Debug)]
-pub struct TransformerSpec {
+pub struct Transformer {
     identifier: String,
     identifiers: Vec<String>,
     rules: Vec<SyntaxRule>,
@@ -45,7 +45,7 @@ pub enum TemplateElement {
 }
 
 
-impl TransformerSpec {
+impl Transformer {
     pub fn new(identifier: String, identifiers: Vec<String>, rules: Vec<SyntaxRule>) -> Self {
         Self { identifier, identifiers, rules }
     }

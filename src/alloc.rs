@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-use crate::value::{V, port::Port, Keyword, procedure::Procedure, Error, number::Number};
+use crate::value::{V, port::Port, procedure::Procedure, Error, number::Number};
 
 #[derive(Clone, Debug)]
 pub struct R {
@@ -32,11 +32,11 @@ impl A {
         R::new(V::Boolean(b))
     }
     
-    pub fn bytevector(v: &R) -> R {
-        R::new(V::Bytevector(v.clone()))
+    pub fn bytevector(v: Vec<u8>) -> R {
+        R::new(V::Bytevector(v))
     }
 
-    pub fn char(c: char) -> R {
+    pub fn character(c: char) -> R {
         R::new(V::Char(c))
     }
 
@@ -76,8 +76,8 @@ impl A {
         R::new(V::Symbol(s.to_string()))
     }
     
-    pub fn vector(v: &R) -> R {
-        R::new(V::Vector(v.clone()))
+    pub fn vector(v: Vec<R>) -> R {
+        R::new(V::Vector(v))
     }
 
     pub fn env(map: HashMap<String, R>, outer: Option<R>) -> R {
@@ -90,14 +90,6 @@ impl A {
     
     pub fn syntax_error(depth: usize, message: &str) -> R {
         R::new(V::Error(Error::Syntax { depth, message: message.to_string()}))
-    }
-
-    pub fn keyword(keyword: Keyword) -> R {
-        R::new(V::Keyword(keyword))
-    }
-
-    pub fn quotation(e: &R) -> R {
-        R::new(V::Quotation(e.clone()))
     }
 
     pub fn continuation(f: fn(&R, &R, &R) -> (R, R), r: &R, k: &R) -> R {

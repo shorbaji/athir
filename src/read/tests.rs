@@ -1,7 +1,7 @@
 use super::*;
 use std::iter::Peekable;
 use crate::read::lexer::{Token, Lexer};
-use crate::read::Reader;
+use crate::read::ExprReader;
 
 struct TestReader {
     string: String,
@@ -51,11 +51,14 @@ impl Reader for TestReader {
     }
 }
 
+impl DatumReader for TestReader { }
+impl ExprReader for TestReader { }
+
 fn test_parse(goods: &[&str], bads: &[&str]) {
 
     let parser = goods.iter().map(|s| {
         let mut reader = TestReader::new(s.to_string());
-        reader.read_expr()
+        ExprReader::read(&mut reader)
     });
 
     for result in parser {
@@ -65,7 +68,7 @@ fn test_parse(goods: &[&str], bads: &[&str]) {
 
     let parser = bads.iter().map(|s| {
         let mut reader = TestReader::new(s.to_string());
-        reader.read_expr()
+        ExprReader::read(&mut reader)
     });
 
     for result in parser {

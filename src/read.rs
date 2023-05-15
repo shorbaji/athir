@@ -12,14 +12,15 @@ mod tests;
 
 pub mod lexer;
 
-use std::ops::Deref;
 use std::iter::{once, from_fn};
+use std::ops::Deref;
 
-use crate::stdlib::{base::{car, cons}, cxr::cdadr};
+use crate::stdlib::base::{car, cons};
+use crate::stdlib::cxr::cdadr;
 use crate::alloc::{A, R};
 
 use crate::read::lexer::Token;
-use crate::value::{V, Keyword, Error};
+use crate::value::{V, Error};
 
 /// Reader trait
 /// 
@@ -33,60 +34,27 @@ pub trait Reader {
     // required functions
     fn get_next_token(&mut self) -> Option<Token>;
     fn peek_next_token(&mut self) -> Option<Token>;
-    
-    // provided function
 
-
-    /// read()
-    /// the starting point for the recursive descent parser is the expr() function
-    /// 
     /// The parser implements an error recovery strategy that 1) keeps track of the depth of the parsing,
     /// i.e. the number of left parentheses encountered minus the number of right parentheses encountered
     /// and 2) skips to the next right parenthesis when an error is encountered in a compound expression
     /// To implement this strategy, the parser maintains the depth value. The depth value is incremented
     /// when a left parenthesis is encountered and decremented when a right parenthesis is encountered.
-    /// We start with a depth of zero which is passed on to the entry point of the parser, the expr() function.
-    /// 
-    /// Recovery is implemented by the recover() function
     
-    fn read(&mut self) -> R {
-        match self.datum(0) {
-            Ok(e) => e,
-            Err(e) => e,
-        }
-    }
-
-    fn read_expr(&mut self) -> R {
-        match self.expr(0) {
-            Ok(e) => e,
-            Err(e) => e,
-        }
-    }
-
-    /// the error recovery function
     fn recover(&mut self, error: &R) {
         match error.deref().borrow().deref() {
             V::Error(Error::Syntax { ref depth, .. }) => {
                 if *depth == 0 {
-                    // unexpected token at top level
-                    // skip to next line
                     self.get_next_token();
                 } else {
-                    // unexpected token in compound expression
-                    // skip to next right parenthesis
-                    
                     let mut count = *depth;
                     loop {
                         match self.get_next_token() {
                             Some(Token::ParenRight) => {
                                 count -= 1;
-                                if count == 0 {
-                                    break;
-                                }
+                                if count == 0 { break; }
                             },
-                            Some(Token::ParenLeft) => {
-                                count += 1;
-                            },
+                            Some(Token::ParenLeft) => { count += 1; },
                             Some(_) => {},
                             None => break,
                         }
@@ -97,6 +65,156 @@ pub trait Reader {
         }
     }
 
+    fn peek_or_eof(&mut self) -> Result<Token, R> {
+        self.peek_next_token().ok_or(A::eof_object())
+    }
+
+}
+
+pub trait DatumReader : Reader {
+
+    /// read() - the starting point for the recursive descent parser is the datum() function
+    /// 
+    
+    fn read(&mut self) -> R {
+        match self.datum(0) {
+            Ok(e) => e,
+            Err(e) => e,
+        }
+    }
+
+    /// Datum (R7RS section 7.1.3 - External Representation)
+    /// 
+
+    fn datum(&mut self, rdepth: usize) -> Result<R, R> {
+        let token = self.get_next_token();
+
+        match token {
+            None => Err(A::syntax_error(rdepth, "unexpected end of input")),
+            Some(Token::Boolean(b)) => Ok(A::boolean(b)),
+            Some(Token::Character(c)) => Ok(A::character(c)),
+            Some(Token::String(s)) => Ok(A::string(s)),
+            Some(Token::Number(n)) => Ok(A::number(n)),
+            Some(Token::Identifier(id)) => Ok(A::symbol(id.as_str())),
+            Some(Token::ParenLeft) => self.datum_paren(rdepth + 1,),
+            Some(Token::SharpOpen) => self.datum_sharp_paren(rdepth + 1),
+            Some(Token::SharpU8Open) => self.datum_sharp_u8_paren(rdepth + 1),
+            Some(Token::Quote) => self.datum_quote(rdepth),
+            Some(Token::Quasiquote) => self.datum_quasiquote(rdepth),
+            Some(Token::Comma) => self.datum_unquote(rdepth),
+            Some(Token::CommaAt) => self.datum_unquote_splicing(rdepth),
+            _ => Err(A::syntax_error(rdepth, "unexpected token")),
+        }
+    }
+
+    fn datum_paren(&mut self, rdepth: usize) -> Result<R, R> {
+        let token = self.peek_or_eof()?;
+
+        match token {
+            Token::ParenRight => {
+                self.get_next_token();
+                Ok(A::null())
+            },
+            Token::Dot => {
+                let last = self.datum(rdepth)?;
+
+                match self.peek_or_eof()? {
+                    Token::ParenRight => {
+                        self.get_next_token();
+                        Ok(last)
+                    },
+                    _ => Err(A::syntax_error(rdepth, "unexpected token")),
+                }
+            },
+            _ => Ok(cons(
+                    &self.datum(rdepth)?,
+                    &self.datum_paren(rdepth)?)),
+        }
+    }
+
+    fn datum_sharp_paren(&mut self, rdepth: usize) -> Result<R, R> {
+        let mut v = Vec::new();
+
+        loop {
+            let token = self.peek_or_eof()?;
+
+            match token {
+                Token::ParenRight => {
+                    self.get_next_token();
+                    break;
+                },
+                _ => v.push(self.datum(rdepth)?),
+            }
+        }
+
+        Ok(A::vector(v))
+    }
+
+    fn datum_sharp_u8_paren(&mut self, rdepth: usize) -> Result<R, R> {
+        use crate::value::number::{Number, real::{Real, RealValue}};
+        let mut v = Vec::new();
+
+        loop {
+            let token = self.peek_or_eof()?;
+
+            match token {
+                Token::ParenRight => {
+                    self.get_next_token();
+                    break;
+                },
+                Token::Number(Number::Real(Real{exact: true, value: RealValue::Integer { positive, value }})) if positive && (value <= 255) => {
+                    self.get_next_token();
+                    v.push(value as u8);
+                },
+                _ => return Err(A::syntax_error(rdepth, "unexpected token")),
+            }
+        }
+
+        Ok(A::bytevector(v))
+    }
+
+    fn datum_quote(&mut self, rdepth: usize) -> Result<R, R> {
+        Ok(cons(
+            &A::symbol("quote"),
+            &cons(
+                &self.datum(rdepth)?,
+                &A::null()
+            )
+        ))
+    }
+
+    fn datum_quasiquote(&mut self, rdepth: usize) -> Result<R, R> {
+        Ok(cons(
+            &A::symbol("quasiquote"),
+            &cons(
+                &self.datum(rdepth)?,
+                &A::null()
+            )
+        ))
+    }
+
+    fn datum_unquote(&mut self, rdepth: usize) -> Result<R, R> {
+        Ok(cons(
+            &A::symbol("unquote"),
+            &cons(
+                &self.datum(rdepth)?,
+                &A::null()
+            )
+        ))
+    }
+
+    fn datum_unquote_splicing(&mut self, rdepth: usize) -> Result<R, R> {
+        Ok(cons(
+            &A::symbol("unquote-splicing"),
+            &cons(
+                &self.datum(rdepth)?,
+                &A::null()
+            )
+        ))
+    }
+}
+
+pub trait ExprReader : DatumReader {
     // 
     // Expressions
     // 
@@ -125,6 +243,13 @@ pub trait Reader {
     // - derived expression is not implemented
     // - does not check bytevector elements are bytes (i.e. 0-255)
     // - no error recovery
+
+    fn read(&mut self) -> R {
+        match self.expr(0) {
+            Ok(e) => e,
+            Err(e) => e,
+        }
+    }
 
     fn expr(&mut self, rdepth: usize) -> Result<R, R> {
         // a left parenthesis indicates a compound expression
@@ -165,7 +290,7 @@ pub trait Reader {
                 "define-library" => self.define_library(rdepth + 1),
                 "if" => self.iff(rdepth + 1),
                 "include" => self.include(rdepth + 1),
-                "include-ci" => self.include(rdepth + 1),
+                "include-ci" => self.include_ci(rdepth + 1),
                 "lambda" => self.lambda(rdepth + 1),
                 "let-syntax" | "letrec-syntax" => self.macro_block(rdepth + 1),
                 "quasiquote" => self.quasiquotation(rdepth + 1, 1),
@@ -192,11 +317,10 @@ pub trait Reader {
         let operands = self.operands(rdepth)?;
 
         Ok(cons(&operator, &operands))
-        // operator.cons(&operands)
     }
 
     fn operands(&mut self, rdepth: usize) -> Result<R, R> {
-        let operands = self.zero_or_more(Reader::expr, rdepth)?;
+        let operands = self.zero_or_more(Self::expr, rdepth)?;
         Self::list(operands)
     }
     
@@ -211,7 +335,7 @@ pub trait Reader {
         let formals = self.formals(rdepth)?;
 
         let body = self.body(rdepth)?;
-        Ok(cons (&keyword, &cons(&formals, &body)))
+        Ok(cons(&keyword, &cons(&formals, &body)))
     }
 
     fn formals(&mut self, rdepth: usize) -> Result<R, R> {   
@@ -219,7 +343,7 @@ pub trait Reader {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::ParenLeft => {
                 self.paren_left(rdepth)?;
-                let ids = self.identifier_list_possible_dot(rdepth + 1)?;
+                let ids = self.identifier_list(rdepth + 1)?;
                 self.paren_right(rdepth + 1)?;
                 Ok(ids)
             }
@@ -233,7 +357,7 @@ pub trait Reader {
     /// body cannot have definitions after any expression
     
     fn body(&mut self, rdepth: usize) -> Result<R, R> {       
-        let exprs = self.one_or_more(Reader::expr, rdepth)?;
+        let exprs = self.one_or_more(Self::expr, rdepth)?;
         let mut defs = true;
 
         for expr in exprs.clone().into_iter() {
@@ -255,11 +379,16 @@ pub trait Reader {
     //
 
     fn include(&mut self, rdepth: usize) -> Result<R, R> {
-        let keyword = self.keyword_box_leaf_from_next(rdepth)?;
+        let keyword = self.keyword("include", rdepth)?;
         let paths = self.strings(rdepth)?;
         Self::list(vec!(keyword, paths))
     }
 
+    fn include_ci(&mut self, rdepth: usize) -> Result<R, R> {
+        let keyword = self.keyword("include-ci", rdepth)?;
+        let paths = self.strings(rdepth)?;
+        Self::list(vec!(keyword, paths))
+    }
 
     ///
     /// Begin
@@ -278,7 +407,7 @@ pub trait Reader {
         // we return a list (exprs is_all_defs)
         // this is used by the evaluator to determine if the begin expression is itself a definition
 
-        let exprs = self.zero_or_more(Reader::expr, rdepth)?;
+        let exprs = self.zero_or_more(Self::expr, rdepth)?;
         
         let is_all_defs = exprs.iter().all(|node| Self::is_definition_expr(node));
         let is_all_defs = A::boolean(is_all_defs);
@@ -321,15 +450,14 @@ pub trait Reader {
     }
     
     fn is_definition_keyword(expr: &R) -> bool {
-        matches!(expr.deref().borrow().deref(), 
-            V::Keyword(Keyword::Define)
-            | V::Keyword(Keyword::DefineValues)
-            | V::Keyword(Keyword::DefineRecordType)
-            | V::Keyword(Keyword::DefineSyntax))
+        matches!(
+            expr.deref().borrow().deref(), 
+            V::Symbol(s) if matches!(s.as_str(), "define" | "define-values" | "define-record-type" | "define-syntax")
+        )
     }
     
     fn is_begin_keyword(expr: &R) -> bool {
-        matches!(expr.deref().borrow().deref(), V::Keyword(Keyword::Begin))
+        matches!(expr.deref().borrow().deref(), V::Symbol(s) if s.as_str() == "begin")
     }
     
     fn is_begin_expr(expr: &R) -> bool {
@@ -383,7 +511,7 @@ pub trait Reader {
     }
 
     fn def_formals(&mut self, rdepth:usize) -> Result<R, R> {
-        self.identifier_list_possible_dot(rdepth)
+        self.identifier_list(rdepth)
     }
 
     fn define_values(&mut self, rdepth: usize) -> Result<R, R> {
@@ -414,12 +542,12 @@ pub trait Reader {
     }
 
     fn field_names(&mut self, rdepth: usize) -> Result<R, R> {
-        let names = self.zero_or_more(Reader::identifier, rdepth)?;
+        let names = self.zero_or_more(Self::identifier, rdepth)?;
         Self::list(names)
     }
 
     fn field_specs(&mut self, rdepth: usize) -> Result<R, R> {
-        let specs = self.zero_or_more(Reader::field_spec, rdepth)?;
+        let specs = self.zero_or_more(Self::field_spec, rdepth)?;
         Self::list(specs)
     }
 
@@ -461,7 +589,7 @@ pub trait Reader {
     }
 
     fn library_declarations(&mut self, rdepth: usize) -> Result<R, R> {
-        let declarations = self.zero_or_more(Reader::library_declaration, rdepth)?;
+        let declarations = self.zero_or_more(Self::library_declaration, rdepth)?;
         Self::list(declarations)
     }
 
@@ -473,7 +601,7 @@ pub trait Reader {
     }
 
     fn library_name_after_open(&mut self, rdepth: usize) -> Result<R, R> {
-        Self::list(self.one_or_more(Reader::library_name_part, rdepth)?)
+        Self::list(self.one_or_more(Self::library_name_part, rdepth)?)
     }
 
     fn library_name_part(&mut self, rdepth: usize) -> Result<R, R> {
@@ -516,7 +644,7 @@ pub trait Reader {
     }
 
     fn export_specs(&mut self, rdepth: usize) -> Result<R, R> {
-        let specs = self.zero_or_more(Reader::export_spec, rdepth)?;
+        let specs = self.zero_or_more(Self::export_spec, rdepth)?;
         Self::list(specs)
     }
 
@@ -552,7 +680,7 @@ pub trait Reader {
     }
 
     fn import_sets(&mut self, rdepth: usize) -> Result<R, R> {
-        let sets = self.zero_or_more(Reader::import_set, rdepth)?;
+        let sets = self.zero_or_more(Self::import_set, rdepth)?;
         Self::list(sets)
     }
 
@@ -584,7 +712,7 @@ pub trait Reader {
     }
 
     fn import_set_ids(&mut self, rdepth: usize) -> Result<R, R> {
-        Self::list(self.one_or_more(Reader::identifier, rdepth)?)
+        Self::list(self.one_or_more(Self::identifier, rdepth)?)
     }
 
 
@@ -614,7 +742,7 @@ pub trait Reader {
     }
 
     fn rename_pairs(&mut self, rdepth: usize) -> Result<R, R> {
-        Self::list(self.one_or_more(Reader::identifier_pair, rdepth)?)
+        Self::list(self.one_or_more(Self::identifier_pair, rdepth)?)
     }
 
 
@@ -626,7 +754,7 @@ pub trait Reader {
     }
 
     fn cond_expand_clauses(&mut self, rdepth: usize) -> Result<R, R> {
-        Self::list(self.one_or_more(Reader::cond_clause, rdepth)?)
+        Self::list(self.one_or_more(Self::cond_clause, rdepth)?)
     }
 
     fn cond_clause(&mut self, rdepth: usize) -> Result<R, R> {
@@ -655,7 +783,7 @@ pub trait Reader {
     }
 
     fn feature_requirements(&mut self, rdepth: usize) -> Result<R, R> {
-        let requirements = self.zero_or_more(Reader::feature_requirement, rdepth)?;
+        let requirements = self.zero_or_more(Self::feature_requirement, rdepth)?;
         Self::list(requirements)
     }
 
@@ -758,7 +886,7 @@ pub trait Reader {
                 match self.get_next_token() {
                     Some(token) => match token {
                             Token::Boolean(b) => Ok(A::boolean(b)),
-                            Token::Character(c) => Ok(A::char(c)),
+                            Token::Character(c) => Ok(A::character(c)),
                             Token::Number(n) => Ok(A::number(n)),
                             Token::String(s) => Ok(A::string(s)),
                             _ => Err(A::syntax_error(rdepth, "unexpected token")),
@@ -800,7 +928,7 @@ pub trait Reader {
     }
 
     fn syntax_specs (&mut self, rdepth: usize) -> Result<R, R> {
-        let syntax_specs = self.zero_or_more(Reader::syntax_spec, rdepth)?;
+        let syntax_specs = self.zero_or_more(Self::syntax_spec, rdepth)?;
         Self::list(syntax_specs)
     }
 
@@ -831,7 +959,7 @@ pub trait Reader {
     fn quasiquotation_short(&mut self, rdepth: usize, qqdepth: u32) -> Result<R, R> {
         self.quasiquote(rdepth)?;
         // let keyword = Rc::new(RefCell::new(Object::Identifier(Identifier::Keyword(Keyword::from("quasiquote")))));
-        let keyword = A::keyword(Keyword::Quasiquote);
+        let keyword = A::symbol("quasiquote");
         let template = self.qq_template(rdepth, qqdepth)?;
         Self::list(vec!(keyword, template))
     }
@@ -928,11 +1056,14 @@ pub trait Reader {
     ///
 
     fn quotation(&mut self, rdepth: usize) -> Result<R, R> {
-        let _keyword = self.keyword("quote", rdepth)?;
+        let _ = self.keyword("quote", rdepth)?;
         let datum = self.datum(rdepth)?;
 
-
-        Ok(A::quotation(&datum))
+        Ok(cons(
+            &A::symbol("quote"),
+            &cons(
+                &datum,
+                &A::null())))
     }
 
     fn quotation_short(&mut self, rdepth: usize) -> Result<R, R> {
@@ -940,14 +1071,15 @@ pub trait Reader {
         let _quote = self.quote(rdepth)?;
         let datum = self.datum(rdepth)?;
 
-        Ok(A::quotation(&datum))
+        Ok(cons(&A::symbol("quote"), &cons(&datum, &A::null())))
+
     }
 
-    fn identifier_list_possible_dot(&mut self, rdepth: usize) -> Result<R, R> {
+    fn identifier_list(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
             Token::ParenRight => Self::list(vec!()),
             _ => {
-                let ids = self.one_or_more(Reader::identifier, rdepth)?;
+                let ids = self.one_or_more(Self::identifier, rdepth)?;
                 match self.peek_or_eof()? {
                     Token::Dot => {
                         self.dot(rdepth)?;
@@ -988,12 +1120,12 @@ pub trait Reader {
     }
 
     fn transformer_spec_ids(&mut self, rdepth: usize) -> Result<R, R> {
-        let ids = self.zero_or_more(Reader::identifier, rdepth)?;
+        let ids = self.zero_or_more(Self::identifier, rdepth)?;
         Self::list(ids)
     }
 
     fn syntax_rules(&mut self, rdepth: usize) -> Result<R, R> {
-        let syntax_rules = self.zero_or_more(Reader::syntax_rule, rdepth)?;
+        let syntax_rules = self.zero_or_more(Self::syntax_rule, rdepth)?;
         Self::list(syntax_rules)
     }
 
@@ -1071,7 +1203,7 @@ pub trait Reader {
                 let mut ellipse = false;
 
                 // we look for patterns before ellipse
-                pre_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                pre_ellipse_patterns = self.zero_or_more(Self::pattern, rdepth)?;
 
                 match self.peek_or_eof()? {
                     Token::ParenRight => (), // no dot
@@ -1086,7 +1218,7 @@ pub trait Reader {
                             {
                                 ellipse = true;
                                 let _ellipsis = self.identifier(rdepth)?;
-                                post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                                post_ellipse_patterns = self.zero_or_more(Self::pattern, rdepth)?;
 
                                 if !matches!(self.peek_or_eof()?, Token::ParenRight) { // dot with ellipse and dot 
                                     self.dot(rdepth)?;
@@ -1102,7 +1234,7 @@ pub trait Reader {
                     {
                         ellipse = true;
                         let _ellipsis = self.identifier(rdepth)?;
-                        post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                        post_ellipse_patterns = self.zero_or_more(Self::pattern, rdepth)?;
 
                         if !matches!(self.peek_or_eof()?, Token::ParenRight) {
                             self.dot(rdepth)?;
@@ -1145,13 +1277,13 @@ pub trait Reader {
         match self.peek_or_eof()? {
             Token::ParenRight => (), // empty
             _ => {
-                pre_ellipse_patterns = self.one_or_more(Reader::pattern, rdepth)?;
+                pre_ellipse_patterns = self.one_or_more(Self::pattern, rdepth)?;
                 match self.peek_or_eof()? {
                     Token::ParenRight => (),
                     Token::Identifier(id) if  id.as_str() == "..." => {
                         let _ellipsis = self.identifier(rdepth)?;
                         ellipse = true;
-                        post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                        post_ellipse_patterns = self.zero_or_more(Self::pattern, rdepth)?;
 
                     },
                     _ => ()
@@ -1192,7 +1324,7 @@ pub trait Reader {
         let template = match self.peek_or_eof()? {
             Token::ParenRight => Ok(vec!()), // empty list
             _ => {
-                let mut elements = self.one_or_more(Reader::template_element, rdepth + 1)?;
+                let mut elements = self.one_or_more(Self::template_element, rdepth + 1)?;
                 match self.peek_or_eof()? {
                     Token::ParenRight => Ok(elements),
                     Token::Dot => {
@@ -1216,7 +1348,7 @@ pub trait Reader {
         
         match self.peek_or_eof()? {
             Token::Identifier(id) if id.as_str() == "..." => { 
-                let ellipsis = A::keyword(Keyword::Ellipsis);
+                let ellipsis = A::symbol("...");
                 Self::list(vec!(template, ellipsis))
             }
             _ => Self::list(vec!(template))
@@ -1225,7 +1357,7 @@ pub trait Reader {
 
     fn template_with_sharp_paren(&mut self, rdepth: usize) -> Result<R, R> {
         self.sharpopen(rdepth)?;
-        let elements = self.zero_or_more(Reader::template_element, rdepth + 1)?;
+        let elements = self.zero_or_more(Self::template_element, rdepth + 1)?;
         self.paren_right(rdepth)?;
 
         Self::list(elements)
@@ -1235,30 +1367,26 @@ pub trait Reader {
         self.datum(rdepth)
     }
 
-    ///
-    /// Datum (R7RS section 7.1.3 - External Representation)
-    /// 
-    /// 
-    /// 
+    // fn datum(&mut self, rdepth: usize) -> Result<R, R> {
+    //         match self.peek_or_eof()? {
+    //         // simple datum
 
-    fn datum(&mut self, rdepth: usize) -> Result<R, R> {
-        match self.peek_or_eof()? {
-            Token::Identifier(_) => self.symbol(rdepth),
-            Token::ParenLeft => self.datum_list(rdepth),
-            Token::SharpOpen => self.vector(rdepth),
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::String(_)
-            | Token::Number(_) => self.literal(rdepth),
-            Token::SharpU8Open => self.bytevector(rdepth),
-            Token::Quote 
-            | Token::Quasiquote
-            | Token::Comma
-            | Token::CommaAt => self.abbreviation(rdepth),
-            _ => Err(A::syntax_error(rdepth, "unexpected token")),
-            // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
-        }
-    }
+    //         Token::Boolean(b) => { self.get_next_token(); Ok(A::boolean(b)) },
+    //         Token::Character(c) => { self.get_next_token(); Ok(A::character(c)) },
+    //         Token::String(s) => { self.get_next_token(); Ok(A::string(s)) },
+    //         Token::Number(n) => { self.get_next_token(); Ok(A::number(n)) },
+    //         Token::Identifier(id) => { self.get_next_token(); Ok(A::symbol(id.as_str()))},
+    //         Token::ParenLeft => self.datum_list(rdepth),
+    //         Token::SharpOpen => self.vector(rdepth),
+    //         Token::SharpU8Open => self.bytevector(rdepth),
+    //         Token::Quote 
+    //         | Token::Quasiquote
+    //         | Token::Comma
+    //         | Token::CommaAt => self.abbreviation(rdepth),
+    //         _ => Err(A::syntax_error(rdepth, "unexpected token")),
+    //         // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
+    //     }
+    // }
 
     fn simple_datum(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
@@ -1299,7 +1427,7 @@ pub trait Reader {
         let data = match self.peek_or_eof()? {
             Token::ParenRight => Ok(A::null()),
             _ => {
-                let data = self.one_or_more(Reader::datum, rdepth + 1)?;
+                let data = self.one_or_more(Self::datum, rdepth + 1)?;
 
                 match self.peek_or_eof()? {
                     Token::Dot => {
@@ -1332,17 +1460,42 @@ pub trait Reader {
 
     fn vector(&mut self, rdepth: usize) -> Result<R, R> {
         self.sharpopen(rdepth)?;
-        let data = self.zero_or_more(Reader::expr, rdepth + 1)?;
+        let data = self.zero_or_more(Self::expr, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        Ok(A::vector(&Self::list(data)?))
+
+        Ok(A::vector(data))
+        // Ok(A::vector(&Self::list(data)?))
     }
 
     fn bytevector(&mut self, rdepth: usize) -> Result<R, R> {
         self.sharpu8open(rdepth)?;
-        let data = self.zero_or_more(Reader::expr, rdepth + 1)?;
+        let data = self.zero_or_more(Self::byte, rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        Ok(A::bytevector(&Self::list(data)?))
+        use crate::value::number::{Number, real::{Real, RealValue}};
+
+        // Ok(A::bytevector(&Self::list(data)?))
+        Ok(A::bytevector(
+            data
+            .iter()
+            .map(|x| match x.deref().borrow().deref() {
+                        V::Number(Number::Real(Real{exact: true, value: RealValue::Integer{ positive: true, value: n}})) => n.clone() as u8,
+                        _ => 0 as u8,
+                    }).collect()))
+    }
+
+    fn byte(&mut self, rdepth: usize) -> Result<R, R> {
+        use crate::value::number::{Number, real::{Real, RealValue}};
+        match self.peek_or_eof()? {
+            Token::Number(Number::Real(Real{exact: true, value: RealValue::Integer{ positive: true, value: n}})) if n <= 255 => {
+                match self.get_next_token() {
+                    Some(Token::Number(n)) => Ok(A::number(n)),
+                    _ => return Err(A::eof_object()),
+                }
+            },
+            _ => Err(A::syntax_error(rdepth, "unexpected token")),
+            // token @ _ => Err(unexpected(rdepth, token.to_string(), "uninteger10".to_string())),
+        }
     }
 
     fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> Result<R, R>, rdepth: usize) -> Result<Vec<R>, R> {
@@ -1355,22 +1508,12 @@ pub trait Reader {
 
     fn keyword(&mut self, keyword: &str, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
-            Token::Identifier(s) if keyword == s => self.keyword_box_leaf_from_next(rdepth),
+            Token::Identifier(s) if keyword == s => {self.get_next_token(); Ok(A::symbol(s.as_str()))},
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "a keyword".to_string()))
         }
     }
 
-    fn keyword_box_leaf_from_next(&mut self, rdepth: usize) -> Result<R, R> {
-        
-        match self.get_next_token() {
-            Some(Token::Identifier(s)) => Ok(A::keyword(Keyword::from(s))),
-            None => Err(A::eof_object()),
-            _ => Err(A::syntax_error(rdepth, "unexpected token")),
-            // token @ _ => Err(unexpected(rdepth, token.unwrap().to_string(), "a keyword".to_string())),
-        }
-    }
-    
     fn punctuation(&mut self, rdepth: usize, expected: Token, s: &'static str) -> Result<R, R> {
         match self.peek_or_eof()? {
             t if t == expected => {
@@ -1419,7 +1562,7 @@ pub trait Reader {
     }
 
     fn strings(&mut self, rdepth: usize) -> Result<R, R> {
-        Self::list(self.one_or_more(Reader::string, rdepth)?)
+        Self::list(self.one_or_more(Self::string, rdepth)?)
     }
 
     fn string(&mut self, rdepth: usize) -> Result<R, R> {
@@ -1464,7 +1607,4 @@ pub trait Reader {
         Self::list(vec!(id1, id2))
     }
 
-    fn peek_or_eof(&mut self) -> Result<Token, R> {
-        self.peek_next_token().ok_or(A::eof_object())
-    }
 }

@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use crate::alloc::{A, R}; // A is the allocator, R is the reference type
 use crate::env::global_env; // global_env() returns the global environment
 use crate::eval::{eval, trampoline}; // eval() evaluates an expression, trampoline() is the interpreter driver loop
-use crate::read::Reader; // Reader is the trait for reading expressions
+use crate::read::ExprReader; // Reader is the trait for reading expressions
 use crate::stdlib::base::{car, cons}; // required base functions
 use crate::value::{V};
 
@@ -48,7 +48,7 @@ fn read_cont(e: &R, r: &R, k: &R) -> (R, R) {
     let stdin_port = car(e);
 
     let expr = if let V::Port(p) = stdin_port.deref().borrow_mut().deref_mut() {
-        p.read_expr()
+        p.read()
     } else {
         panic!("stdin is not a port");
     };

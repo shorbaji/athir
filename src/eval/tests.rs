@@ -2,7 +2,7 @@ use super::*;
 use crate::env::global_env;
 use crate::value::{V, number::Number, port::Port};
 use crate::alloc::A;
-use crate::read::Reader;
+use crate::read::DatumReader;
 
 fn test(code: &str, predicate: fn(&V) -> bool) {
     let mut e: R = A::null();
@@ -10,7 +10,7 @@ fn test(code: &str, predicate: fn(&V) -> bool) {
     let mut port = Port::open_input_string(code.to_string());
 
     loop {
-        let expr = port.read_expr();
+        let expr = port.read();
         let borrow = expr.deref().borrow();
         if let V::EofObject = borrow.deref() {
             break;
