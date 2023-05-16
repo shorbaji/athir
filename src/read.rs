@@ -1094,7 +1094,6 @@ pub trait ExprReader : DatumReader {
 
     ///
     /// Transformer (R7RS section 7.1.5) 
-    /// [INCOMPLETE]
     /// 
     
     fn transformer_spec(&mut self, rdepth: usize) -> Result<R, R> {
@@ -1111,12 +1110,14 @@ pub trait ExprReader : DatumReader {
 
         self.paren_right(rdepth + 1)?;
 
+        let children = cons(&ids, &syntax_rules);
         let children = match id {
-            Ok(id) => vec!(id, ids, syntax_rules),
-            Err(_) => vec!(ids, syntax_rules),
+            Ok(id) => cons(&id, &children),
+            Err(_) => children,
         };
 
-        Ok(cons(&keyword, &Self::list(children)?))
+        Ok(cons(&keyword, &children))
+
     }
 
     fn transformer_spec_ids(&mut self, rdepth: usize) -> Result<R, R> {
@@ -1135,7 +1136,11 @@ pub trait ExprReader : DatumReader {
         let pattern = self.pattern(rdepth + 1)?;
         let template = self.template(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        Self::list(vec!(pattern, template))
+        Ok(cons(
+            &pattern,
+            &cons(
+                &template,
+                &A::null())))
     }
 
     fn pattern(&mut self, rdepth: usize) -> Result<R, R> {
@@ -1165,9 +1170,7 @@ pub trait ExprReader : DatumReader {
         let token = self.peek_or_eof()?;
 
         match token {
-            Token::Identifier(s) if s.as_str() == "..." => 
-                Ok(A::syntax_error(rdepth, "ellipsis not allowed in pattern")),
-                // Err(unexpected(rdepth, "...".to_string(), "identifier".to_string())),
+            Token::Identifier(s) if s.as_str() == "..." => Err(A::syntax_error(rdepth, "ellipsis not allowed in pattern")),
             _ => self.identifier(rdepth),
         }
     }
@@ -1181,7 +1184,6 @@ pub trait ExprReader : DatumReader {
         self.paren_left(rdepth)?;
         let patterns = self.pattern_with_paren_a(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-
         Ok(patterns)
     }
 
@@ -1193,14 +1195,13 @@ pub trait ExprReader : DatumReader {
 
         match self.peek_or_eof()? {
             
-            Token::ParenRight => Self::list(vec!()), // empty
-
+            Token::ParenRight => Ok(A::null()), // empty
             _ => {
 
                 // initially we have not seen an ellipse or any patterns before or after ellipse
                 let mut pre_ellipse_patterns : Vec<R>;
                 let mut post_ellipse_patterns: Vec<R> = vec!();
-                let mut ellipse = false;
+                let mut has_ellipsis = false;
 
                 // we look for patterns before ellipse
                 pre_ellipse_patterns = self.zero_or_more(Self::pattern, rdepth)?;
@@ -1216,7 +1217,7 @@ pub trait ExprReader : DatumReader {
                             Token::ParenRight => (), // dot with no ellipse
                             Token::Identifier(id) if  id.as_str() == "..." =>  // dot with ellipse
                             {
-                                ellipse = true;
+                                has_ellipsis = true;
                                 let _ellipsis = self.identifier(rdepth)?;
                                 post_ellipse_patterns = self.zero_or_more(Self::pattern, rdepth)?;
 
@@ -1232,8 +1233,8 @@ pub trait ExprReader : DatumReader {
                     },
                     Token::Identifier(id) if  id.as_str() == "..." =>  
                     {
-                        ellipse = true;
-                        let _ellipsis = self.identifier(rdepth)?;
+                        has_ellipsis = true;
+                        let _ = self.identifier(rdepth)?;
                         post_ellipse_patterns = self.zero_or_more(Self::pattern, rdepth)?;
 
                         if !matches!(self.peek_or_eof()?, Token::ParenRight) {
@@ -1245,10 +1246,12 @@ pub trait ExprReader : DatumReader {
                     _ => ()
                 }
 
-                let mut vec = vec!(Self::list(pre_ellipse_patterns)?);
+                // let mut vec = vec!(Self::list(pre_ellipse_patterns)?);
+                let mut vec = pre_ellipse_patterns;
 
-                if ellipse {
-                    vec.push(Self::list(post_ellipse_patterns)?);
+                if has_ellipsis {
+                    vec.push(A::symbol("..."));
+                    vec.append(&mut post_ellipse_patterns);
                 }
 
                 Self::list(vec)
@@ -1302,7 +1305,7 @@ pub trait ExprReader : DatumReader {
 
     fn template(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
-            Token::Identifier(_) => self.template_identifier(rdepth),
+            Token::Identifier(_) => self.pattern_identifier(rdepth),
             Token::ParenLeft => self.template_with_paren(rdepth),
             Token::SharpOpen => self.template_with_sharp_paren(rdepth),
             Token::Boolean(_)
@@ -1312,10 +1315,6 @@ pub trait ExprReader : DatumReader {
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
-    }
-
-    fn template_identifier(&mut self, rdepth: usize) -> Result<R, R> {
-        self.pattern_identifier(rdepth)
     }
 
     fn template_with_paren(&mut self, rdepth: usize) -> Result<R, R> {
@@ -1333,7 +1332,6 @@ pub trait ExprReader : DatumReader {
                         Ok(elements)
                     },
                     _ => Err(A::syntax_error(rdepth, "unexpected token")),
-                    // token @ _ => Err(unexpected(rdepth, token.to_string(), "close parenthesis or dot".to_string())),
                 }
             }
         }?;
@@ -1349,9 +1347,10 @@ pub trait ExprReader : DatumReader {
         match self.peek_or_eof()? {
             Token::Identifier(id) if id.as_str() == "..." => { 
                 let ellipsis = A::symbol("...");
-                Self::list(vec!(template, ellipsis))
+                self.get_next_token();
+                Ok(cons(&template, &cons(&ellipsis, &A::null())))
             }
-            _ => Self::list(vec!(template))
+            _ => Ok(template)
         }
     }
 
@@ -1366,27 +1365,6 @@ pub trait ExprReader : DatumReader {
     fn template_datum(&mut self, rdepth: usize) -> Result<R, R> {
         self.datum(rdepth)
     }
-
-    // fn datum(&mut self, rdepth: usize) -> Result<R, R> {
-    //         match self.peek_or_eof()? {
-    //         // simple datum
-
-    //         Token::Boolean(b) => { self.get_next_token(); Ok(A::boolean(b)) },
-    //         Token::Character(c) => { self.get_next_token(); Ok(A::character(c)) },
-    //         Token::String(s) => { self.get_next_token(); Ok(A::string(s)) },
-    //         Token::Number(n) => { self.get_next_token(); Ok(A::number(n)) },
-    //         Token::Identifier(id) => { self.get_next_token(); Ok(A::symbol(id.as_str()))},
-    //         Token::ParenLeft => self.datum_list(rdepth),
-    //         Token::SharpOpen => self.vector(rdepth),
-    //         Token::SharpU8Open => self.bytevector(rdepth),
-    //         Token::Quote 
-    //         | Token::Quasiquote
-    //         | Token::Comma
-    //         | Token::CommaAt => self.abbreviation(rdepth),
-    //         _ => Err(A::syntax_error(rdepth, "unexpected token")),
-    //         // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
-    //     }
-    // }
 
     fn simple_datum(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {

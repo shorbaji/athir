@@ -9,8 +9,8 @@
 #[cfg(test)]
 mod tests;
 
-use crate::stdlib::base::{car, cdr, cons, cadr, len};
-use crate::stdlib::cxr::{caddr, cadddr};
+use crate::stdlib::base::{car, cdr, cons, cadr, cddr, len};
+use crate::stdlib::cxr::{caddr, cdddr};
 use crate::value::{V, procedure::Procedure};
 use crate::alloc::{A, R};
 
@@ -98,10 +98,6 @@ fn eval_define_syntax(e: &R, r: &R, k: &R) -> (R, R) {
     let var = car(e);
     let val = cadr(e);
 
-    println!("EVAL DEFINE SYNTAX");
-
-    println!("keyword: {}", var);
-
     let then = A::continuation_plus(eval_define_or_set_cont, &var, r, k);
     (A::continuation(eval_syntax_rules, r, &then), val)
 }
@@ -111,24 +107,16 @@ fn eval_syntax_rules(e: &R, _r: &R, k: &R) -> (R, R) {
     // - evaluate e into a TransformerSpec object and then pass that back to k
 
     let (ellipsis, literals, rules) = match cadr(e).deref().borrow().deref() {
-        V::Symbol(ref s) => (Some(s.clone()), caddr(e), cadddr(e)),
-        _ => (None, cadr(e), caddr(e)),
+        V::Symbol(ref s) => (Some(s.clone()), caddr(e), cdddr(e)),
+        _ => (None, cadr(e), cddr(e)),
     };
-
-    println!("ellipsis: {:?}", ellipsis);
-    println!("literals: {}", literals);
-    println!("rules: {}", rules);
 
     let mut ls = rules.clone();
 
     while !matches!(ls.deref().borrow().deref(), V::Null) {
         let rule = car(&ls);
-        println!("pattern: {}", car(&rule));
-        println!("template: {}", cadr(&rule));
         ls = cdr(&ls);
     }
-
-    println!("rules count: {}", len(&rules));
 
     (k.clone(), e.clone())
 }

@@ -75,11 +75,12 @@ impl std::fmt::Display for V {
                 let mut ls = A::pair(ncar, ncdr);
 
                 loop {
-                    write!(f, "{} ", car(&ls));
+                    write!(f, "{}", car(&ls));
                     let x = match cdr(&ls).deref().borrow().deref() {
                         V::Null => break,
                         V::Pair(_, _) => {
                             ls = cdr(&ls);
+                            write!(f, " ");
                             continue;
                         },
                         _ => {
