@@ -9,7 +9,8 @@
 #[cfg(test)]
 mod tests;
 
-use crate::stdlib::base::{car, cdr, cons, cadr};
+use crate::stdlib::base::{car, cdr, cons, cadr, len};
+use crate::stdlib::cxr::{caddr, cadddr};
 use crate::value::{V, procedure::Procedure};
 use crate::alloc::{A, R};
 
@@ -73,7 +74,6 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
                     "quote" => (A::continuation(eval_quote, r, k), cdr.clone()),
                     "set!" => (A::continuation(eval_set, r, k), cdr.clone()),
                     "define-syntax" => (A::continuation(eval_define_syntax, r, k), cdr.clone()),
-                    // "syntax-rules" => (A::continuation(eval_syntax_rules, r, k), cdr.clone()),
                     // TODO: implement the rest of the special forms
                     // TODO: implement the detection and evaluation of macro uses
                     _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
@@ -98,6 +98,10 @@ fn eval_define_syntax(e: &R, r: &R, k: &R) -> (R, R) {
     let var = car(e);
     let val = cadr(e);
 
+    println!("EVAL DEFINE SYNTAX");
+
+    println!("keyword: {}", var);
+
     let then = A::continuation_plus(eval_define_or_set_cont, &var, r, k);
     (A::continuation(eval_syntax_rules, r, &then), val)
 }
@@ -105,6 +109,26 @@ fn eval_define_syntax(e: &R, r: &R, k: &R) -> (R, R) {
 fn eval_syntax_rules(e: &R, _r: &R, k: &R) -> (R, R) {
     // TODO
     // - evaluate e into a TransformerSpec object and then pass that back to k
+
+    let (ellipsis, literals, rules) = match cadr(e).deref().borrow().deref() {
+        V::Symbol(ref s) => (Some(s.clone()), caddr(e), cadddr(e)),
+        _ => (None, cadr(e), caddr(e)),
+    };
+
+    println!("ellipsis: {:?}", ellipsis);
+    println!("literals: {}", literals);
+    println!("rules: {}", rules);
+
+    let mut ls = rules.clone();
+
+    while !matches!(ls.deref().borrow().deref(), V::Null) {
+        let rule = car(&ls);
+        println!("pattern: {}", car(&rule));
+        println!("template: {}", cadr(&rule));
+        ls = cdr(&ls);
+    }
+
+    println!("rules count: {}", len(&rules));
 
     (k.clone(), e.clone())
 }

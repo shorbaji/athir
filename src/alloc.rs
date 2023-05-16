@@ -25,6 +25,12 @@ impl R {
     }
 }
 
+impl std::fmt::Display for R {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.inner.borrow())
+    }
+}
+
 pub struct A;
 
 impl A {

@@ -1099,7 +1099,7 @@ pub trait ExprReader : DatumReader {
     
     fn transformer_spec(&mut self, rdepth: usize) -> Result<R, R> {
         self.paren_left(rdepth)?;
-        self.keyword("syntax-rules", rdepth + 1)?;
+        let keyword = self.keyword("syntax-rules", rdepth + 1)?;
 
         let id = self.identifier(rdepth + 1);
 
@@ -1116,7 +1116,7 @@ pub trait ExprReader : DatumReader {
             Err(_) => vec!(ids, syntax_rules),
         };
 
-        Self::list(children)
+        Ok(cons(&keyword, &Self::list(children)?))
     }
 
     fn transformer_spec_ids(&mut self, rdepth: usize) -> Result<R, R> {

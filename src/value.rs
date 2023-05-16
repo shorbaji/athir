@@ -1,16 +1,18 @@
 pub mod port;
 pub mod number;
 pub mod procedure;
-pub mod syntax;
+pub mod transformer;
 mod keyword;
 
 use std::{collections::HashMap, ops::Deref};
 
-use crate::alloc::R;
+use crate::alloc::{A, R};
+use crate::stdlib::base::{car, cdr};
+
 use number::Number;
 use port::Port;
 use procedure::Procedure;
-use syntax::Transformer;
+use transformer::Transformer;
 
 pub enum V {
     Boolean(bool),
@@ -67,7 +69,28 @@ impl std::fmt::Display for V {
             V::EofObject => write!(f, "#<eof-object>"),
             V::Null => write!(f, "()"),
             V::Number(n) => write!(f, "{}", n),
-            V::Pair(car, cdr) => write!(f, "({} . {})", car.deref().borrow().deref(), cdr.deref().borrow().deref()),
+            V::Pair(ncar, ncdr) => {
+                write!(f, "(");
+
+                let mut ls = A::pair(ncar, ncdr);
+
+                loop {
+                    write!(f, "{} ", car(&ls));
+                    let x = match cdr(&ls).deref().borrow().deref() {
+                        V::Null => break,
+                        V::Pair(_, _) => {
+                            ls = cdr(&ls);
+                            continue;
+                        },
+                        _ => {
+                            write!(f, ". {}", cdr(&ls));
+                            break;
+                        }
+                    };
+                }                
+
+                write!(f, ")")
+            },
             V::Port(p) => write!(f, "#<port {:?}>", p),
             V::Procedure(p) => write!(f, "#<procedure {:?}>", p),
             V::String(s) => write!(f, "\"{}\"", s),
