@@ -77,7 +77,7 @@ impl std::fmt::Display for V {
             V::Env{ map:_, outer:_ } => write!(f, "#<env>"),
             V::Error(s) => write!(f, "#<error {:?}>", s),
 
-            V::Transformer(t) => write!(f, "#<transformer>"),
+            V::Transformer(_) => write!(f, "#<transformer>"),
             V::Unspecified => write!(f, "#<unspecified>"),
         }
     }

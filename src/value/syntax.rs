@@ -57,7 +57,7 @@ impl Transformer {
 
 impl Pattern {
     pub fn is_match(&self, e: &R) -> bool {
-        true
+        panic!("pattern match not implemented!")
     }
 }
 
