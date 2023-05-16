@@ -9,7 +9,7 @@
 #[cfg(test)]
 mod tests;
 
-use crate::stdlib::base::{car, cdr, cons, cadr, cddr, len};
+use crate::stdlib::base::{car, cdr, cons, cadr, cddr};
 use crate::stdlib::cxr::{caddr, cdddr};
 use crate::value::{V, procedure::Procedure};
 use crate::alloc::{A, R};
@@ -104,7 +104,7 @@ fn eval_define_syntax(e: &R, r: &R, k: &R) -> (R, R) {
 
 fn eval_syntax_rules(e: &R, _r: &R, k: &R) -> (R, R) {
     // TODO
-    // - evaluate e into a TransformerSpec object and then pass that back to k
+    // - evaluate e into a Transformer object and then pass that back to k
 
     let (ellipsis, literals, rules) = match cadr(e).deref().borrow().deref() {
         V::Symbol(ref s) => (Some(s.clone()), caddr(e), cdddr(e)),
