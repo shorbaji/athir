@@ -31,7 +31,7 @@ pub enum V {
     Env{ map: HashMap<String, R>, outer: Option<R> },
     Error(Error),
     
-    Transformer(Transformer),
+    Transformer(R),
     Unspecified,
 }
 
@@ -84,7 +84,7 @@ impl std::fmt::Display for V {
                             continue;
                         },
                         _ => {
-                            write!(f, ". {}", cdr(&ls));
+                            write!(f, " . {}", cdr(&ls));
                             break;
                         }
                     };
@@ -101,7 +101,7 @@ impl std::fmt::Display for V {
             V::Env{ map:_, outer:_ } => write!(f, "#<env>"),
             V::Error(s) => write!(f, "#<error {:?}>", s),
 
-            V::Transformer(_) => write!(f, "#<transformer>"),
+            V::Transformer(_) => write!(f, "#<macro>"),
             V::Unspecified => write!(f, "#<unspecified>"),
         }
     }

@@ -134,6 +134,10 @@ impl A {
         R::new(V::Procedure(Procedure::PrimitiveOptionalUnary(f, s)))
     }
 
+    pub fn transformer(r: &R) -> R {
+        R::new(V::Transformer(r.clone()))
+    }
+
     pub fn unspecified() -> R {
         R::new(V::Unspecified)
     }

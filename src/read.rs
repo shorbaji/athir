@@ -79,8 +79,7 @@ pub trait DatumReader : Reader {
     fn read(&mut self) -> R {
         match self.datum(0) {
             Ok(e) => e,
-            Err(e) => e,
-        }
+            Err(e) => {self.recover(&e); e },        }
     }
 
     /// Datum (R7RS section 7.1.3 - External Representation)
@@ -247,7 +246,7 @@ pub trait ExprReader : DatumReader {
     fn read(&mut self) -> R {
         match self.expr(0) {
             Ok(e) => e,
-            Err(e) => e,
+            Err(e) => {self.recover(&e); e }
         }
     }
 
@@ -409,14 +408,15 @@ pub trait ExprReader : DatumReader {
 
         let exprs = self.zero_or_more(Self::expr, rdepth)?;
         
-        let is_all_defs = exprs.iter().all(|node| Self::is_definition_expr(node));
-        let is_all_defs = A::boolean(is_all_defs);
+        // let is_all_defs = exprs.iter().all(|node| Self::is_definition_expr(node));
+        // let is_all_defs = A::boolean(is_all_defs);
 
         let exprs = Self::list(exprs)?;
 
-        let tagged = cons(&exprs, &is_all_defs);
+        // let tagged = cons(&exprs, &is_all_defs);
 
-        Self::list(vec!(begin, tagged))
+        // Self::list(vec!(begin, tagged))
+        Self::list(vec!(begin, exprs))
 
     }
 
@@ -1171,7 +1171,6 @@ pub trait ExprReader : DatumReader {
 
         match token {
             Token::Identifier(s) if matches!(ellipsis.deref().borrow().deref(), V::Symbol(t) if s==t.clone()) => {
-                self.get_next_token();
                 Err(A::syntax_error(rdepth, "ellipsis not allowed in pattern"))
             },
             _ => self.identifier(rdepth),
@@ -1256,6 +1255,7 @@ pub trait ExprReader : DatumReader {
 
                 if has_ellipsis {
                     vec.push(A::symbol("..."));
+                    
                     vec.append(&mut post_ellipse_patterns);
                 }
 

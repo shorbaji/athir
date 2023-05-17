@@ -13,6 +13,7 @@ use crate::stdlib::base::{car, cdr, cons, cadr, cddr};
 use crate::stdlib::cxr::{caddr, cdddr};
 use crate::value::{V, procedure::Procedure};
 use crate::alloc::{A, R};
+use crate::syntax::pattern_match;
 
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
@@ -75,8 +76,13 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
                     "set!" => (A::continuation(eval_set, r, k), cdr.clone()),
                     "define-syntax" => (A::continuation(eval_define_syntax, r, k), cdr.clone()),
                     // TODO: implement the rest of the special forms
-                    // TODO: implement the detection and evaluation of macro uses
-                    _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
+                    _ => {
+                        if let V::Transformer(t) = lookup(&s, r).deref().borrow().deref() {
+                            (A::continuation_plus(eval_transformer, t, r, k), e.clone())
+                        } else {
+                            (A::continuation_plus(eval_application, cdr, r, k), car.clone())
+                        }
+                    }
                 },
                 _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
             }
@@ -103,22 +109,54 @@ fn eval_define_syntax(e: &R, r: &R, k: &R) -> (R, R) {
 }
 
 fn eval_syntax_rules(e: &R, _r: &R, k: &R) -> (R, R) {
-    // TODO
-    // - evaluate e into a Transformer object and then pass that back to k
-
-    let (ellipsis, literals, rules) = match cadr(e).deref().borrow().deref() {
+    let (_ellipsis, _literals, rules) = match cadr(e).deref().borrow().deref() {
         V::Symbol(ref s) => (Some(s.clone()), caddr(e), cdddr(e)),
         _ => (None, cadr(e), cddr(e)),
     };
 
     let mut ls = rules.clone();
+    let mut i = 0;
 
     while !matches!(ls.deref().borrow().deref(), V::Null) {
         let rule = car(&ls);
+        println!("rule {}: {}", i, rule);
+        let _pattern = car(&rule);
+        let _template = cadr(&rule);
+        ls = cdr(&ls);
+        i = i + 1;
+    }
+    
+    (k.clone(), A::transformer(e))
+}
+
+fn eval_transformer(e: &R, o: &R, r: &R, k: &R) -> (R, R) {
+
+    let (ellipsis, literals, rules) = match cadr(o).deref().borrow().deref() {
+        V::Symbol(ref s) => (Some(s.clone()), caddr(o), cdddr(o)),
+        _ => (None, cadr(o), cddr(o)),
+    };
+
+    let mut ls = rules.clone();
+
+    loop {
+        if matches!(ls.deref().borrow().deref(), V::Null) {
+            break;
+        }
+
+        let rule = car(&ls);
+        let pattern = car(&rule);
+        let template = cadr(&rule);
+
+        match pattern_match(&pattern, &e, ellipsis.clone().unwrap_or("...".to_string())) {
+            Ok(e) => println!("matched pattern: {}", e),
+            Err(e) => (),
+        }
+        
+
         ls = cdr(&ls);
     }
 
-    (k.clone(), e.clone())
+    (k.clone(), A::runtime_error(format!("macro use not implemented!")))
 }
 
 /// Evaluate a set expression

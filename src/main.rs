@@ -4,6 +4,7 @@ mod eval;
 mod read;
 mod repl;
 mod stdlib;
+mod syntax;
 mod value;
 
 use repl::repl;
