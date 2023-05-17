@@ -48,7 +48,7 @@ fn read_cont(e: &R, r: &R, k: &R) -> (R, R) {
     let stdin_port = car(e);
 
     let expr = if let V::Port(p) = stdin_port.deref().borrow_mut().deref_mut() {
-        p.read(r)
+        p.read()
     } else {
         panic!("stdin is not a port");
     };

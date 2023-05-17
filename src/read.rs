@@ -16,11 +16,9 @@ use std::iter::{once, from_fn};
 use std::ops::Deref;
 
 use crate::alloc::{A, R};
-use crate::env::lookup;
 use crate::read::lexer::Token;
 use crate::stdlib::base::{car, cons};
 use crate::stdlib::cxr::cdadr;
-use crate::syntax::expand;
 use crate::value::{V, Error};
 
 /// Reader trait
@@ -244,19 +242,9 @@ pub trait ExprReader : DatumReader {
     // - does not check bytevector elements are bytes (i.e. 0-255)
     // - no error recovery
 
-    fn read(&mut self, r: &R) -> R {
+    fn read(&mut self) -> R {
         match self.expr(0) {
-            Ok(e) => {
-                if let V::Pair(car, _) = e.deref().borrow().deref() {
-                    if let V::Symbol(s) = car.deref().borrow().deref() {
-                        if let V::Transformer(t) = lookup(s, r).deref().borrow().deref() {
-                            return expand(&t, &e).unwrap()
-                        }
-                    }
-                }
-
-                e
-            },
+            Ok(e) => e,
             Err(e) => {self.recover(&e); e }
         }
     }
@@ -1343,7 +1331,7 @@ pub trait ExprReader : DatumReader {
         let template = match self.peek_or_eof()? {
             Token::ParenRight => Ok(vec!()), // empty list
             _ => {
-                let mut elements: Vec<R> = once(Self::template_element(self, rdepth + 1, ellipsis)?).chain(from_fn(|| Self::template_element(self, rdepth + 1, ellipsis).ok())).collect();
+                let mut elements: Vec<R> = once(Self::template_element(self, rdepth + 1, ellipsis)?).chain(from_fn(|| Self::template_element_or_ellipsis(self, rdepth + 1, ellipsis).ok())).collect();
                 match self.peek_or_eof()? {
                     Token::ParenRight => Ok(elements),
                     Token::Dot => {
@@ -1370,6 +1358,16 @@ pub trait ExprReader : DatumReader {
                 Ok(cons(&template, &cons(&ellipsis, &A::null())))
             }
             _ => Ok(template)
+        }
+    }
+
+    fn template_element_or_ellipsis(&mut self, rdepth: usize, ellipsis: &R) -> Result<R, R> {
+        match self.peek_or_eof()? {
+            Token::Identifier(id) if matches!(ellipsis.deref().borrow().deref(), V::Symbol(s) if id==s.clone()) => { 
+                self.get_next_token();
+                Ok(ellipsis.clone())
+            }
+            _ => Ok(self.template(rdepth, ellipsis)?)
         }
     }
 

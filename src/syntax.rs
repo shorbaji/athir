@@ -6,17 +6,51 @@ use crate::stdlib::cxr::{caddr, cdddr};
 use std::ops::Deref;
 
 pub fn expand(t: &R, e: &R) -> Result<R, R> {
-
     let m = transformer_match(t, e)?;
+    let map = car(&m);
+    let template = cdr(&m);
 
     match m.clone().deref().borrow().deref() {
         V::Error(_) => Ok(m),        
-        _ => Ok(cons(&A::symbol("quote"), &cons(&e, &A::null())))
+        _ => transcribe(&map, &template),
+    }
+}
+
+fn transcribe(map: &R, template: &R) -> Result<R, R>{
+    match map.deref().borrow().deref() {
+        V::Null => Ok(template.clone()),
+        V::Pair(a, b) => transcribe(b, &transcribe_single(a, template)?),
+        _ => Ok(A::runtime_error("malformed transformer mapping".to_string()))
+    }
+}
+
+fn equal(a: &R, b: &R) -> bool {
+    match (a.deref().borrow().deref(), b.deref().borrow().deref()) {
+        (V::Null, V::Null) => true,
+        (V::Boolean(a), V::Boolean(b)) => a == b,
+        (V::Number(a), V::Number(b)) => a == b,
+        (V::Char(a), V::Char(b)) => a == b,
+        (V::String(a), V::String(b)) => a == b,
+        (V::Symbol(a), V::Symbol(b)) => a == b,
+        (V::Pair(a1, a2), V::Pair(b1, b2)) => equal(a1, b1) && equal(a2, b2),
+        // (V::Vector(a), V::Vector(b)) => a == b,
+        // (V::Bytevector(a), V::Bytevector(b)) => a == b,
+        _ => false,
+    }
+}
+fn transcribe_single(m: &R, template: &R) -> Result<R, R> {
+    let p = car(m); // pattern
+    let e = cdr(m); // replacement
+    
+    match (p.clone().deref().borrow().deref(), template.deref().borrow().deref()) {
+        (_, _) if equal(template, &p) => Ok(e),
+        (_, V::Pair(a, b)) => Ok(cons(&transcribe_single(m, a)?, &transcribe_single(m, b)?)),
+        _ => Ok(template.clone()),
     }
 }
 
 fn transformer_match(t: &R, e: &R) -> Result<R, R> {
-    let (ellipsis, literals, rules) = match cadr(t).deref().borrow().deref() {
+    let (ellipsis, _literals, rules) = match cadr(t).deref().borrow().deref() {
         V::Symbol(ref s) => (Some(s.clone()), caddr(t), cdddr(t)),
         _ => (None, cadr(t), cddr(t)),
     };
@@ -24,20 +58,17 @@ fn transformer_match(t: &R, e: &R) -> Result<R, R> {
     let mut ls = rules.clone();
 
     loop {
-        if matches!(ls.deref().borrow().deref(), V::Null) {
-            break;
-        }
+        if matches!(ls.deref().borrow().deref(), V::Null) { break; }
 
         let rule = car(&ls);
         let pattern = car(&rule);
         let template = cadr(&rule);
 
         match pmatch(&pattern, &e, ellipsis.clone().unwrap_or("...".to_string())) {
-            Ok(e) => return Ok(e),
-            Err(e) => (),
+            Ok(map) => return Ok(cons(&map, &template)), // return mapping and template
+            Err(_) => (),
         }
         
-
         ls = cdr(&ls);
     }
 
@@ -57,6 +88,8 @@ fn pmatch(pattern: &R, expr: &R, ellipsis: String) -> Result<R, R> {
         (V::Symbol(_), V::Null) => Err(cons(pattern, expr)),
         (V::Symbol(_), _) => Ok(cons(pattern, expr)),
         (V::Pair(a, b), V::Pair(c, d)) if matches!(car(&b).deref().borrow().deref(), V::Symbol(s) if s.clone() == ellipsis.clone()) => {
+            // pattern is (_ ...)
+            
             let mut found = vec!(c.clone());
             let mut rest = d.clone();
             let tail = cdr(&b);
@@ -75,11 +108,13 @@ fn pmatch(pattern: &R, expr: &R, ellipsis: String) -> Result<R, R> {
                 let found = found.into_iter().rev().fold(A::null(), |acc, x| cons(&x, &acc));
 
                 let mut result = cons(
-                                    &cons(&a, 
-                                        &cons(
-                                            &car(&b),
-                                            &A::null())),
-                                    &found);
+                                    &cons(
+                                        &cons(&a, 
+                                            &cons(
+                                                &car(&b),
+                                                &A::null())),
+                                        &found),
+                                    &A::null());
 
                 if !matches!(tail.deref().borrow().deref(), V::Null) {
                     result = cons(&result, &cons(&tail, &rest));

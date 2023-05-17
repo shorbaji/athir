@@ -12,6 +12,7 @@ mod tests;
 use crate::alloc::{A, R};
 use crate::env::lookup;
 use crate::stdlib::base::{car, cdr, cons, cadr};
+use crate::syntax::expand;
 use crate::value::{V, procedure::Procedure};
 
 use std::collections::HashMap;
@@ -74,7 +75,11 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
                     "set!" => (A::continuation(eval_set, r, k), cdr.clone()),
                     "define-syntax" => (A::continuation(eval_define_syntax, r, k), cdr.clone()),
                     // TODO: implement the rest of the special forms
-                    _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone())
+                    _ => if let V::Transformer(t) = lookup(s, r).deref().borrow().deref() {
+                            (A::continuation(eval, r, k), expand(&t, &e).unwrap())
+                        } else {
+                            (A::continuation_plus(eval_application, cdr, r, k), car.clone())
+                        },
                 },
                 _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
         },

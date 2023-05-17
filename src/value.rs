@@ -12,7 +12,7 @@ use crate::stdlib::base::{car, cdr};
 use number::Number;
 use port::Port;
 use procedure::Procedure;
-use transformer::Transformer;
+// use transformer::Transformer;
 
 pub enum V {
     Boolean(bool),
@@ -70,24 +70,24 @@ impl std::fmt::Display for V {
             V::Null => write!(f, "()"),
             V::Number(n) => write!(f, "{}", n),
             V::Pair(ncar, ncdr) => {
-                write!(f, "(");
+                write!(f, "(")?;
 
                 let mut ls = A::pair(ncar, ncdr);
 
                 loop {
-                    write!(f, "{}", car(&ls));
-                    let x = match cdr(&ls).deref().borrow().deref() {
+                    write!(f, "{}", car(&ls))?;
+                    match cdr(&ls).deref().borrow().deref() {
                         V::Null => break,
                         V::Pair(_, _) => {
                             ls = cdr(&ls);
-                            write!(f, " ");
+                            write!(f, " ")?;
                             continue;
                         },
                         _ => {
-                            write!(f, " . {}", cdr(&ls));
+                            write!(f, " . {}", cdr(&ls))?;
                             break;
                         }
-                    };
+                    }
                 }                
 
                 write!(f, ")")
