@@ -6,10 +6,14 @@ use crate::stdlib::cxr::{caddr, cdddr};
 use std::ops::Deref;
 
 pub fn expand(t: &R, e: &R) -> Result<R, R> {
+    println!("expanding {e}");
+
     let m = transformer_match(t, e)?;
+
     let map = car(&m);
     let template = cdr(&m);
 
+    println!("matched: {map} with template: {template}");
     match m.clone().deref().borrow().deref() {
         V::Error(_) => Ok(m),        
         _ => transcribe(&map, &template),

@@ -415,7 +415,7 @@ pub trait ExprReader : DatumReader {
         // let tagged = cons(&exprs, &is_all_defs);
 
         // Self::list(vec!(begin, tagged))
-        Self::list(vec!(begin, exprs))
+        Ok(cons(&begin, &exprs))
 
     }
 

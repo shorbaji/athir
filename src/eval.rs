@@ -76,6 +76,8 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
                     "define-syntax" => (A::continuation(eval_define_syntax, r, k), cdr.clone()),
                     // TODO: implement the rest of the special forms
                     _ => if let V::Transformer(t) = lookup(s, r).deref().borrow().deref() {
+                            println!("macro use: {}", e);
+                            println!("expanded to: {}", expand(&t, &e).unwrap());
                             (A::continuation(eval, r, k), expand(&t, &e).unwrap())
                         } else {
                             (A::continuation_plus(eval_application, cdr, r, k), car.clone())
