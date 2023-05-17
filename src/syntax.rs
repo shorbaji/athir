@@ -1,10 +1,51 @@
 use crate::alloc::{A, R};
 use crate::value::V;
-use crate::stdlib::base::{car, cdr, cons};
+use crate::stdlib::base::{car, cdr, cadr, cddr, cons};
+use crate::stdlib::cxr::{caddr, cdddr};
 
 use std::ops::Deref;
 
-pub fn pattern_match(pattern: &R, expr: &R, ellipsis: String) -> Result<R, R> {
+pub fn expand(t: &R, e: &R) -> Result<R, R> {
+
+    let m = transformer_match(t, e)?;
+
+    match m.clone().deref().borrow().deref() {
+        V::Error(_) => Ok(m),        
+        _ => Ok(cons(&A::symbol("quote"), &cons(&e, &A::null())))
+    }
+}
+
+fn transformer_match(t: &R, e: &R) -> Result<R, R> {
+    let (ellipsis, literals, rules) = match cadr(t).deref().borrow().deref() {
+        V::Symbol(ref s) => (Some(s.clone()), caddr(t), cdddr(t)),
+        _ => (None, cadr(t), cddr(t)),
+    };
+
+    let mut ls = rules.clone();
+
+    loop {
+        if matches!(ls.deref().borrow().deref(), V::Null) {
+            break;
+        }
+
+        let rule = car(&ls);
+        let pattern = car(&rule);
+        let template = cadr(&rule);
+
+        match pmatch(&pattern, &e, ellipsis.clone().unwrap_or("...".to_string())) {
+            Ok(e) => return Ok(e),
+            Err(e) => (),
+        }
+        
+
+        ls = cdr(&ls);
+    }
+
+    Ok(A::runtime_error("no matching pattern found".to_string()))
+
+}
+
+fn pmatch(pattern: &R, expr: &R, ellipsis: String) -> Result<R, R> {
     match (pattern.deref().borrow().deref(), expr.deref().borrow().deref()) {
         (V::Null, V::Null) => Ok(A::null()),
         (V::Boolean(a), V::Boolean(b)) if a == b => Ok(A::null()),
@@ -22,7 +63,7 @@ pub fn pattern_match(pattern: &R, expr: &R, ellipsis: String) -> Result<R, R> {
             let mut ok = false;
 
             loop {
-                if pattern_match(&tail, &rest, ellipsis.clone()).is_ok() { ok = true; break; } 
+                if pmatch(&tail, &rest, ellipsis.clone()).is_ok() { ok = true; break; } 
 
                 if matches!(rest.deref().borrow().deref(), V::Null){ break; }
 
@@ -49,7 +90,7 @@ pub fn pattern_match(pattern: &R, expr: &R, ellipsis: String) -> Result<R, R> {
                 Err(cons(pattern, expr))
             }
         },
-        (V::Pair(a, b), V::Pair(c, d)) => match (pattern_match(a, c, ellipsis.clone()), pattern_match(b, d, ellipsis)) {
+        (V::Pair(a, b), V::Pair(c, d)) => match (pmatch(a, c, ellipsis.clone()), pmatch(b, d, ellipsis)) {
             (Ok(a), Ok(b)) => Ok(cons(&a, &b)),
             _ => Err(cons(pattern, expr)),
         },

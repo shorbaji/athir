@@ -2,12 +2,13 @@
 //! 
 //! This module contains the global_env() function that populates a global environment with primitive functions
 //! 
+use std::collections::HashMap;
+use std::ops::Deref;
 use crate::alloc::{R, A};
 use crate::eval::evlis;
 use crate::stdlib::base::*;
 use crate::stdlib::cxr::*;
-
-use std::collections::HashMap;
+use crate::value::V;
 
 fn insert_cxr_library(map: &mut HashMap<String, R>) {
     map.insert("caaar".to_string(), A::unary(caaar, "caaar".to_string()));
@@ -99,4 +100,14 @@ pub fn global_env() -> R {
     insert_base_library(&mut map);
     insert_cxr_library(&mut map);
     A::env(map, None)
+}
+
+pub fn lookup(s: &String, r: &R) -> R {
+    if let V::Env {map, outer} = r.deref().borrow().deref() {
+        if let Some(v) = map.get(s) { v.clone() } 
+        else if let Some(o) = outer { lookup(s, o) } 
+        else { A::runtime_error(format!("symbol not found {:?}", s)) }
+    } else {
+        A::runtime_error("not an environment".to_string())
+    }
 }

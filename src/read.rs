@@ -15,11 +15,12 @@ pub mod lexer;
 use std::iter::{once, from_fn};
 use std::ops::Deref;
 
+use crate::alloc::{A, R};
+use crate::env::lookup;
+use crate::read::lexer::Token;
 use crate::stdlib::base::{car, cons};
 use crate::stdlib::cxr::cdadr;
-use crate::alloc::{A, R};
-
-use crate::read::lexer::Token;
+use crate::syntax::expand;
 use crate::value::{V, Error};
 
 /// Reader trait
@@ -243,9 +244,19 @@ pub trait ExprReader : DatumReader {
     // - does not check bytevector elements are bytes (i.e. 0-255)
     // - no error recovery
 
-    fn read(&mut self) -> R {
+    fn read(&mut self, r: &R) -> R {
         match self.expr(0) {
-            Ok(e) => e,
+            Ok(e) => {
+                if let V::Pair(car, _) = e.deref().borrow().deref() {
+                    if let V::Symbol(s) = car.deref().borrow().deref() {
+                        if let V::Transformer(t) = lookup(s, r).deref().borrow().deref() {
+                            return expand(&t, &e).unwrap()
+                        }
+                    }
+                }
+
+                e
+            },
             Err(e) => {self.recover(&e); e }
         }
     }

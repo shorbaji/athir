@@ -9,11 +9,10 @@
 #[cfg(test)]
 mod tests;
 
-use crate::stdlib::base::{car, cdr, cons, cadr, cddr};
-use crate::stdlib::cxr::{caddr, cdddr};
-use crate::value::{V, procedure::Procedure};
 use crate::alloc::{A, R};
-use crate::syntax::pattern_match;
+use crate::env::lookup;
+use crate::stdlib::base::{car, cdr, cons, cadr};
+use crate::value::{V, procedure::Procedure};
 
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
@@ -66,8 +65,7 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
         | V::Null => (k.clone(), e.clone()),
 
         V::Symbol(s) => (k.clone(), lookup(&s, r)),
-        V::Pair(car, cdr) => {
-            match car.deref().borrow().deref() {
+        V::Pair(car, cdr) => match car.deref().borrow().deref() {
                 V::Symbol(s) => match s.as_str() {
                     "define" => (A::continuation(eval_define, r, k), cdr.clone()),
                     "if" => (A::continuation(eval_if, r, k), cdr.clone()),
@@ -76,16 +74,9 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
                     "set!" => (A::continuation(eval_set, r, k), cdr.clone()),
                     "define-syntax" => (A::continuation(eval_define_syntax, r, k), cdr.clone()),
                     // TODO: implement the rest of the special forms
-                    _ => {
-                        if let V::Transformer(t) = lookup(&s, r).deref().borrow().deref() {
-                            (A::continuation_plus(eval_transformer, t, r, k), e.clone())
-                        } else {
-                            (A::continuation_plus(eval_application, cdr, r, k), car.clone())
-                        }
-                    }
+                    _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone())
                 },
                 _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
-            }
         },
         _ => (k.clone(), A::runtime_error(format!("eval error: malformed expr {:?}", e)))
     }
@@ -109,53 +100,7 @@ fn eval_define_syntax(e: &R, r: &R, k: &R) -> (R, R) {
 }
 
 fn eval_syntax_rules(e: &R, _r: &R, k: &R) -> (R, R) {
-    let (_ellipsis, _literals, rules) = match cadr(e).deref().borrow().deref() {
-        V::Symbol(ref s) => (Some(s.clone()), caddr(e), cdddr(e)),
-        _ => (None, cadr(e), cddr(e)),
-    };
-
-    let mut ls = rules.clone();
-    let mut i = 0;
-
-    while !matches!(ls.deref().borrow().deref(), V::Null) {
-        let rule = car(&ls);
-        let _pattern = car(&rule);
-        let _template = cadr(&rule);
-        ls = cdr(&ls);
-        i = i + 1;
-    }
-    
-    (k.clone(), A::transformer(e))
-}
-
-fn eval_transformer(e: &R, o: &R, r: &R, k: &R) -> (R, R) {
-
-    let (ellipsis, literals, rules) = match cadr(o).deref().borrow().deref() {
-        V::Symbol(ref s) => (Some(s.clone()), caddr(o), cdddr(o)),
-        _ => (None, cadr(o), cddr(o)),
-    };
-
-    let mut ls = rules.clone();
-
-    loop {
-        if matches!(ls.deref().borrow().deref(), V::Null) {
-            break;
-        }
-
-        let rule = car(&ls);
-        let pattern = car(&rule);
-        let template = cadr(&rule);
-
-        match pattern_match(&pattern, &e, ellipsis.clone().unwrap_or("...".to_string())) {
-            Ok(e) => println!("matched pattern: {}", e),
-            Err(e) => (),
-        }
-        
-
-        ls = cdr(&ls);
-    }
-
-    (k.clone(), A::runtime_error(format!("macro use not implemented!")))
+     (k.clone(), A::transformer(e))
 }
 
 /// Evaluate a set expression
@@ -327,15 +272,5 @@ fn eval_body_after_car(e: &R, o: &R, r: &R, k: &R) -> (R, R) {
             (A::continuation(eval, r, &then), car.clone())
         },
         _ => (k.clone(), A::runtime_error(format!("body is not a list {:?}", o)))
-    }
-}
-
-fn lookup(s: &String, r: &R) -> R {
-    if let V::Env {map, outer} = r.deref().borrow().deref() {
-        if let Some(v) = map.get(s) { v.clone() } 
-        else if let Some(o) = outer { lookup(s, o) } 
-        else { A::runtime_error(format!("symbol not found {:?}", s)) }
-    } else {
-        A::runtime_error("not an environment".to_string())
     }
 }
