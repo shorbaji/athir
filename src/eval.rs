@@ -119,7 +119,6 @@ fn eval_syntax_rules(e: &R, _r: &R, k: &R) -> (R, R) {
 
     while !matches!(ls.deref().borrow().deref(), V::Null) {
         let rule = car(&ls);
-        println!("rule {}: {}", i, rule);
         let _pattern = car(&rule);
         let _template = cadr(&rule);
         ls = cdr(&ls);
