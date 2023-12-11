@@ -85,21 +85,19 @@ mod regex_generator {
         let vertical_line_identifier = format!("({vertical_line}{symbol_element}*{vertical_line})");
         let peculiar_identifier = format!("({peculiar})");
 
-        // let identifier = format!("(({})|({})|({}))", regular_identifier, peculiar_identifier, vertical_line_identifier);
-
         let character_name = "(alarm|backspace|delete|escape|newline|null|return|space|tab)";
         let character = format!(r"((#\\x{hex_scalar_value})|(#\\{character_name})|(#\\.))");
 
-        let string_element_a = "[^\"\\\\]";
-        let string_element_b = <&str>::clone(&mnemonic_escape);
-        let string_element_c = "\\\\\"";
-        let string_element_d = "\\\\";
-        let string_element_e =
+        let str_element_a = "[^\"\\\\]";
+        let str_element_b = <&str>::clone(&mnemonic_escape);
+        let str_element_c = "\\\\\"";
+        let str_element_d = "\\\\";
+        let str_element_e =
             format!("\\\\{intraline_whitespace}*{line_ending}{intraline_whitespace}*");
-        let string_element_f = inline_hex_escape;
+        let str_element_f = inline_hex_escape;
 
         let string_element = format!(
-            "({string_element_a}|{string_element_b}|{string_element_c}|{string_element_d}|{string_element_e}|{string_element_f})"
+            "({str_element_a}|{str_element_b}|{str_element_c}|{str_element_d}|{str_element_e}|{str_element_f})"
         );
 
         let string = format!("\"{string_element}*\"");

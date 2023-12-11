@@ -20,7 +20,8 @@ use std::ops::{Deref, DerefMut};
 ///
 /// There are three types of continuations:
 ///
-/// 1. Continuation - a continuation that only captures the environment (r) and continuation (k) in which it is created (Procedure::Continuation)
+/// 1. Continuation - a continuation that only captures the environment (r) and continuation (k) 
+///     in which it is created (Procedure::Continuation)
 ///     this is accompanied with a ternary function f(e, r, k)
 ///
 /// 2. ContinuationPlus - a continuation that also captures an additional object (o)

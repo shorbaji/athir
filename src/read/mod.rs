@@ -495,11 +495,10 @@ pub trait Reader {
                     "include-ci" => self.include(rdepth + 1),
                     "include-library-declarations" => self.include_library_declarations(rdepth + 1),
                     "cond-expand" => self.cond_expand(rdepth + 1),
-                    _ => Err(A::syntax_error(rdepth, "expected begin, export, import, include, include-ci, include-library-declarations, cond-expand")),
-                    // token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string())),
+                    _ => Err(A::syntax_error(
+                            rdepth, "expected library declaration")),
                 },
-                _ => Err(A::syntax_error(rdepth, "expected begin, export, import, include, include-ci, include-library-declarations, cond-expand")),
-            // token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string())),
+                _ => Err(A::syntax_error(rdepth, "expected library declaration")),
         }?;
         self.paren_right(rdepth + 1)?;
         Ok(declaration)
@@ -1269,7 +1268,6 @@ pub trait Reader {
             Token::Comma => self.comma(rdepth),
             Token::CommaAt => self.comma_at(rdepth),
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
-            // token @ _ => Err(unexpected(rdepth, token.to_string(), "quote, quasiquote, comma or comma-at".to_string()))
         }?;
 
         let expr = self.datum(rdepth)?;
