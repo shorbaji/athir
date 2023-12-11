@@ -79,27 +79,27 @@ pub enum Token {
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let s = match self {
-            Token::Boolean(b) => format!("{}", b),
-            Token::Character(c) => format!("{}", c),
+            Token::Boolean(b) => format!("{b}"),
+            Token::Character(c) => format!("{c}"),
             Token::Comma => ",".to_string(),
             Token::CommaAt => ",@".to_string(),
             Token::Comment => ";".to_string(),
             Token::Directive => "#".to_string(),
-            Token::VerticalLineIdentifier(s) => format!("|{}|", s),
+            Token::VerticalLineIdentifier(s) => format!("|{s}|"),
             Token::Dot => ".".to_string(),
             Token::Error => "error".to_string(),
-            Token::Identifier(s) => format!("{}", s),
-            Token::Number(n) => format!("{}", n),
-            Token::ParenLeft => format!("("),
-            Token::ParenRight => format!(")"),
-            Token::Quasiquote => format!("`"),
-            Token::Quote => format!("'"),
-            Token::SharpOpen => format!("#("),
-            Token::SharpU8Open => format!("#u8("),
-            Token::String(s) => format!("{}", s),
-            Token::Whitespace => format!(" "),
+            Token::Identifier(s) => s.to_string(),
+            Token::Number(n) => n.to_string(),
+            Token::ParenLeft => "(".to_string(),
+            Token::ParenRight => ")".to_string(),
+            Token::Quasiquote => "`".to_string(),
+            Token::Quote => "'".to_string(),
+            Token::SharpOpen => "#(".to_string(),
+            Token::SharpU8Open => "#u8(".to_string(),
+            Token::String(s) => s.to_string(),
+            Token::Whitespace => " ".to_string(),
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 //

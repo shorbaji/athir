@@ -53,47 +53,45 @@ mod regex_generator {
         let num8 = number_regex!("[0-7]", "(#o)", false);
         let num10 = number_regex!("([0-9])", "((#d)?)", true);
         let num16 = number_regex!("([0-9a-fA-F])", "(#x)", false);
-        let number = format!("({}|{}|{}|{})", num2, num8, num10, num16);
+        let number = format!("({num2}|{num8}|{num10}|{num16})");
 
         let digit = r"[0-9]".to_string();
         let digit16 = r"[0-9a-fA-F]";
         let line_ending = r"(\r\n|\r|\n)";
         let intraline_whitespace = r"( |\t)";
-        let whitespace = format!("({}|{})", intraline_whitespace, line_ending);
+        let whitespace = format!("({intraline_whitespace}|{line_ending})");
         let vertical_line = r"\|";
         // let delimiter = format!("({}|{}|(|)|\")", whitespace, vertical_line);
         let letter = "[a-zA-Z]";
         let special_initial = r"[!\$%&\*/:<=>\?\^_~]";
-        let initial = format!("({}|{})", letter, special_initial);
-        let special_subsequent = format!(r"({}|\.|@)", explicit_sign);
-        let subsequent = format!("({}|{}|{})", initial, digit, special_subsequent);
-        let hex_scalar_value = format!("({}+)", digit16);
-        let inline_hex_escape = format!(r"(\\x{};)", hex_scalar_value);
+        let initial = format!("({letter}|{special_initial})");
+        let special_subsequent = format!(r"({explicit_sign}|\.|@)");
+        let subsequent = format!("({initial}|{digit}|{special_subsequent})");
+        let hex_scalar_value = format!("({digit16}+)");
+        let inline_hex_escape = format!(r"(\\x{hex_scalar_value};)");
         let mnemonic_escape = r"(\\[aA]|\\[bB]|\\[tT]|\\[nN]|\\[rR])";
 
-        let sign_subsequent = format!(r"({}|{}|@)", initial, explicit_sign);
-        let dot_subsequent = format!(r"({}|\.)", sign_subsequent);
-        let peculiara = format!("{}", explicit_sign);
-        let peculiarb = format!(r"({}{}{}*)", explicit_sign, sign_subsequent, subsequent);
-        let peculiarc = format!(r"({}\.{}{}*)", explicit_sign, dot_subsequent, subsequent);
-        let peculiard = format!(r"(\.{}{}*)", dot_subsequent, subsequent);
-        let peculiar = format!("({}|{}|{}|{})", peculiara, peculiarb, peculiarc, peculiard);
+        let sign_subsequent = format!(r"({initial}|{explicit_sign}|@)");
+        let dot_subsequent = format!(r"({sign_subsequent}|\.)");
+        let peculiara = explicit_sign.to_string();
+        let peculiarb = format!(r"({explicit_sign}{sign_subsequent}{subsequent}*)");
+        let peculiarc = format!(r"({explicit_sign}\.{dot_subsequent}{subsequent}*)");
+        let peculiard = format!(r"(\.{dot_subsequent}{subsequent}*)");
+        let peculiar = format!("({peculiara}|{peculiarb}|{peculiarc}|{peculiard})");
 
         let symbol_element = format!(
-            r"([^\|\\]|{}|{}|(\\\|))",
-            inline_hex_escape, mnemonic_escape
+            r"([^\|\\]|{inline_hex_escape}|{mnemonic_escape}|(\\\|))"
         );
 
-        let regular_identifier = format!("({}{}*)", initial, subsequent);
-        let vertical_line_identifier = format!("({}{}*{})", vertical_line, symbol_element, vertical_line);
-        let peculiar_identifier = format!("({})", peculiar);
+        let regular_identifier = format!("({initial}{subsequent}*)");
+        let vertical_line_identifier = format!("({vertical_line}{symbol_element}*{vertical_line})");
+        let peculiar_identifier = format!("({peculiar})");
 
         // let identifier = format!("(({})|({})|({}))", regular_identifier, peculiar_identifier, vertical_line_identifier);
 
         let character_name = "(alarm|backspace|delete|escape|newline|null|return|space|tab)";
         let character = format!(
-            r"((#\\x{})|(#\\{})|(#\\.))",
-            hex_scalar_value, character_name
+            r"((#\\x{hex_scalar_value})|(#\\{character_name})|(#\\.))"
         );
 
         let string_element_a = "[^\"\\\\]";
@@ -101,24 +99,17 @@ mod regex_generator {
         let string_element_c = "\\\\\"";
         let string_element_d = "\\\\";
         let string_element_e = format!(
-            "\\\\{}*{}{}*",
-            intraline_whitespace, line_ending, intraline_whitespace
+            "\\\\{intraline_whitespace}*{line_ending}{intraline_whitespace}*"
         );
-        let string_element_f = inline_hex_escape.clone();
+        let string_element_f = inline_hex_escape;
 
         let string_element = format!(
-            "({}|{}|{}|{}|{}|{})",
-            string_element_a,
-            string_element_b,
-            string_element_c,
-            string_element_d,
-            string_element_e,
-            string_element_f
+            "({string_element_a}|{string_element_b}|{string_element_c}|{string_element_d}|{string_element_e}|{string_element_f})"
         );
 
-        let string = format!("\"{}*\"", string_element);
+        let string = format!("\"{string_element}*\"");
 
-        let comment = format!("(;[^{}]*)", line_ending);
+        let comment = format!("(;[^{line_ending}]*)");
         let directive = r"(#!fold-case)|(#!no-fold-case)";
         // let atmosphere = format!("({}|{}|{})", whitespace, comment, directive); // need to add comments
         // let intertoken_space = format!("({}*)", atmosphere);
@@ -133,37 +124,30 @@ mod regex_generator {
         let boolean_letter_l = "[lL]";
         let boolean_letter_s = "[sS]";
 
-        let boolean_short = format!("({}|{})", boolean_letter_t, boolean_letter_f);
+        let boolean_short = format!("({boolean_letter_t}|{boolean_letter_f})");
         let boolean_long_true = format!(
-            "({}{}{}{})",
-            boolean_letter_t, boolean_letter_r, boolean_letter_u, boolean_letter_e
+            "({boolean_letter_t}{boolean_letter_r}{boolean_letter_u}{boolean_letter_e})"
         );
         let boolean_long_false = format!(
-            "({}{}{}{}{})",
-            boolean_letter_f,
-            boolean_letter_a,
-            boolean_letter_l,
-            boolean_letter_s,
-            boolean_letter_e
+            "({boolean_letter_f}{boolean_letter_a}{boolean_letter_l}{boolean_letter_s}{boolean_letter_e})"
         );
 
         let boolean = format!(
-            "(#({}|{}|{}))",
-            boolean_long_true, boolean_long_false, boolean_short
+            "(#({boolean_long_true}|{boolean_long_false}|{boolean_short}))"
         );
 
-        println!("boolean:\n{}\n", boolean);
-        println!("character:\n{}\n", character);
+        println!("boolean:\n{boolean}\n");
+        println!("character:\n{character}\n");
         // println!("identifier:\n{}\n", identifier);
-        println!("regular_identifier:\n{}\n", regular_identifier);
-        println!("vertical_line_identifier:\n{}\n", vertical_line_identifier);
-        println!("peculiar_identifier:\n{}\n", peculiar_identifier);
+        println!("regular_identifier:\n{regular_identifier}\n");
+        println!("vertical_line_identifier:\n{vertical_line_identifier}\n");
+        println!("peculiar_identifier:\n{peculiar_identifier}\n");
         // println!("intertoken space:\n{}\n", intertoken_space);
-        println!("whitespace:\n{}\n", whitespace);
-        println!("comment:\n{}\n", comment);
-        println!("directive:\n{}\n", directive);
-        println!("number:\n{}\n", number);
-        println!("string:\n{}\n", string);
+        println!("whitespace:\n{whitespace}\n");
+        println!("comment:\n{comment}\n");
+        println!("directive:\n{directive}\n");
+        println!("number:\n{number}\n");
+        println!("string:\n{string}\n");
     }
 }
 
