@@ -95,7 +95,7 @@ mod regex_generator {
         );
 
         let string_element_a = "[^\"\\\\]";
-        let string_element_b = mnemonic_escape.clone();
+        let string_element_b = <&str>::clone(&mnemonic_escape);
         let string_element_c = "\\\\\"";
         let string_element_d = "\\\\";
         let string_element_e = format!(
