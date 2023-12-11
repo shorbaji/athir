@@ -1,9 +1,9 @@
 //! Lexeme generator tool
-//! 
+//!
 //! This tool generates random lexemes for testing purposes
 //! Usage: lexeme_gen <number of lexemes> <type>
 //! e.g. lexeme_gen 100 number
-//! 
+//!
 //! Types:
 //! - number
 //! - identifier

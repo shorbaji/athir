@@ -1,8 +1,8 @@
 //! Regex generator
-//! 
+//!
 //! This tool generates regexes to be used by the lexical analyzer
 //! The generated regexs are based on R7RS Scheme's lexical syntax
-//! 
+//!
 #![allow(dead_code)]
 
 mod regex_generator {
@@ -79,9 +79,7 @@ mod regex_generator {
         let peculiard = format!(r"(\.{dot_subsequent}{subsequent}*)");
         let peculiar = format!("({peculiara}|{peculiarb}|{peculiarc}|{peculiard})");
 
-        let symbol_element = format!(
-            r"([^\|\\]|{inline_hex_escape}|{mnemonic_escape}|(\\\|))"
-        );
+        let symbol_element = format!(r"([^\|\\]|{inline_hex_escape}|{mnemonic_escape}|(\\\|))");
 
         let regular_identifier = format!("({initial}{subsequent}*)");
         let vertical_line_identifier = format!("({vertical_line}{symbol_element}*{vertical_line})");
@@ -90,17 +88,14 @@ mod regex_generator {
         // let identifier = format!("(({})|({})|({}))", regular_identifier, peculiar_identifier, vertical_line_identifier);
 
         let character_name = "(alarm|backspace|delete|escape|newline|null|return|space|tab)";
-        let character = format!(
-            r"((#\\x{hex_scalar_value})|(#\\{character_name})|(#\\.))"
-        );
+        let character = format!(r"((#\\x{hex_scalar_value})|(#\\{character_name})|(#\\.))");
 
         let string_element_a = "[^\"\\\\]";
         let string_element_b = <&str>::clone(&mnemonic_escape);
         let string_element_c = "\\\\\"";
         let string_element_d = "\\\\";
-        let string_element_e = format!(
-            "\\\\{intraline_whitespace}*{line_ending}{intraline_whitespace}*"
-        );
+        let string_element_e =
+            format!("\\\\{intraline_whitespace}*{line_ending}{intraline_whitespace}*");
         let string_element_f = inline_hex_escape;
 
         let string_element = format!(
@@ -125,16 +120,13 @@ mod regex_generator {
         let boolean_letter_s = "[sS]";
 
         let boolean_short = format!("({boolean_letter_t}|{boolean_letter_f})");
-        let boolean_long_true = format!(
-            "({boolean_letter_t}{boolean_letter_r}{boolean_letter_u}{boolean_letter_e})"
-        );
+        let boolean_long_true =
+            format!("({boolean_letter_t}{boolean_letter_r}{boolean_letter_u}{boolean_letter_e})");
         let boolean_long_false = format!(
             "({boolean_letter_f}{boolean_letter_a}{boolean_letter_l}{boolean_letter_s}{boolean_letter_e})"
         );
 
-        let boolean = format!(
-            "(#({boolean_long_true}|{boolean_long_false}|{boolean_short}))"
-        );
+        let boolean = format!("(#({boolean_long_true}|{boolean_long_false}|{boolean_short}))");
 
         println!("boolean:\n{boolean}\n");
         println!("character:\n{character}\n");

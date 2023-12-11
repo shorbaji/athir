@@ -1,7 +1,7 @@
 use super::*;
-use std::iter::Peekable;
-use crate::read::lexer::{Token, Lexer};
+use crate::read::lexer::{Lexer, Token};
 use crate::read::Reader;
+use std::iter::Peekable;
 
 struct TestReader {
     string: String,
@@ -13,7 +13,7 @@ impl TestReader {
     fn new(string: String) -> Self {
         Self {
             string,
-            tokens: vec!().into_iter().peekable(),
+            tokens: vec![].into_iter().peekable(),
             used: false,
         }
     }
@@ -49,7 +49,6 @@ impl Reader for TestReader {
 }
 
 fn test_parse(goods: &[&str], bads: &[&str]) {
-
     let parser = goods.iter().map(|s| {
         let mut reader = TestReader::new(s.to_string());
         reader.read()
@@ -88,28 +87,19 @@ fn test_parse_identifier() {
 
 #[test]
 fn test_vector() {
-    let goods = [
-        "#()",
-        "#(1 2 3)",
-        "#(0 10 5)",
-    ];
+    let goods = ["#()", "#(1 2 3)", "#(0 10 5)"];
     let bads = [];
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_bytevector() {
-    let goods = [
-        "#u8()",
-        "#u8(1 2 3)",
-    ];
+    let goods = ["#u8()", "#u8(1 2 3)"];
 
-    let bads = [
-    ];
+    let bads = [];
 
     test_parse(&goods, &bads);
 }
-
 
 #[test]
 fn test_procedure_call() {
@@ -125,54 +115,47 @@ fn test_lambda() {
         "(lambda (x) (list x))",
         "(lambda (x) (list (+ x 1)))",
         "(lambda x x)",
-        "(lambda (x) (define y 1))"
+        "(lambda (x) (define y 1))",
     ];
-    let bads = [
-        "(lambda (x) (define x 1) 2 (define y 3))"
-    ];
+    let bads = ["(lambda (x) (define x 1) 2 (define y 3))"];
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_if() {
-    let goods = [
-        "(if #t 1 2)",
-        "(if #t 1)"
-    ];
-    let bads = [
-        "(if #t 1 2 3)",
-    ];
+    let goods = ["(if #t 1 2)", "(if #t 1)"];
+    let bads = ["(if #t 1 2 3)"];
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_assignment() {
-    let goods = [
-        "(set! x 1)",
-        "(set! x (+ 1 2))"
-    ];
-    let bads = [
-        "(set! 1 2)",
-        "(set! x)",
-        "(set! x 1 2)"
-        ];
+    let goods = ["(set! x 1)", "(set! x (+ 1 2))"];
+    let bads = ["(set! 1 2)", "(set! x)", "(set! x 1 2)"];
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_variable_definition() {
-    let goods = ["(define x 1)", "(define x (+ 1 2))", "(define f (lambda (x) x))"];
+    let goods = [
+        "(define x 1)",
+        "(define x (+ 1 2))",
+        "(define f (lambda (x) x))",
+    ];
     let bads = ["(define x)"];
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_function_definition() {
-    let goods = ["(define (f x) x)", "(define (f) x)", "(define (f x) (set! x 1) x)", "(define (f x y) x)", "(define (f x . y) x)"];
-    let bads = [
-        "(define (f x))",
-        "(define (f x . y z) x)"
-        ];
+    let goods = [
+        "(define (f x) x)",
+        "(define (f) x)",
+        "(define (f x) (set! x 1) x)",
+        "(define (f x y) x)",
+        "(define (f x . y) x)",
+    ];
+    let bads = ["(define (f x))", "(define (f x . y z) x)"];
     test_parse(&goods, &bads);
 }
 
@@ -190,7 +173,6 @@ fn test_quotation() {
     test_parse(&goods, &bads);
 }
 
-
 #[test]
 fn test_macro_block() {
     let goods = [
@@ -203,45 +185,36 @@ fn test_macro_block() {
 
 #[test]
 fn test_define_values() {
-    let goods = [
-        "(define-values (x y) (+ 1 2) 1 2 3)",
-    ];
+    let goods = ["(define-values (x y) (+ 1 2) 1 2 3)"];
     let bads = [];
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_define_record_type() {
-    let goods = [
-        "(define-record-type <animal>
+    let goods = ["(define-record-type <animal>
             (animal name age species owner-name)
             animal?
             (name animal-name set-animal-name!)
             (age animal-age set-animal-age!)
             (species animal-species)
-            (owner-name animal-owner set-animal-owner!))",
-    ];
+            (owner-name animal-owner set-animal-owner!))"];
     let bads = [];
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_include() {
-    let goods = [
-        "(include \"foo.scm\")",
-    ];
+    let goods = ["(include \"foo.scm\")"];
     let bads = ["(include)", "(include 1)"];
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_include_ci() {
-    let goods = [
-        "(include-ci \"foo.scm\")",
-    ];
+    let goods = ["(include-ci \"foo.scm\")"];
     let bads = ["(include-ci)", "(include-ci 1)"];
     test_parse(&goods, &bads);
-
 }
 
 #[test]
@@ -263,9 +236,7 @@ fn test_quasiquotation() {
         "(quasiquote (unquote (+ 1 2)))",
     ];
 
-    let bads = [
-        "`,,",
-    ];
+    let bads = ["`,,"];
 
     test_parse(&goods, &bads);
 }
@@ -319,21 +290,16 @@ fn test_begin() {
         "(begin (define x 1))",
     ];
 
-    let bads = [
-    ];
+    let bads = [];
 
     test_parse(&goods, &bads);
 }
 
 #[test]
 fn test_begin_def() {
-    let goods = [
-        "(begin (define x 1))",
-        "(begin)",
-    ];
+    let goods = ["(begin (define x 1))", "(begin)"];
 
-    let bads = [
-    ];
+    let bads = [];
 
     test_parse(&goods, &bads);
 }

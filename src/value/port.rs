@@ -1,13 +1,12 @@
-use std::iter::Peekable;
-use crate::read::lexer::{Token, Lexer};
+use crate::read::lexer::{Lexer, Token};
 use crate::read::Reader;
+use std::iter::Peekable;
 
 #[derive(Debug, Clone)]
 pub enum PortKind {
     Stdin,
     Stdout,
     String,
-
 }
 #[derive(Debug, Clone)]
 pub struct Port {
@@ -44,7 +43,7 @@ impl Port {
     pub fn new(kind: PortKind) -> Self {
         Self {
             buffer: String::new(),
-            tokens: vec!().into_iter().peekable(), 
+            tokens: vec![].into_iter().peekable(),
             kind,
         }
     }
@@ -52,7 +51,7 @@ impl Port {
     pub fn open_input_string(s: String) -> Self {
         Self {
             buffer: s,
-            tokens: vec!().into_iter().peekable(), 
+            tokens: vec![].into_iter().peekable(),
             kind: PortKind::String,
         }
     }
@@ -66,11 +65,10 @@ impl Port {
     }
 
     pub fn peek_char(&mut self) -> Option<char> {
-
         if self.buffer.is_empty() {
             if let PortKind::Stdin = self.kind {
                 match std::io::stdin().read_line(&mut self.buffer) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(_) => return None,
                 }
             }
@@ -98,11 +96,10 @@ impl Port {
                     self.buffer.remove(0); // we need to remove the newline character
                 }
                 Some(result)
-            },
+            }
             None => None,
         }
     }
-
 }
 
 impl From<&str> for Port {

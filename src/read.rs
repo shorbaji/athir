@@ -1,4 +1,3 @@
-
 //! Athir parser/reader module.
 
 //! Deviations from R7RS:
@@ -7,48 +6,48 @@
 //! - derived expressions not implemented
 //!
 
+pub mod lexer;
 #[cfg(test)]
 mod tests;
-pub mod lexer;
 
-
+use std::iter::{from_fn, once};
 use std::ops::Deref;
-use std::iter::{once, from_fn};
 
-use crate::stdlib::{base::{car, cons}, cxr::cdadr};
 use crate::alloc::{A, R};
+use crate::stdlib::{
+    base::{car, cons},
+    cxr::cdadr,
+};
 
 use crate::read::lexer::Token;
-use crate::value::{V, Keyword, Error};
+use crate::value::{Error, Keyword, V};
 
 /// Reader trait
-/// 
+///
 /// Implements the reader/parser for the Athir interpreter
 /// Requires a get_next_token() function that returns the next token from the input stream
 /// Requires a peek_next_token() function that returns the next token from the input stream without consuming it
 /// Provides a read() function that reads an expression from the input stream
 /// Read function is implemented as a recursive descent parser
 pub trait Reader {
-
     // required functions
     fn get_next_token(&mut self) -> Option<Token>;
     fn peek_next_token(&mut self) -> Option<Token>;
-    
-    // provided function
 
+    // provided function
 
     /// read()
     /// the starting point for the recursive descent parser is the expr() function
-    /// 
+    ///
     /// The parser implements an error recovery strategy that 1) keeps track of the depth of the parsing,
     /// i.e. the number of left parentheses encountered minus the number of right parentheses encountered
     /// and 2) skips to the next right parenthesis when an error is encountered in a compound expression
     /// To implement this strategy, the parser maintains the depth value. The depth value is incremented
     /// when a left parenthesis is encountered and decremented when a right parenthesis is encountered.
     /// We start with a depth of zero which is passed on to the entry point of the parser, the expr() function.
-    /// 
+    ///
     /// Recovery is implemented by the recover() function
-    
+
     fn read(&mut self) -> R {
         match self.expr(0) {
             Ok(e) => e,
@@ -66,7 +65,7 @@ pub trait Reader {
             } else {
                 // unexpected token in compound expression
                 // skip to next right parenthesis
-                
+
                 let mut count = *depth;
                 loop {
                     match self.get_next_token() {
@@ -75,11 +74,11 @@ pub trait Reader {
                             if count == 0 {
                                 break;
                             }
-                        },
+                        }
                         Some(Token::ParenLeft) => {
                             count += 1;
-                        },
-                        Some(_) => {},
+                        }
+                        Some(_) => {}
                         None => break,
                     }
                 }
@@ -87,11 +86,11 @@ pub trait Reader {
         }
     }
 
-    // 
+    //
     // Expressions
-    // 
+    //
     // This function implements the following rules from R7RS 7.1.3
-    // 
+    //
     // <expression> ::= <identifier>
     // | <literal>
     // | <procedure call>
@@ -102,15 +101,15 @@ pub trait Reader {
     // | <macro use>
     // | <macro block>
     // | <includer>
-    // 
+    //
     // <literal> ::= <quotation> | <self-evaluating>
-    // 
-    // <self-evaluating> ::= <boolean> | <number> | <vector> 
+    //
+    // <self-evaluating> ::= <boolean> | <number> | <vector>
     // | <character> | <string> | <bytevector>
-    // 
+    //
     // <quotation> ::= ’<datum> | ( quote <datum> )
-    // 
-    // 
+    //
+    //
     // Known issues:
     // - derived expression is not implemented
     // - does not check bytevector elements are bytes (i.e. 0-255)
@@ -136,7 +135,6 @@ pub trait Reader {
     }
 
     fn compound(&mut self, rdepth: usize) -> Result<R, R> {
-        
         // <compound expression> ::= <special form> | <procedure call>
         // we start with a left parenthesis
         // we then call special_form_handler to select a handler based the keyword
@@ -145,7 +143,7 @@ pub trait Reader {
 
         self.paren_left(rdepth)?;
 
-       let expr = match self.peek_or_eof()? {
+        let expr = match self.peek_or_eof()? {
             Token::Identifier(id) => match id.as_str() {
                 "begin" => self.begin(rdepth + 1),
                 "define" => self.define(rdepth + 1),
@@ -168,14 +166,13 @@ pub trait Reader {
 
         self.paren_right(rdepth)?;
         Ok(expr)
-
     }
 
     ///
     /// Procedure calls
     ///
     ///
-    /// 
+    ///
 
     fn procedure_call(&mut self, rdepth: usize) -> Result<R, R> {
         let operator = self.expr(rdepth)?;
@@ -189,11 +186,11 @@ pub trait Reader {
         let operands = self.zero_or_more(Reader::expr, rdepth)?;
         Self::list(operands)
     }
-    
+
     ///
     /// Lambda
-    /// 
-    /// 
+    ///
+    ///
     ///
 
     fn lambda(&mut self, rdepth: usize) -> Result<R, R> {
@@ -201,10 +198,10 @@ pub trait Reader {
         let formals = self.formals(rdepth)?;
 
         let body = self.body(rdepth)?;
-        Ok(cons (&keyword, &cons(&formals, &body)))
+        Ok(cons(&keyword, &cons(&formals, &body)))
     }
 
-    fn formals(&mut self, rdepth: usize) -> Result<R, R> {   
+    fn formals(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::ParenLeft => {
@@ -213,7 +210,10 @@ pub trait Reader {
                 self.paren_right(rdepth + 1)?;
                 Ok(ids)
             }
-            _ => Err(A::syntax_error(rdepth, "expected identifier or open parenthesis")),
+            _ => Err(A::syntax_error(
+                rdepth,
+                "expected identifier or open parenthesis",
+            )),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or open parenthesis".to_string())),
         }
     }
@@ -221,15 +221,18 @@ pub trait Reader {
     /// body should not be empty
     /// body can have defintions and expressions
     /// body cannot have definitions after any expression
-    
-    fn body(&mut self, rdepth: usize) -> Result<R, R> {       
+
+    fn body(&mut self, rdepth: usize) -> Result<R, R> {
         let exprs = self.one_or_more(Reader::expr, rdepth)?;
         let mut defs = true;
 
         for expr in exprs.clone().into_iter() {
             if Self::is_definition_expr(&expr) {
                 if !defs {
-                    return Err(A::syntax_error(rdepth, "definitions must precede expressions"));
+                    return Err(A::syntax_error(
+                        rdepth,
+                        "definitions must precede expressions",
+                    ));
                 }
             } else {
                 defs = false;
@@ -247,18 +250,17 @@ pub trait Reader {
     fn include(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword_box_leaf_from_next(rdepth)?;
         let paths = self.strings(rdepth)?;
-        Self::list(vec!(keyword, paths))
+        Self::list(vec![keyword, paths])
     }
-
 
     ///
     /// Begin
-    /// 
-    /// 
+    ///
+    ///
     ///
 
-    fn begin(&mut self, rdepth:usize) -> Result<R, R> {
-        // we look for the keyword begin 
+    fn begin(&mut self, rdepth: usize) -> Result<R, R> {
+        // we look for the keyword begin
         // then we look for a list of expressions
 
         let begin = self.keyword("begin", rdepth)?;
@@ -269,7 +271,7 @@ pub trait Reader {
         // this is used by the evaluator to determine if the begin expression is itself a definition
 
         let exprs = self.zero_or_more(Reader::expr, rdepth)?;
-        
+
         let is_all_defs = exprs.iter().all(|node| Self::is_definition_expr(node));
         let is_all_defs = A::boolean(is_all_defs);
 
@@ -277,8 +279,7 @@ pub trait Reader {
 
         let tagged = cons(&exprs, &is_all_defs);
 
-        Self::list(vec!(begin, tagged))
-
+        Self::list(vec![begin, tagged])
     }
 
     fn list(objects: Vec<R>) -> Result<R, R> {
@@ -288,17 +289,17 @@ pub trait Reader {
         }
         Ok(list)
     }
-    
+
     fn list_not_null_terminated(objects: Vec<R>, object: &R) -> Result<R, R> {
         let mut list = object.clone();
-    
+
         for object in objects.into_iter().rev() {
             list = cons(&object, &list);
         }
-    
+
         Ok(list)
     }
-    
+
     fn is_definition_expr(expr: &R) -> bool {
         let node = car(expr);
 
@@ -306,22 +307,24 @@ pub trait Reader {
             V::Error(_) => false,
             _ => Self::is_definition_keyword(&node),
         };
-        
+
         is_definition_keyword || Self::is_begin_definition_expr(expr)
     }
-    
+
     fn is_definition_keyword(expr: &R) -> bool {
-        matches!(expr.deref().borrow().deref(), 
+        matches!(
+            expr.deref().borrow().deref(),
             V::Keyword(Keyword::Define)
-            | V::Keyword(Keyword::DefineValues)
-            | V::Keyword(Keyword::DefineRecordType)
-            | V::Keyword(Keyword::DefineSyntax))
+                | V::Keyword(Keyword::DefineValues)
+                | V::Keyword(Keyword::DefineRecordType)
+                | V::Keyword(Keyword::DefineSyntax)
+        )
     }
-    
+
     fn is_begin_keyword(expr: &R) -> bool {
         matches!(expr.deref().borrow().deref(), V::Keyword(Keyword::Begin))
     }
-    
+
     fn is_begin_expr(expr: &R) -> bool {
         let node = car(expr);
 
@@ -331,48 +334,53 @@ pub trait Reader {
             _ => Self::is_begin_keyword(&node),
         }
     }
-    
-    fn is_begin_definition_expr(expr: &R) -> bool {    
+
+    fn is_begin_definition_expr(expr: &R) -> bool {
         let object = cdadr(expr);
 
-        Self::is_begin_expr(expr) && 
-        match object.deref().borrow().deref() {
-            V::Error(_) => false,
-            _ => matches!(object.deref().borrow().deref(), V::Boolean(true)),
-        }
+        Self::is_begin_expr(expr)
+            && match object.deref().borrow().deref() {
+                V::Error(_) => false,
+                _ => matches!(object.deref().borrow().deref(), V::Boolean(true)),
+            }
     }
-    
+
     ///
     /// Definitions
-    /// 
-    /// We start with the define keyword and then look for either 
+    ///
+    /// We start with the define keyword and then look for either
     /// - an identifier (i.e. a variable definition) or,
     /// - a parenthesized list of identifiers (i.e. a function definition)
-    /// 
+    ///
 
     fn define(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("define", rdepth)?;
         match self.peek_or_eof()? {
-            Token::Identifier(_) => { // variable definition
+            Token::Identifier(_) => {
+                // variable definition
                 let var = self.identifier(rdepth)?;
                 let expr = self.expr(rdepth)?;
-                Self::list(vec!(keyword, var, expr))
-            },
-            Token::ParenLeft => { // function definition
+                Self::list(vec![keyword, var, expr])
+            }
+            Token::ParenLeft => {
+                // function definition
                 self.paren_left(rdepth)?;
                 let var = self.identifier(rdepth + 1)?;
                 let formals = self.def_formals(rdepth + 1)?;
                 self.paren_right(rdepth + 1)?;
                 let body = self.body(rdepth)?;
 
-                Self::list(vec!(keyword, var, formals , body))
-            },
-            _ => Err(A::syntax_error(rdepth, "expected identifier or open parenthesis")),
+                Self::list(vec![keyword, var, formals, body])
+            }
+            _ => Err(A::syntax_error(
+                rdepth,
+                "expected identifier or open parenthesis",
+            )),
             // token @ _ => Err(unexpected(1, token.to_string(), "identifier or open paren".to_string())),
         }
     }
 
-    fn def_formals(&mut self, rdepth:usize) -> Result<R, R> {
+    fn def_formals(&mut self, rdepth: usize) -> Result<R, R> {
         self.identifier_list_possible_dot(rdepth)
     }
 
@@ -381,7 +389,7 @@ pub trait Reader {
         let formals = self.formals(rdepth)?;
         let exprs = self.body(rdepth)?;
 
-        Self::list(vec!(keyword, formals, exprs))
+        Self::list(vec![keyword, formals, exprs])
     }
 
     fn define_record_type(&mut self, rdepth: usize) -> Result<R, R> {
@@ -391,7 +399,7 @@ pub trait Reader {
         let id2 = self.identifier(rdepth)?;
         let field_specs = self.field_specs(rdepth)?;
 
-        Self::list(vec!(keyword, id1, constructor, id2, field_specs))
+        Self::list(vec![keyword, id1, constructor, id2, field_specs])
     }
 
     fn constructor(&mut self, rdepth: usize) -> Result<R, R> {
@@ -400,7 +408,7 @@ pub trait Reader {
         let field_names = self.field_names(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        Self::list(vec!(id, field_names))
+        Self::list(vec![id, field_names])
     }
 
     fn field_names(&mut self, rdepth: usize) -> Result<R, R> {
@@ -419,7 +427,7 @@ pub trait Reader {
         let field_name = self.identifier(rdepth + 1)?;
         let accessor = self.identifier(rdepth + 1)?;
 
-        let mut vec = vec!(field_name, accessor);
+        let mut vec = vec![field_name, accessor];
         if let Token::Identifier(_) = self.peek_or_eof()? {
             vec.push(self.identifier(rdepth + 1)?);
         };
@@ -434,20 +442,20 @@ pub trait Reader {
         let id = self.identifier(rdepth)?;
         let expr = self.transformer_spec(rdepth)?;
 
-        Self::list(vec!(keyword, id, expr))
+        Self::list(vec![keyword, id, expr])
     }
 
     ///
     /// define-library
-    /// 
-    /// 
+    ///
+    ///
     ///
 
     fn define_library(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("define-library", rdepth)?;
         let name = self.library_name(rdepth)?;
         let declarations = self.library_declarations(rdepth)?;
-        Self::list(vec!(keyword, name, declarations))
+        Self::list(vec![keyword, name, declarations])
     }
 
     fn library_declarations(&mut self, rdepth: usize) -> Result<R, R> {
@@ -478,7 +486,7 @@ pub trait Reader {
     fn library_declaration(&mut self, rdepth: usize) -> Result<R, R> {
         self.paren_left(rdepth)?;
         let declaration = match self.peek_or_eof()? {
-            Token::Identifier(id) => 
+            Token::Identifier(id) =>
                 match id.as_str() {
                     "begin" => self.begin(rdepth + 1),
                     "export" => self.export(rdepth + 1),
@@ -492,7 +500,6 @@ pub trait Reader {
                 },
                 _ => Err(A::syntax_error(rdepth, "expected begin, export, import, include, include-ci, include-library-declarations, cond-expand")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "export, import, include, include-ci, cond-expand".to_string())),
-            
         }?;
         self.paren_right(rdepth + 1)?;
         Ok(declaration)
@@ -502,7 +509,7 @@ pub trait Reader {
         let keyword = self.keyword("export", rdepth)?;
         let specs = self.export_specs(rdepth)?;
 
-        Self::list(vec!(keyword, specs))
+        Self::list(vec![keyword, specs])
     }
 
     fn export_specs(&mut self, rdepth: usize) -> Result<R, R> {
@@ -514,7 +521,10 @@ pub trait Reader {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.export_spec_id(rdepth),
             Token::ParenLeft => self.export_spec_rename(rdepth),
-            _ => Err(A::syntax_error(rdepth, "expected identifier or export-spec-list")),
+            _ => Err(A::syntax_error(
+                rdepth,
+                "expected identifier or export-spec-list",
+            )),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or export-spec-list".to_string())),
         }
     }
@@ -531,14 +541,14 @@ pub trait Reader {
         let id2 = self.identifier(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        Self::list(vec!(id1, id2))
+        Self::list(vec![id1, id2])
     }
 
     fn import(&mut self, rdepth: usize) -> Result<R, R> {
-        let keyword= self.keyword("import", rdepth)?;
+        let keyword = self.keyword("import", rdepth)?;
         let sets = self.import_sets(rdepth)?;
 
-        Self::list(vec!(keyword, sets))
+        Self::list(vec![keyword, sets])
     }
 
     fn import_sets(&mut self, rdepth: usize) -> Result<R, R> {
@@ -549,14 +559,13 @@ pub trait Reader {
     fn import_set(&mut self, rdepth: usize) -> Result<R, R> {
         self.paren_left(rdepth)?;
         let import_set = match self.peek_or_eof()? {
-            Token::Identifier(id) => 
-                match id.as_str() {
-                    "only" => self.only(rdepth + 1)?,
-                    "except" => self.except(rdepth + 1)?,
-                    "prefix" => self.prefix(rdepth + 1)?,
-                    "rename" => self.rename(rdepth + 1)?,
-                    _ => self.library_name_after_open(rdepth + 1)?,
-                }
+            Token::Identifier(id) => match id.as_str() {
+                "only" => self.only(rdepth + 1)?,
+                "except" => self.except(rdepth + 1)?,
+                "prefix" => self.prefix(rdepth + 1)?,
+                "rename" => self.rename(rdepth + 1)?,
+                _ => self.library_name_after_open(rdepth + 1)?,
+            },
             _ => self.library_name_after_open(rdepth + 1)?,
         };
 
@@ -570,20 +579,19 @@ pub trait Reader {
         let set = self.import_set(rdepth)?;
         let ids = self.import_set_ids(rdepth)?;
 
-        Self::list(vec!(keyword, set, ids))
+        Self::list(vec![keyword, set, ids])
     }
 
     fn import_set_ids(&mut self, rdepth: usize) -> Result<R, R> {
         Self::list(self.one_or_more(Reader::identifier, rdepth)?)
     }
 
-
     fn except(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("except", rdepth)?;
         let set = self.import_set(rdepth)?;
         let ids = self.import_set_ids(rdepth)?;
 
-        Self::list(vec!(keyword, set, ids))
+        Self::list(vec![keyword, set, ids])
     }
 
     fn prefix(&mut self, rdepth: usize) -> Result<R, R> {
@@ -591,7 +599,7 @@ pub trait Reader {
         let set = self.import_set(rdepth)?;
         let id = self.identifier(rdepth)?;
 
-        Self::list(vec!(keyword, set, id))
+        Self::list(vec![keyword, set, id])
     }
 
     fn rename(&mut self, rdepth: usize) -> Result<R, R> {
@@ -600,19 +608,18 @@ pub trait Reader {
 
         let pairs = self.rename_pairs(rdepth)?;
 
-        Self::list(vec!(keyword, set, pairs))
+        Self::list(vec![keyword, set, pairs])
     }
 
     fn rename_pairs(&mut self, rdepth: usize) -> Result<R, R> {
         Self::list(self.one_or_more(Reader::identifier_pair, rdepth)?)
     }
 
-
     fn cond_expand(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("cond-expand", rdepth)?;
         let clauses = self.cond_expand_clauses(rdepth)?;
 
-        Self::list(vec!(keyword, clauses))
+        Self::list(vec![keyword, clauses])
     }
 
     fn cond_expand_clauses(&mut self, rdepth: usize) -> Result<R, R> {
@@ -625,7 +632,7 @@ pub trait Reader {
         let declarations = self.library_declarations(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        let mut vec = vec!(requirement, declarations);
+        let mut vec = vec![requirement, declarations];
 
         if matches!(self.peek_or_eof()?, Token::ParenLeft) {
             let else_clause = self.cond_expand_else(rdepth)?;
@@ -641,7 +648,7 @@ pub trait Reader {
         let declarations = self.library_declarations(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        Self::list(vec!(keyword, declarations))
+        Self::list(vec![keyword, declarations])
     }
 
     fn feature_requirements(&mut self, rdepth: usize) -> Result<R, R> {
@@ -653,7 +660,10 @@ pub trait Reader {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.identifier(rdepth),
             Token::ParenLeft => self.feature_requirement_with_paren(rdepth),
-            _ => Err(A::syntax_error(rdepth, "expected identifier or open parenthesis")),
+            _ => Err(A::syntax_error(
+                rdepth,
+                "expected identifier or open parenthesis",
+            )),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier or open parenthesis".to_string()))
         }
     }
@@ -662,13 +672,12 @@ pub trait Reader {
         self.paren_left(rdepth)?;
 
         let requirement = match self.peek_or_eof()? {
-            Token::Identifier(id) => 
-                match id.as_str() {
-                    "and" => self.and(rdepth + 1),
-                    "or" => self.or(rdepth + 1),
-                    "not" => self.not(rdepth + 1),
-                    _ => self.library_name_after_open(rdepth + 1),
-                }
+            Token::Identifier(id) => match id.as_str() {
+                "and" => self.and(rdepth + 1),
+                "or" => self.or(rdepth + 1),
+                "not" => self.not(rdepth + 1),
+                _ => self.library_name_after_open(rdepth + 1),
+            },
             _ => self.library_name_after_open(rdepth + 1),
         };
 
@@ -679,41 +688,41 @@ pub trait Reader {
 
     fn and(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("and", rdepth)?;
-        let requirements = self.feature_requirements(rdepth)?; 
-        Self::list(vec!(keyword, requirements))
+        let requirements = self.feature_requirements(rdepth)?;
+        Self::list(vec![keyword, requirements])
     }
 
     fn or(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("or", rdepth)?;
         let requirements = self.feature_requirements(rdepth)?;
-        Self::list(vec!(keyword, requirements))
+        Self::list(vec![keyword, requirements])
     }
 
     fn not(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("not", rdepth)?;
         let requirement = self.feature_requirement(rdepth)?;
 
-        Self::list(vec!(keyword, requirement))
+        Self::list(vec![keyword, requirement])
     }
 
     fn include_library_declarations(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("include-library-declarations", rdepth)?;
         let strings = self.strings(rdepth)?;
 
-        Self::list(vec!(keyword, strings))
+        Self::list(vec![keyword, strings])
     }
 
     ///
     /// Conditionals
-    /// 
-    /// 
+    ///
+    ///
     ///
     fn iff(&mut self, rdepth: usize) -> Result<R, R> {
         let iff = self.keyword("if", rdepth)?;
         let test = self.expr(rdepth)?;
         let consequent = self.expr(rdepth)?;
 
-        let mut vec = vec!(iff, test, consequent);
+        let mut vec = vec![iff, test, consequent];
 
         if !matches!(self.peek_or_eof()?, Token::ParenRight) {
             vec.push(self.expr(rdepth)?);
@@ -724,36 +733,32 @@ pub trait Reader {
 
     ///
     /// Rssignments
-    /// 
-    /// 
+    ///
+    ///
     ///
 
     fn assignment(&mut self, rdepth: usize) -> Result<R, R> {
         let keyword = self.keyword("set!", rdepth)?;
-        
+
         let id = self.identifier(rdepth)?;
         let expr = self.expr(rdepth)?;
 
-        Self::list(vec!(keyword, id, expr))
+        Self::list(vec![keyword, id, expr])
     }
-
 
     fn literal(&mut self, rdepth: usize) -> Result<R, R> {
         // checks for a single-token literal, i.e. boolean, character, number or string
         match self.peek_or_eof()? {
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::Number(_)
-            | Token::String(_) => {
+            Token::Boolean(_) | Token::Character(_) | Token::Number(_) | Token::String(_) => {
                 match self.get_next_token() {
                     Some(token) => match token {
-                            Token::Boolean(b) => Ok(A::boolean(b)),
-                            Token::Character(c) => Ok(A::char(c)),
-                            Token::Number(n) => Ok(A::number(n)),
-                            Token::String(s) => Ok(A::string(s)),
-                            _ => Err(A::syntax_error(rdepth, "unexpected token")),
-                            // _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string())),
-                        },
+                        Token::Boolean(b) => Ok(A::boolean(b)),
+                        Token::Character(c) => Ok(A::char(c)),
+                        Token::Number(n) => Ok(A::number(n)),
+                        Token::String(s) => Ok(A::string(s)),
+                        _ => Err(A::syntax_error(rdepth, "unexpected token")),
+                        // _ => Err(unexpected(rdepth, token.to_string(), "literal".to_string())),
+                    },
                     None => Err(A::eof_object()),
                 }
             }
@@ -764,32 +769,31 @@ pub trait Reader {
 
     ///
     /// Macro blocks
-    /// 
-    /// 
+    ///
+    ///
     ///
 
     fn macro_block(&mut self, rdepth: usize) -> Result<R, R> {
         // we look for the keywords let-syntax or letrec-syntax
         match self.peek_or_eof()? {
-            Token::Identifier(id) => 
-                match id.as_str() {
-                    "let-syntax" | "letrec-syntax"=> {
-                        let keyword = self.identifier(rdepth)?;
-                        self.paren_left(rdepth)?;
-                        let syntax_specs = self.syntax_specs(rdepth + 1)?;
-                        self.paren_right(rdepth + 1)?;
-                        let body = self.body(rdepth)?;
-                        Self::list(vec!(keyword, syntax_specs, body))
-                    }
-                    _ => Err(A::syntax_error(rdepth, "unexpected token")),
-                    //  _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string())),
-                },
+            Token::Identifier(id) => match id.as_str() {
+                "let-syntax" | "letrec-syntax" => {
+                    let keyword = self.identifier(rdepth)?;
+                    self.paren_left(rdepth)?;
+                    let syntax_specs = self.syntax_specs(rdepth + 1)?;
+                    self.paren_right(rdepth + 1)?;
+                    let body = self.body(rdepth)?;
+                    Self::list(vec![keyword, syntax_specs, body])
+                }
+                _ => Err(A::syntax_error(rdepth, "unexpected token")),
+                //  _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string())),
+            },
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "let-syntax or letrec-syntax".to_string())),
         }
     }
 
-    fn syntax_specs (&mut self, rdepth: usize) -> Result<R, R> {
+    fn syntax_specs(&mut self, rdepth: usize) -> Result<R, R> {
         let syntax_specs = self.zero_or_more(Reader::syntax_spec, rdepth)?;
         Self::list(syntax_specs)
     }
@@ -800,7 +804,7 @@ pub trait Reader {
         let keyword = self.identifier(rdepth + 1)?;
         let transformer_spec = self.transformer_spec(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        Self::list(vec!(keyword, transformer_spec))
+        Self::list(vec![keyword, transformer_spec])
     }
 
     //
@@ -814,8 +818,7 @@ pub trait Reader {
 
         let template = self.qq_template(rdepth, qqdepth)?;
 
-        Self::list(vec!(keyword, template))
-
+        Self::list(vec![keyword, template])
     }
 
     fn quasiquotation_short(&mut self, rdepth: usize, qqdepth: u32) -> Result<R, R> {
@@ -823,7 +826,7 @@ pub trait Reader {
         // let keyword = Rc::new(RefCell::new(Object::Identifier(Identifier::Keyword(Keyword::from("quasiquote")))));
         let keyword = A::keyword(Keyword::Quasiquote);
         let template = self.qq_template(rdepth, qqdepth)?;
-        Self::list(vec!(keyword, template))
+        Self::list(vec![keyword, template])
     }
 
     fn qq_template(&mut self, rdepth: usize, qqdepth: u32) -> Result<R, R> {
@@ -841,24 +844,28 @@ pub trait Reader {
                 Token::Quote => {
                     self.quote(rdepth)?;
                     self.qq_template(rdepth, qqdepth)
-                },
+                }
                 Token::Quasiquote => self.quasiquotation_short(rdepth, qqdepth + 1),
                 Token::ParenLeft => {
                     self.paren_left(rdepth)?;
 
                     match self.peek_or_eof()? {
-                        Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => self.quasiquotation(rdepth + 1, qqdepth + 1),
-                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => self.qq_template_unquotation(rdepth + 1, qqdepth),
+                        Token::Identifier(id) if matches!(id.as_str(), "quasiquote") => {
+                            self.quasiquotation(rdepth + 1, qqdepth + 1)
+                        }
+                        Token::Identifier(id) if matches!(id.as_str(), "unquote") => {
+                            self.qq_template_unquotation(rdepth + 1, qqdepth)
+                        }
                         _ => {
                             let list = self.qq_template_or_splice_list(rdepth + 1, qqdepth)?;
                             self.paren_right(rdepth + 1)?;
                             Self::list(list)
-                        },
+                        }
                     }
-                },
+                }
                 _ => Err(A::syntax_error(rdepth, "unexpected token")),
                 // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list")),
-            }    
+            },
         }
     }
 
@@ -882,7 +889,7 @@ pub trait Reader {
         let keyword = self.comma(rdepth)?;
         let template = self.qq_template(rdepth, qqdepth - 1)?;
 
-        Self::list(vec!(keyword, template))
+        Self::list(vec![keyword, template])
     }
 
     fn qq_template_unquotation(&mut self, rdepth: usize, qqdepth: u32) -> Result<R, R> {
@@ -890,16 +897,16 @@ pub trait Reader {
         let template = self.qq_template(rdepth, qqdepth - 1)?;
         self.paren_right(rdepth)?;
 
-        Self::list(vec!(keyword, template))
+        Self::list(vec![keyword, template])
     }
 
     fn qq_template_vector(&mut self, rdepth: usize, qqdepth: u32) -> Result<R, R> {
         let keyword = self.sharpopen(rdepth)?;
         self.keyword("vector", rdepth + 1)?;
         let qq_templates = self.qq_templates(rdepth + 1, qqdepth)?;
-        self.paren_right(rdepth + 1, )?;
+        self.paren_right(rdepth + 1)?;
 
-        Self::list(vec!(keyword, qq_templates))
+        Self::list(vec![keyword, qq_templates])
     }
 
     fn qq_templates(&mut self, rdepth: usize, qqdepth: u32) -> Result<R, R> {
@@ -913,14 +920,13 @@ pub trait Reader {
 
     ///
     /// Quotations
-    /// 
-    /// 
+    ///
+    ///
     ///
 
     fn quotation(&mut self, rdepth: usize) -> Result<R, R> {
         let _keyword = self.keyword("quote", rdepth)?;
         let datum = self.datum(rdepth)?;
-
 
         Ok(A::quotation(&datum))
     }
@@ -935,26 +941,25 @@ pub trait Reader {
 
     fn identifier_list_possible_dot(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
-            Token::ParenRight => Self::list(vec!()),
+            Token::ParenRight => Self::list(vec![]),
             _ => {
                 let ids = self.one_or_more(Reader::identifier, rdepth)?;
                 match self.peek_or_eof()? {
                     Token::Dot => {
                         self.dot(rdepth)?;
                         Self::list_not_null_terminated(ids, &self.identifier(rdepth)?)
-                    },
+                    }
                     _ => Self::list(ids),
                 }
             }
         }
     }
 
-
     ///
-    /// Transformer (R7RS section 7.1.5) 
+    /// Transformer (R7RS section 7.1.5)
     /// [INCOMPLETE]
-    /// 
-    
+    ///
+
     fn transformer_spec(&mut self, rdepth: usize) -> Result<R, R> {
         self.paren_left(rdepth)?;
         self.keyword("syntax-rules", rdepth + 1)?;
@@ -970,8 +975,8 @@ pub trait Reader {
         self.paren_right(rdepth + 1)?;
 
         let children = match id {
-            Ok(id) => vec!(id, ids, syntax_rules),
-            Err(_) => vec!(ids, syntax_rules),
+            Ok(id) => vec![id, ids, syntax_rules],
+            Err(_) => vec![ids, syntax_rules],
         };
 
         Self::list(children)
@@ -993,21 +998,18 @@ pub trait Reader {
         let pattern = self.pattern(rdepth + 1)?;
         let template = self.template(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
-        Self::list(vec!(pattern, template))
+        Self::list(vec![pattern, template])
     }
 
     fn pattern(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
-            Token::Identifier(id) => {
-                match id.as_str() {
-                    "_" => self.pattern_underscore(rdepth),
-                    _ => self.pattern_identifier(rdepth),
-                }
+            Token::Identifier(id) => match id.as_str() {
+                "_" => self.pattern_underscore(rdepth),
+                _ => self.pattern_identifier(rdepth),
             },
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::String(_)
-            | Token::Number(_) => self.pattern_datum(rdepth),
+            Token::Boolean(_) | Token::Character(_) | Token::String(_) | Token::Number(_) => {
+                self.pattern_datum(rdepth)
+            }
             Token::ParenLeft => self.pattern_with_paren(rdepth),
             Token::SharpOpen => self.pattern_with_sharp_paren(rdepth),
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
@@ -1023,9 +1025,10 @@ pub trait Reader {
         let token = self.peek_or_eof()?;
 
         match token {
-            Token::Identifier(s) if s.as_str() == "..." => 
-                Ok(A::syntax_error(rdepth, "ellipsis not allowed in pattern")),
-                // Err(unexpected(rdepth, "...".to_string(), "identifier".to_string())),
+            Token::Identifier(s) if s.as_str() == "..." => {
+                Ok(A::syntax_error(rdepth, "ellipsis not allowed in pattern"))
+            }
+            // Err(unexpected(rdepth, "...".to_string(), "identifier".to_string())),
             _ => self.identifier(rdepth),
         }
     }
@@ -1033,7 +1036,6 @@ pub trait Reader {
     fn pattern_underscore(&mut self, rdepth: usize) -> Result<R, R> {
         self.keyword("_", rdepth)
     }
-
 
     fn pattern_with_paren(&mut self, rdepth: usize) -> Result<R, R> {
         self.paren_left(rdepth)?;
@@ -1043,7 +1045,6 @@ pub trait Reader {
         Ok(patterns)
     }
 
-
     fn pattern_with_paren_a(&mut self, rdepth: usize) -> Result<R, R> {
         // | <pattern>*
         // | <pattern>+ . <pattern>
@@ -1051,14 +1052,12 @@ pub trait Reader {
         // | <pattern>* <pattern> <ellipsis> <pattern>* . <pattern>
 
         match self.peek_or_eof()? {
-            
-            Token::ParenRight => Self::list(vec!()), // empty
+            Token::ParenRight => Self::list(vec![]), // empty
 
             _ => {
-
                 // initially we have not seen an ellipse or any patterns before or after ellipse
-                let mut pre_ellipse_patterns : Vec<R>;
-                let mut post_ellipse_patterns: Vec<R> = vec!();
+                let mut pre_ellipse_patterns: Vec<R>;
+                let mut post_ellipse_patterns: Vec<R> = vec![];
                 let mut ellipse = false;
 
                 // we look for patterns before ellipse
@@ -1073,24 +1072,25 @@ pub trait Reader {
 
                         match self.peek_or_eof()? {
                             Token::ParenRight => (), // dot with no ellipse
-                            Token::Identifier(id) if  id.as_str() == "..." =>  // dot with ellipse
+                            Token::Identifier(id) if id.as_str() == "..." =>
+                            // dot with ellipse
                             {
                                 ellipse = true;
                                 let _ellipsis = self.identifier(rdepth)?;
-                                post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
+                                post_ellipse_patterns =
+                                    self.zero_or_more(Reader::pattern, rdepth)?;
 
-                                if !matches!(self.peek_or_eof()?, Token::ParenRight) { // dot with ellipse and dot 
+                                if !matches!(self.peek_or_eof()?, Token::ParenRight) {
+                                    // dot with ellipse and dot
                                     self.dot(rdepth)?;
                                     let pattern = self.pattern(rdepth)?;
                                     post_ellipse_patterns.push(pattern);
                                 }
-        
-                            },
-                            _ => ()
+                            }
+                            _ => (),
                         }
-                    },
-                    Token::Identifier(id) if  id.as_str() == "..." =>  
-                    {
+                    }
+                    Token::Identifier(id) if id.as_str() == "..." => {
                         ellipse = true;
                         let _ellipsis = self.identifier(rdepth)?;
                         post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
@@ -1100,18 +1100,17 @@ pub trait Reader {
                             let pattern = self.pattern(rdepth)?;
                             post_ellipse_patterns.push(pattern);
                         }
-                    },
-                    _ => ()
+                    }
+                    _ => (),
                 }
 
-                let mut vec = vec!(Self::list(pre_ellipse_patterns)?);
+                let mut vec = vec![Self::list(pre_ellipse_patterns)?];
 
                 if ellipse {
                     vec.push(Self::list(post_ellipse_patterns)?);
                 }
 
                 Self::list(vec)
-
             }
         }
     }
@@ -1124,33 +1123,32 @@ pub trait Reader {
         let patterns = self.pattern_with_sharp_paren_a(rdepth + 1)?;
         self.paren_right(rdepth + 1)?;
 
-        Self::list(vec!(patterns))
+        Self::list(vec![patterns])
     }
 
     fn pattern_with_sharp_paren_a(&mut self, rdepth: usize) -> Result<R, R> {
         // initially we have not seen an ellipse or any patterns before or after ellipse
-        let mut pre_ellipse_patterns : Vec<R> = vec!();
-        let mut post_ellipse_patterns: Vec<R> = vec!();
+        let mut pre_ellipse_patterns: Vec<R> = vec![];
+        let mut post_ellipse_patterns: Vec<R> = vec![];
         let mut ellipse = false;
-                
+
         match self.peek_or_eof()? {
             Token::ParenRight => (), // empty
             _ => {
                 pre_ellipse_patterns = self.one_or_more(Reader::pattern, rdepth)?;
                 match self.peek_or_eof()? {
                     Token::ParenRight => (),
-                    Token::Identifier(id) if  id.as_str() == "..." => {
+                    Token::Identifier(id) if id.as_str() == "..." => {
                         let _ellipsis = self.identifier(rdepth)?;
                         ellipse = true;
                         post_ellipse_patterns = self.zero_or_more(Reader::pattern, rdepth)?;
-
-                    },
-                    _ => ()
+                    }
+                    _ => (),
                 }
             }
         }
 
-        let mut vec = vec!(Self::list(pre_ellipse_patterns)?);
+        let mut vec = vec![Self::list(pre_ellipse_patterns)?];
 
         if ellipse {
             vec.push(Self::list(post_ellipse_patterns)?);
@@ -1164,10 +1162,9 @@ pub trait Reader {
             Token::Identifier(_) => self.template_identifier(rdepth),
             Token::ParenLeft => self.template_with_paren(rdepth),
             Token::SharpOpen => self.template_with_sharp_paren(rdepth),
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::String(_)
-            | Token::Number(_) => self.template_datum(rdepth),
+            Token::Boolean(_) | Token::Character(_) | Token::String(_) | Token::Number(_) => {
+                self.template_datum(rdepth)
+            }
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
@@ -1181,7 +1178,7 @@ pub trait Reader {
         self.paren_left(rdepth)?;
 
         let template = match self.peek_or_eof()? {
-            Token::ParenRight => Ok(vec!()), // empty list
+            Token::ParenRight => Ok(vec![]), // empty list
             _ => {
                 let mut elements = self.one_or_more(Reader::template_element, rdepth + 1)?;
                 match self.peek_or_eof()? {
@@ -1190,7 +1187,7 @@ pub trait Reader {
                         self.dot(rdepth + 1)?;
                         elements.push(self.template_element(rdepth + 1)?);
                         Ok(elements)
-                    },
+                    }
                     _ => Err(A::syntax_error(rdepth, "unexpected token")),
                     // token @ _ => Err(unexpected(rdepth, token.to_string(), "close parenthesis or dot".to_string())),
                 }
@@ -1199,18 +1196,18 @@ pub trait Reader {
 
         self.paren_right(rdepth + 1)?;
 
-        Self::list(template)        
+        Self::list(template)
     }
 
     fn template_element(&mut self, rdepth: usize) -> Result<R, R> {
         let template = self.template(rdepth)?;
-        
+
         match self.peek_or_eof()? {
-            Token::Identifier(id) if id.as_str() == "..." => { 
+            Token::Identifier(id) if id.as_str() == "..." => {
                 let ellipsis = A::keyword(Keyword::Ellipsis);
-                Self::list(vec!(template, ellipsis))
+                Self::list(vec![template, ellipsis])
             }
-            _ => Self::list(vec!(template))
+            _ => Self::list(vec![template]),
         }
     }
 
@@ -1228,24 +1225,22 @@ pub trait Reader {
 
     ///
     /// Datum (R7RS section 7.1.3 - External Representation)
-    /// 
-    /// 
-    /// 
+    ///
+    ///
+    ///
 
     fn datum(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.symbol(rdepth),
             Token::ParenLeft => self.datum_list(rdepth),
             Token::SharpOpen => self.vector(rdepth),
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::String(_)
-            | Token::Number(_) => self.literal(rdepth),
+            Token::Boolean(_) | Token::Character(_) | Token::String(_) | Token::Number(_) => {
+                self.literal(rdepth)
+            }
             Token::SharpU8Open => self.bytevector(rdepth),
-            Token::Quote 
-            | Token::Quasiquote
-            | Token::Comma
-            | Token::CommaAt => self.abbreviation(rdepth),
+            Token::Quote | Token::Quasiquote | Token::Comma | Token::CommaAt => {
+                self.abbreviation(rdepth)
+            }
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
         }
@@ -1254,10 +1249,9 @@ pub trait Reader {
     fn simple_datum(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => self.symbol(rdepth),
-            Token::Boolean(_)
-            | Token::Character(_)
-            | Token::String(_)
-            | Token::Number(_) => self.literal(rdepth),
+            Token::Boolean(_) | Token::Character(_) | Token::String(_) | Token::Number(_) => {
+                self.literal(rdepth)
+            }
             Token::SharpU8Open => self.bytevector(rdepth),
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier, literal or list".to_string()))
@@ -1280,12 +1274,11 @@ pub trait Reader {
 
         let expr = self.datum(rdepth)?;
 
-        Self::list(vec!(prefix, expr))
+        Self::list(vec![prefix, expr])
     }
 
     fn datum_list(&mut self, rdepth: usize) -> Result<R, R> {
         self.paren_left(rdepth)?;
-
 
         let data = match self.peek_or_eof()? {
             Token::ParenRight => Ok(A::null()),
@@ -1296,7 +1289,7 @@ pub trait Reader {
                     Token::Dot => {
                         self.dot(rdepth + 1)?;
                         Self::list_not_null_terminated(data, &self.datum(rdepth + 1)?)
-                    },
+                    }
                     _ => Self::list(data),
                 }
             }
@@ -1305,7 +1298,6 @@ pub trait Reader {
         self.paren_right(rdepth + 1)?;
 
         data
-
     }
 
     fn uinteger10(&mut self, rdepth: usize) -> Result<R, R> {
@@ -1315,7 +1307,7 @@ pub trait Reader {
                     Some(Token::Number(n)) => Ok(A::number(n)),
                     _ => Err(A::eof_object()),
                 }
-            },
+            }
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "uninteger10".to_string())),
         }
@@ -1336,12 +1328,22 @@ pub trait Reader {
         Ok(A::bytevector(&Self::list(data)?))
     }
 
-    fn zero_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> Result<R, R>, rdepth: usize) -> Result<Vec<R>, R> {
+    fn zero_or_more(
+        &mut self,
+        closure: fn(&mut Self, rdepth: usize) -> Result<R, R>,
+        rdepth: usize,
+    ) -> Result<Vec<R>, R> {
         Ok(from_fn(|| closure(self, rdepth).ok()).collect())
     }
 
-    fn one_or_more(&mut self, closure: fn(&mut Self, rdepth: usize) -> Result<R, R>, rdepth: usize) -> Result<Vec<R>, R> {
-        Ok(once(closure(self, rdepth)?).chain(from_fn(|| closure(self, rdepth).ok())).collect())
+    fn one_or_more(
+        &mut self,
+        closure: fn(&mut Self, rdepth: usize) -> Result<R, R>,
+        rdepth: usize,
+    ) -> Result<Vec<R>, R> {
+        Ok(once(closure(self, rdepth)?)
+            .chain(from_fn(|| closure(self, rdepth).ok()))
+            .collect())
     }
 
     fn keyword(&mut self, keyword: &str, rdepth: usize) -> Result<R, R> {
@@ -1353,7 +1355,6 @@ pub trait Reader {
     }
 
     fn keyword_box_leaf_from_next(&mut self, rdepth: usize) -> Result<R, R> {
-        
         match self.get_next_token() {
             Some(Token::Identifier(s)) => Ok(A::keyword(Keyword::from(s))),
             None => Err(A::eof_object()),
@@ -1361,16 +1362,16 @@ pub trait Reader {
             // token @ _ => Err(unexpected(rdepth, token.unwrap().to_string(), "a keyword".to_string())),
         }
     }
-    
+
     fn punctuation(&mut self, rdepth: usize, expected: Token, s: &'static str) -> Result<R, R> {
         match self.peek_or_eof()? {
             t if t == expected => {
                 self.get_next_token();
                 Ok(A::symbol(s))
-            },
+            }
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), s.to_string())),
-        }   
+        }
     }
 
     fn comma(&mut self, rdepth: usize) -> Result<R, R> {
@@ -1388,7 +1389,7 @@ pub trait Reader {
     fn paren_right(&mut self, rdepth: usize) -> Result<R, R> {
         self.punctuation(rdepth, Token::ParenRight, ")")
     }
-    
+
     fn paren_left(&mut self, rdepth: usize) -> Result<R, R> {
         self.punctuation(rdepth, Token::ParenLeft, "(")
     }
@@ -1419,19 +1420,19 @@ pub trait Reader {
                 let next = self.get_next_token();
                 match next {
                     Some(token) => match token {
-                            Token::String(s) => Ok(A::string(s)),
-                            _ => Err(A::syntax_error(rdepth, "unexpected token")),
-                            // _ => Err(unexpected(rdepth, token.to_string(), "string".to_string())),
-                        },
+                        Token::String(s) => Ok(A::string(s)),
+                        _ => Err(A::syntax_error(rdepth, "unexpected token")),
+                        // _ => Err(unexpected(rdepth, token.to_string(), "string".to_string())),
+                    },
                     None => Ok(A::eof_object()),
                 }
-            },
+            }
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "string".to_string())),
         }
     }
 
-    fn identifier(&mut self, rdepth: usize) -> Result<R, R> {        
+    fn identifier(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
             Token::Identifier(_) => {
                 if let Some(Token::Identifier(id)) = self.get_next_token() {
@@ -1439,10 +1440,10 @@ pub trait Reader {
                 } else {
                     Err(A::eof_object())
                 }
-            },
+            }
             _ => Err(A::syntax_error(rdepth, "unexpected token")),
             // token @ _ => Err(unexpected(rdepth, token.to_string(), "identifier".to_string())),
-        }        
+        }
     }
 
     fn identifier_pair(&mut self, rdepth: usize) -> Result<R, R> {
@@ -1452,7 +1453,7 @@ pub trait Reader {
 
         self.paren_right(rdepth + 1)?;
 
-        Self::list(vec!(id1, id2))
+        Self::list(vec![id1, id2])
     }
 
     fn peek_or_eof(&mut self) -> Result<Token, R> {

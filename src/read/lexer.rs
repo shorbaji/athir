@@ -1,9 +1,9 @@
 //! Lexical analyzer
-//! 
+//!
 //! This module implements the lexical analyzer for Athir
-//! 
+//!
 //! # Example
-//! 
+//!
 //! use athir::lexer::{Lexer, Source};
 //!  
 //! let source = Source::new(std::io::stdin().lines().map(|line| line.unwrap()));
@@ -12,7 +12,7 @@
 //! for token in lex {
 //!     println!("token: {:?}", token);
 //! }
-//! 
+//!
 //! Known issues:
 //! - Though curly and square braces are reserved for future use we do not ascribe any meaning to them
 //! - Only simple comments support (no nested comments or comments with datum)
@@ -26,15 +26,15 @@ mod delimited;
 mod number;
 mod token;
 
-use std::iter::Peekable;
 use delimited::DelimitedLexer;
+use std::iter::Peekable;
 pub use token::Token;
 
 /// Lexer
-/// 
+///
 /// This struct is the public interface to the lexical analyzer.
 /// It is an abstraction over the DelimitedLexer struct which is an abstraction over the Logos lexer.
-/// It holds a Peekable iterator over the tokens produced by the DelimitedLexer 
+/// It holds a Peekable iterator over the tokens produced by the DelimitedLexer
 /// It also holds a source which is an iterator over strings of input.
 
 pub trait Lexer {
@@ -42,7 +42,7 @@ pub trait Lexer {
     fn get_tokens(&mut self) -> &mut Peekable<std::vec::IntoIter<Token>>;
     fn set_tokens(&mut self, tokens: Peekable<std::vec::IntoIter<Token>>);
     /// refresh
-    /// 
+    ///
     /// This function:
     /// - gets a new string of input from the source
     /// - lexically analyzes the string with a DelimitedLexer
@@ -51,19 +51,24 @@ pub trait Lexer {
     /// - wraps the iterator in a Peekable iterator
     /// - returns the iterator
 
-    fn refresh(&mut self) -> std::result::Result<Peekable<std::vec::IntoIter<Token>>, std::io::Error> {
+    fn refresh(
+        &mut self,
+    ) -> std::result::Result<Peekable<std::vec::IntoIter<Token>>, std::io::Error> {
         match self.read_line() {
             Some(line) => {
                 let lexer = DelimitedLexer::new(&line);
                 let tokens = lexer.collect::<Vec<Token>>();
                 Ok(tokens.into_iter().peekable())
-            },
-            None => Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "No more input")),
+            }
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "No more input",
+            )),
         }
     }
 
     /// peek
-    /// 
+    ///
     /// if no more tokens are available from the current Peekable iterator
     /// then this function calls refresh to get a new one
     ///

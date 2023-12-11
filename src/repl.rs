@@ -9,15 +9,15 @@ use crate::value::V;
 
 ///
 /// repl()
-/// 
+///
 /// Implements the read eval print loop by starting the interpreter driver loop (trampline) with
 /// the initial continuation to prompt the user for input and then read
-/// 
+///
 
 pub fn repl() {
     let env = global_env();
 
-    // Create the initial read continuation which 
+    // Create the initial read continuation which
     let k = A::continuation(read_cont, &env, &A::continuation_null());
 
     // Create a pair of ports for stdin and stdout
@@ -44,13 +44,11 @@ fn read_cont(e: &R, r: &R, k: &R) -> (R, R) {
 
     // Read the input from stdin and return the eval continuation and the expression read
     (k, read(Some(&stdin_port)))
-
 }
 
 /// The eval continuation function evaluates the expression read by the read continuation
 /// It returns a print continuation and the expression evaluated
 fn eval_cont(e: &R, ports: &R, r: &R, k: &R) -> (R, R) {
-
     // check if the expression is an EOF object
     // if it is, return the current continuation with the eof object
     // otherwise, return an eval_continuation with the print continuation

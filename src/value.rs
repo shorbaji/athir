@@ -1,8 +1,8 @@
 pub mod port;
 
-use std::collections::HashMap;
-use port::Port;
 use crate::alloc::R;
+use port::Port;
+use std::collections::HashMap;
 
 pub enum V {
     Boolean(bool),
@@ -18,7 +18,10 @@ pub enum V {
     Symbol(String),
     Vector(R),
 
-    Env{ map: HashMap<String, R>, outer: Option<R> },
+    Env {
+        map: HashMap<String, R>,
+        outer: Option<R>,
+    },
     Error(Error),
     Keyword(Keyword),
     Quotation(R),
@@ -41,7 +44,7 @@ impl std::fmt::Debug for V {
             V::Symbol(s) => write!(f, "Symbol({s})"),
             V::Vector(_) => write!(f, "Vector"),
 
-            V::Env{ map:_, outer:_ } => write!(f, "Env"),
+            V::Env { map: _, outer: _ } => write!(f, "Env"),
             V::Error(s) => write!(f, "Error({s:?})"),
             V::Keyword(k) => write!(f, "Keyword({k:?})"),
             V::Quotation(q) => write!(f, "Quotation({q:?})"),
@@ -51,34 +54,45 @@ impl std::fmt::Debug for V {
 }
 
 pub enum Procedure {
-    Closure { formals: R, body: R, env: R },
+    Closure {
+        formals: R,
+        body: R,
+        env: R,
+    },
 
     Continuation {
         f: fn(&R, &R, &R) -> (R, R), // continuation function (ternary)
-        r: R, // captured environment
-        k: R  // captured continuation
+        r: R,                        // captured environment
+        k: R,                        // captured continuation
     },
 
     ContinuationPlus {
         f: fn(&R, &R, &R, &R) -> (R, R), // continuation function (quadrenary)
-        o: R, // captured variable
-        r: R, // captured environment
-        k: R  // captured continuation
+        o: R,                            // captured variable
+        r: R,                            // captured environment
+        k: R,                            // captured continuation
     },
 
     ContinuationNull,
-    PrimitiveUnary(fn(&R)->R, String),
-    PrimitiveBinary(fn(&R, &R)->R, String),
-    PrimitiveERK(fn(&R, &R, &R)->(R, R), String),
-    PrimitiveOptionalUnary(fn(Option<&R>)->R, String),
+    PrimitiveUnary(fn(&R) -> R, String),
+    PrimitiveBinary(fn(&R, &R) -> R, String),
+    PrimitiveERK(fn(&R, &R, &R) -> (R, R), String),
+    PrimitiveOptionalUnary(fn(Option<&R>) -> R, String),
 }
 
 impl std::fmt::Debug for Procedure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Procedure::Closure { formals, body, env } => write!(f, "Closure({formals:?}, {body:?}, {env:?})"),
-            Procedure::Continuation { f:_, r:_, k:_ } => write!(f, "Continuation"),
-            Procedure::ContinuationPlus { f:_, o:_, r:_, k:_ } => write!(f, "ContinuationPlus"),
+            Procedure::Closure { formals, body, env } => {
+                write!(f, "Closure({formals:?}, {body:?}, {env:?})")
+            }
+            Procedure::Continuation { f: _, r: _, k: _ } => write!(f, "Continuation"),
+            Procedure::ContinuationPlus {
+                f: _,
+                o: _,
+                r: _,
+                k: _,
+            } => write!(f, "ContinuationPlus"),
             Procedure::ContinuationNull => write!(f, "ContinuationNull"),
             Procedure::PrimitiveUnary(_, s) => write!(f, "PrimitiveUnary({s})"),
             Procedure::PrimitiveBinary(_, s) => write!(f, "PrimitiveBinary({s})"),
@@ -90,10 +104,9 @@ impl std::fmt::Debug for Procedure {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
-    Syntax{depth: usize, message: String},
-    Runtime{message: String},
+    Syntax { depth: usize, message: String },
+    Runtime { message: String },
 }
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Keyword {
@@ -172,4 +185,3 @@ impl From<String> for Keyword {
         }
     }
 }
-
