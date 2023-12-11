@@ -1,4 +1,4 @@
-//! # Allocator
+//! memory allocator and garbage collector
 //!
 //! Allocates new values and returns references to them.
 //! Currently uses Rust's Rc<RefCell<...>> for reference counting and interior mutability.

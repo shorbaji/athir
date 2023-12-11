@@ -1,5 +1,5 @@
-//! Athir parser/reader module.
-
+//! parser
+//!
 //! Deviations from R7RS:
 //! - string inline hex escapes not implemented
 //! - no support for # label in datum.

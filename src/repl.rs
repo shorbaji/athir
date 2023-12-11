@@ -29,7 +29,7 @@ pub fn repl() {
 
 /// The read continuation function prompts the user for input and then reads the input
 /// It returns an eval continuation and the expression read
-
+#[doc(hidden)]
 fn read_cont(e: &R, r: &R, k: &R) -> (R, R) {
     // Create an eval continuation
     let k = A::continuation_plus(eval_cont, e, r, k);
@@ -48,6 +48,7 @@ fn read_cont(e: &R, r: &R, k: &R) -> (R, R) {
 
 /// The eval continuation function evaluates the expression read by the read continuation
 /// It returns a print continuation and the expression evaluated
+#[doc(hidden)]
 fn eval_cont(e: &R, ports: &R, r: &R, k: &R) -> (R, R) {
     // check if the expression is an EOF object
     // if it is, return the current continuation with the eof object
@@ -63,6 +64,7 @@ fn eval_cont(e: &R, ports: &R, r: &R, k: &R) -> (R, R) {
 
 /// The print continuation function prints the expression evaluated by the eval continuation
 /// It returns a read continuation and a null expression therefore completing the read eval print loop
+#[doc(hidden)]
 fn print_cont(e: &R, ports: &R, r: &R, k: &R) -> (R, R) {
     println!("=> {e:?}");
     (A::continuation(read_cont, r, k), ports.clone())
