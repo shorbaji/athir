@@ -1,5 +1,5 @@
-use crate::read::lexer::Token;
 use crate::read::lexer::Lexer;
+use crate::read::lexer::Token;
 use std::iter::Peekable;
 
 struct TestLexer {
@@ -12,7 +12,7 @@ impl TestLexer {
     fn new(string: String) -> Self {
         Self {
             string,
-            tokens: vec!().into_iter().peekable(),
+            tokens: vec![].into_iter().peekable(),
             used: false,
         }
     }
@@ -36,10 +36,9 @@ impl Lexer for TestLexer {
     }
 }
 
-fn test_input(input: &str, expected: Vec<Token>)
-{
+fn test_input(input: &str, expected: Vec<Token>) {
     let mut lex = TestLexer::new(input.to_string());
-    
+
     for token in expected {
         assert_eq!(lex.get_next_token(), Some(token));
     }
@@ -136,7 +135,7 @@ fn test_dot() {
 fn test_identifier() {
     [
         "a", "cc", "c0", "d+", "e-", "f.", "g@", "|h|", "+", "+j", "--", "+@", "+.k", "+..",
-        ".lmn", "..."
+        ".lmn", "...",
     ]
     .iter()
     .for_each(|s| test_input(s, vec![Token::Identifier(s.to_string())]));
@@ -224,28 +223,25 @@ fn test_string_mnemonic() {
 
 #[test]
 fn test_string_escaped_double_quote() {
-    let pairs = [
-        ("\"\\\"\"", "\\\"")
-    ];
+    let pairs = [("\"\\\"\"", "\\\"")];
 
     test_input_string(&pairs);
 }
 
 #[test]
 fn test_string_escaped_backslash() {
-    let pairs = [
-        ("\"\\\\\"", "\\\\")
-    ];
+    let pairs = [("\"\\\\\"", "\\\\")];
 
     test_input_string(&pairs);
 }
 
 #[test]
 fn test_string_multiline() {
-    let pairs = [
-        ("\"this is a multiline   \\   \nstring\"", "this is a multiline   \\   \nstring")
-    ];
-    
+    let pairs = [(
+        "\"this is a multiline   \\   \nstring\"",
+        "this is a multiline   \\   \nstring",
+    )];
+
     test_input_string(&pairs);
 }
 

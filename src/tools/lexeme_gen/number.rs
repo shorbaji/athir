@@ -193,11 +193,11 @@ type Uinteger = u64;
 
 fn uinteger_to_string(radix: &Radix, uinteger: &Uinteger) -> String {
     match radix {
-        Radix::Binary => format!("{:b}", uinteger),
-        Radix::Octal => format!("{:o}", uinteger),
-        Radix::Decimal => format!("{}", uinteger),
-        Radix::Hexadecimal => format!("{:x}", uinteger),
-        Radix::None => format!("{}", uinteger),
+        Radix::Binary => format!("{uinteger:b}"),
+        Radix::Octal => format!("{uinteger:o}"),
+        Radix::Decimal => format!("{uinteger}"),
+        Radix::Hexadecimal => format!("{uinteger:x}"),
+        Radix::None => format!("{uinteger}"),
     }
 }
 
@@ -236,11 +236,11 @@ impl Randomizable for Decimal {
 impl fmt::Display for Decimal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Decimal::A(uinteger, suffix) => write!(f, "{}{}", uinteger, suffix),
-            Decimal::B(uinteger, suffix) => write!(f, "{}.{}", uinteger, suffix),
+            Decimal::A(uinteger, suffix) => write!(f, "{uinteger}{suffix}"),
+            Decimal::B(uinteger, suffix) => write!(f, "{uinteger}.{suffix}"),
             Decimal::C(uinteger1, uinteger2, suffix) => match uinteger2 {
-                Some(uinteger2) => write!(f, "{}.{}{}", uinteger1, uinteger2, suffix),
-                None => write!(f, "{}.{}", uinteger1, suffix),
+                Some(uinteger2) => write!(f, "{uinteger1}.{uinteger2}{suffix}"),
+                None => write!(f, "{uinteger1}.{suffix}"),
             },
         }
     }
@@ -279,7 +279,7 @@ impl fmt::Display for Ureal {
                 )
             }
             Ureal::Decimal(decimal) => {
-                write!(f, "{}", decimal)
+                write!(f, "{decimal}")
             }
         }
     }
@@ -320,10 +320,10 @@ impl fmt::Display for Real {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Real::SignUreal(sign, ureal) => {
-                write!(f, "{}{}", sign, ureal)
+                write!(f, "{sign}{ureal}")
             }
             Real::Infnan(infnan) => {
-                write!(f, "{}", infnan)
+                write!(f, "{infnan}")
             }
         }
     }
@@ -394,13 +394,13 @@ impl Complex {
 impl fmt::Display for Complex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Complex::Singleton(real) => write!(f, "{}", real),
-            Complex::At(real, imag) => write!(f, "{}@{}", real, imag),
-            Complex::RealImag(real, sign, ureal) => write!(f, "{}{}{}i", real, sign, ureal),
-            Complex::RealI(real, sign) => write!(f, "{}{}i", real, sign),
-            Complex::Imag(sign, ureal) => write!(f, "{}{}i", sign, ureal),
-            Complex::InfnanI(infnan) => write!(f, "{}i", infnan),
-            Complex::I(sign) => write!(f, "{}i", sign),
+            Complex::Singleton(real) => write!(f, "{real}"),
+            Complex::At(real, imag) => write!(f, "{real}@{imag}"),
+            Complex::RealImag(real, sign, ureal) => write!(f, "{real}{sign}{ureal}i"),
+            Complex::RealI(real, sign) => write!(f, "{real}{sign}i"),
+            Complex::Imag(sign, ureal) => write!(f, "{sign}{ureal}i"),
+            Complex::InfnanI(infnan) => write!(f, "{infnan}i"),
+            Complex::I(sign) => write!(f, "{sign}i"),
         }
     }
 }
@@ -417,7 +417,7 @@ impl Randomizable for Number {
         let radix = prefix.radix;
 
         Number {
-            prefix: prefix,
+            prefix,
             complex: Complex::random_with_radix(radix),
         }
     }

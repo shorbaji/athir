@@ -36,21 +36,21 @@ impl Display for Identifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Identifier::Basic(initial, subsequent) => {
-                write!(f, "{}", initial)?;
+                write!(f, "{initial}")?;
                 for s in subsequent {
-                    write!(f, "{}", s)?;
+                    write!(f, "{s}")?;
                 }
                 Ok(())
             }
             Identifier::Vertical(symbol_element) => {
                 write!(f, "|")?;
                 for s in symbol_element {
-                    write!(f, "{}", s)?;
+                    write!(f, "{s}")?;
                 }
                 write!(f, "|")
             }
             Identifier::Peculiar(peculiar) => {
-                write!(f, "{}", peculiar)
+                write!(f, "{peculiar}")
             }
         }
     }
@@ -74,8 +74,8 @@ impl Randomizable for Initial {
 impl Display for Initial {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Initial::Letter(letter) => write!(f, "{}", letter),
-            Initial::SpecialInitial(special_initial) => write!(f, "{}", special_initial),
+            Initial::Letter(letter) => write!(f, "{letter}"),
+            Initial::SpecialInitial(special_initial) => write!(f, "{special_initial}"),
         }
     }
 }
@@ -157,10 +157,10 @@ impl Randomizable for Subsequent {
 impl Display for Subsequent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Subsequent::Initial(initial) => write!(f, "{}", initial),
-            Subsequent::Digit(digit) => write!(f, "{}", digit),
+            Subsequent::Initial(initial) => write!(f, "{initial}"),
+            Subsequent::Digit(digit) => write!(f, "{digit}"),
             Subsequent::SpecialSubsequent(special_subsequent) => {
-                write!(f, "{}", special_subsequent)
+                write!(f, "{special_subsequent}")
             }
         }
     }
@@ -176,7 +176,7 @@ impl Randomizable for Digit {
         let mut rng = rand::thread_rng();
         let n = rng.gen_range(0..10);
         Self {
-            char: (n + 48 as u8) as char,
+            char: (n + 48_u8) as char,
         }
     }
 }
@@ -253,7 +253,7 @@ impl Randomizable for SpecialSubsequent {
 impl Display for SpecialSubsequent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            SpecialSubsequent::ExplicitSign(explicit_sign) => write!(f, "{}", explicit_sign),
+            SpecialSubsequent::ExplicitSign(explicit_sign) => write!(f, "{explicit_sign}"),
             SpecialSubsequent::Dot => write!(f, "."),
             SpecialSubsequent::At => write!(f, "@"),
         }
@@ -281,7 +281,7 @@ impl Display for InlineHexEscape {
             f,
             "#\\x{}{};",
             self.x,
-            self.y.iter().map(|x| format!("{}", x)).collect::<String>()
+            self.y.iter().map(|x| format!("{x}")).collect::<String>()
         )
     }
 }
@@ -310,11 +310,11 @@ impl Randomizable for MnemonicEscape {
 impl Display for MnemonicEscape {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            MnemonicEscape::A => write!(f, "#{}a", '\\'),
-            MnemonicEscape::B => write!(f, "#{}b", '\\'),
-            MnemonicEscape::T => write!(f, "#{}t", '\\'),
-            MnemonicEscape::N => write!(f, "#{}n", '\\'),
-            MnemonicEscape::R => write!(f, "#{}r", '\\'),
+            MnemonicEscape::A => write!(f, "#\\a"),
+            MnemonicEscape::B => write!(f, "#\\b"),
+            MnemonicEscape::T => write!(f, "#\\t"),
+            MnemonicEscape::N => write!(f, "#\\n"),
+            MnemonicEscape::R => write!(f, "#\\r"),
         }
     }
 }
@@ -335,8 +335,8 @@ impl Randomizable for Peculiar {
                 let sign_subsequent = SignSubsequent::random();
                 let subsequents: Vec<Subsequent> = random_sequence();
 
-                let c = format!("{}", sign_subsequent).chars().next().unwrap();
-                if matches!(c, 'i' | 'I') && subsequents.len() == 0 {
+                let c = format!("{sign_subsequent}").chars().next().unwrap();
+                if matches!(c, 'i' | 'I') && subsequents.is_empty() {
                     continue;
                 } else {
                     return Peculiar::A(ExplicitSign::random(), sign_subsequent, subsequents);
@@ -355,7 +355,7 @@ impl Randomizable for Peculiar {
 impl Display for Peculiar {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Peculiar::ExplicitSign(explicit_sign) => write!(f, "{}", explicit_sign),
+            Peculiar::ExplicitSign(explicit_sign) => write!(f, "{explicit_sign}"),
             Peculiar::A(explicit_sign, sign_subsequent, subsequents) => write!(
                 f,
                 "{}{}{}",
@@ -363,7 +363,7 @@ impl Display for Peculiar {
                 sign_subsequent,
                 subsequents
                     .iter()
-                    .map(|x| format!("{}", x))
+                    .map(|x| format!("{x}"))
                     .collect::<String>()
             ),
             Peculiar::B(explicit_sign, dot_subsequent, subsequents) => write!(
@@ -373,7 +373,7 @@ impl Display for Peculiar {
                 dot_subsequent,
                 subsequents
                     .iter()
-                    .map(|x| format!("{}", x))
+                    .map(|x| format!("{x}"))
                     .collect::<String>()
             ),
             Peculiar::C(dot_subsequent, subsequents) => write!(
@@ -382,7 +382,7 @@ impl Display for Peculiar {
                 dot_subsequent,
                 subsequents
                     .iter()
-                    .map(|x| format!("{}", x))
+                    .map(|x| format!("{x}"))
                     .collect::<String>()
             ),
         }
@@ -407,7 +407,7 @@ impl Randomizable for DotSubsequent {
 impl Display for DotSubsequent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            DotSubsequent::SignSubsequent(sign_subsequent) => write!(f, "{}", sign_subsequent),
+            DotSubsequent::SignSubsequent(sign_subsequent) => write!(f, "{sign_subsequent}"),
             DotSubsequent::Dot => write!(f, "."),
         }
     }
@@ -433,8 +433,8 @@ impl Randomizable for SignSubsequent {
 impl Display for SignSubsequent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            SignSubsequent::Initial(initial) => write!(f, "{}", initial),
-            SignSubsequent::ExplicitSign(explicit_sign) => write!(f, "{}", explicit_sign),
+            SignSubsequent::Initial(initial) => write!(f, "{initial}"),
+            SignSubsequent::ExplicitSign(explicit_sign) => write!(f, "{explicit_sign}"),
             SignSubsequent::At => write!(f, "@"),
         }
     }
@@ -463,10 +463,10 @@ impl Display for SymbolElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             SymbolElement::ExceptBackSlashOrVertical(except_back_slash_or_vertical) => {
-                write!(f, "{}", except_back_slash_or_vertical)
+                write!(f, "{except_back_slash_or_vertical}")
             }
-            SymbolElement::InlineHexEscape(inline_hex_escape) => write!(f, "{}", inline_hex_escape),
-            SymbolElement::MnemonicEscape(mnemonic_escape) => write!(f, "{}", mnemonic_escape),
+            SymbolElement::InlineHexEscape(inline_hex_escape) => write!(f, "{inline_hex_escape}"),
+            SymbolElement::MnemonicEscape(mnemonic_escape) => write!(f, "{mnemonic_escape}"),
             SymbolElement::SlashVertical => write!(f, "\\|"),
         }
     }

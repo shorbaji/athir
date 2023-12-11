@@ -1,11 +1,11 @@
 //! Base library
-//! 
+//!
 //! R7RS section 6.1. Standard procedures - base library
-//! 
-use crate::value::V;
+//!
 use crate::alloc::{A, R};
-use std::ops::{Deref, DerefMut};
 use crate::eval::apply;
+use crate::value::V;
+use std::ops::{Deref, DerefMut};
 
 //
 // Equivalence predicates
@@ -18,7 +18,7 @@ use crate::eval::apply;
 pub fn is_number(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Number(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
@@ -29,14 +29,14 @@ pub fn is_number(e: &R) -> R {
 //     }
 // }
 
-// 
+//
 // Booleans
 //
 
 pub fn is_boolean(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Boolean(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
@@ -44,27 +44,35 @@ pub fn is_boolean(e: &R) -> R {
 // Pairs and lists
 //
 
-pub fn cons(e1: &R, e2: &R) -> R { 
+pub fn cons(e1: &R, e2: &R) -> R {
     A::pair(e1, e2)
 }
 
-pub fn caar(e: &R) -> R { car(&car(e)) } 
-pub fn cadr(e: &R) -> R { car(&cdr(e)) } 
+pub fn caar(e: &R) -> R {
+    car(&car(e))
+}
+pub fn cadr(e: &R) -> R {
+    car(&cdr(e))
+}
 
 pub fn car(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Pair(car, _) => car.clone(),
-        _ => A::runtime_error(format!("not a pair {:?}", e))
+        _ => A::runtime_error(format!("not a pair {e:?}")),
     }
 }
 
-pub fn cdar(e: &R) -> R { cdr(&car(e)) } 
-pub fn cddr(e: &R) -> R { cdr(&cdr(e)) } 
+pub fn cdar(e: &R) -> R {
+    cdr(&car(e))
+}
+pub fn cddr(e: &R) -> R {
+    cdr(&cdr(e))
+}
 
 pub fn cdr(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Pair(_, cdr) => cdr.clone(),
-        _ => A::runtime_error(format!("not a pair {:?}", e))
+        _ => A::runtime_error(format!("not a pair {e:?}")),
     }
 }
 
@@ -73,7 +81,7 @@ pub fn len(e: &R) -> R {
         match e.deref().borrow().deref() {
             V::Null => acc,
             V::Pair(_, cdr) => len_acc(cdr, acc + 1),
-            _ => panic!("not a list")
+            _ => panic!("not a list"),
         }
     }
 
@@ -83,14 +91,14 @@ pub fn len(e: &R) -> R {
 pub fn is_null(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Null => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
 pub fn is_pair(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Pair(_, _) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
@@ -101,7 +109,7 @@ pub fn is_pair(e: &R) -> R {
 pub fn is_symbol(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Symbol(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
@@ -112,7 +120,7 @@ pub fn is_symbol(e: &R) -> R {
 pub fn is_char(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Char(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
@@ -123,7 +131,7 @@ pub fn is_char(e: &R) -> R {
 pub fn is_string(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::String(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
@@ -134,7 +142,7 @@ pub fn is_string(e: &R) -> R {
 pub fn is_vector(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Vector(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
@@ -145,10 +153,9 @@ pub fn is_vector(e: &R) -> R {
 pub fn is_bytevector(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Bytevector(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
-
 
 //
 // Control features
@@ -157,7 +164,7 @@ pub fn is_bytevector(e: &R) -> R {
 pub fn is_procedure(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Procedure(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
@@ -187,32 +194,32 @@ pub fn call_cc(e: &R, r: &R, k: &R) -> (R, R) {
 //     }
 // }
 
-
 // Input and Output
 //
 
 pub fn display(e: &R) -> R {
-    print!("{:?}", e);
+    print!("{e:?}");
     A::unspecified()
 }
 
-pub fn new_line(_: &R) -> R { println!(); A::unspecified() }
-
+pub fn new_line(_: &R) -> R {
+    println!();
+    A::unspecified()
+}
 
 pub fn is_eof_object(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::EofObject => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
 
 pub fn is_port(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Port(_) => A::boolean(true),
-        _ => A::boolean(false)
+        _ => A::boolean(false),
     }
 }
-
 
 pub fn read(e: Option<&R>) -> R {
     use crate::read::Reader;
@@ -224,8 +231,9 @@ pub fn read(e: Option<&R>) -> R {
 
     let x = match e.deref().borrow_mut().deref_mut() {
         V::Port(port) => port.read(),
-        _ => A::runtime_error(format!("not a port")),
-    }; x
+        _ => A::runtime_error(format!("not a port {e:?}")),
+    };
+    x
 }
 
 pub fn peek_char(e: Option<&R>) -> R {
@@ -239,9 +247,9 @@ pub fn peek_char(e: Option<&R>) -> R {
             Some(c) => A::char(c),
             None => A::eof_object(),
         },
-        _ => A::runtime_error(format!("not a port")),
-    }; x
-    
+        _ => A::runtime_error(format!("not a port {e:?}")),
+    };
+    x
 }
 
 pub fn read_char(e: Option<&R>) -> R {
@@ -255,8 +263,9 @@ pub fn read_char(e: Option<&R>) -> R {
             Some(c) => A::char(c),
             None => A::eof_object(),
         },
-        _ => A::runtime_error(format!("not a port")),
-    }; x
+        _ => A::runtime_error(format!("not a port {e:?}")),
+    };
+    x
 }
 
 pub fn read_line(e: Option<&R>) -> R {
@@ -270,14 +279,15 @@ pub fn read_line(e: Option<&R>) -> R {
             Some(s) => A::string(s),
             None => A::eof_object(),
         },
-        _ => A::runtime_error(format!("not a port")),
-    }; x
+        _ => A::runtime_error(format!("not a port {e:?}")),
+    };
+    x
 }
 
 pub fn open_input_string(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::String(s) => A::port_string(s.clone()),
-        _ => A::runtime_error(format!("not a string")),
+        _ => A::runtime_error(format!("not a string {e:?}")),
     }
 }
 
@@ -285,7 +295,9 @@ pub fn open_input_string(e: &R) -> R {
 // Miscellaneous (extras)
 //
 
-pub fn identity(e: &R) -> R { e.clone() }
+pub fn identity(e: &R) -> R {
+    e.clone()
+}
 
 // pub fn is_unspecified(e: &R) -> R {
 //     match e.deref().borrow().deref() {

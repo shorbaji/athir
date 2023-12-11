@@ -1,5 +1,5 @@
 /// Tokens base on R7RS
-/// Uses [Logos](https://docs.rs/logos/0.11.0/logos/) to generate a lexer 
+/// Uses [Logos](https://docs.rs/logos/0.11.0/logos/) to generate a lexer
 ///
 use logos::{Lexer, Logos};
 
@@ -7,10 +7,9 @@ use crate::read::lexer::number::Number;
 
 #[derive(Logos, Debug, PartialEq, Clone)]
 pub enum Token {
-    #[regex(r"(#(([tT][rR][uU][eE])|([fF][aA][lL][sS][eE])|([tT]|[fF])))",
-            to_bool)]
+    #[regex(r"(#(([tT][rR][uU][eE])|([fF][aA][lL][sS][eE])|([tT]|[fF])))", to_bool)]
     Boolean(bool),
-    
+
     #[regex(r"((#\\x([0-9a-fA-F]+))|(#\\(alarm|backspace|delete|escape|newline|null|return|space|tab))|(#\\.))",
             to_char)]
     Character(char),
@@ -33,20 +32,24 @@ pub enum Token {
     #[regex(r"((#!fold-case)|(#!no-fold-case))")]
     Directive,
 
-    #[regex(r"(([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])(([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])|[0-9]|((\+|-)|\.|@))*)",
-            to_identifier)]
+    #[regex(
+        r"(([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])(([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])|[0-9]|((\+|-)|\.|@))*)",
+        to_identifier
+    )]
     #[regex(r"(((\+|-)|((\+|-)(([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])|(\+|-)|@)(([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])|[0-9]|((\+|-)|\.|@))*)|((\+|-)\.((([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])|(\+|-)|@)|\.)(([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])|[0-9]|((\+|-)|\.|@))*)|(\.((([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])|(\+|-)|@)|\.)(([a-zA-Z]|[!\$%&\*/:<=>\?\^_~])|[0-9]|((\+|-)|\.|@))*)))",
             to_identifier)]
     Identifier(String),
 
-    #[regex(r"(\|([^\|\\]|(\\x([0-9a-fA-F]+);)|(\\[aA]|\\[bB]|\\[tT]|\\[nN]|\\[rR])|(\\\|))*\|)",
-            to_identifier)]
+    #[regex(
+        r"(\|([^\|\\]|(\\x([0-9a-fA-F]+);)|(\\[aA]|\\[bB]|\\[tT]|\\[nN]|\\[rR])|(\\\|))*\|)",
+        to_identifier
+    )]
     VerticalLineIdentifier(String),
 
     // prioritize Number over Identifier since +i and -i are valid identifiers and numbers according to the r7rs spec
     #[regex(r"(((((#b)((#[eEiI])?))|(((#[eEiI])?)(#b)))((((((\+|-)?)(((((0|1))+)/(((0|1))+))|(((0|1))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+|-)(((((0|1))+)/(((0|1))+))|(((0|1))+))(i|I))|(((((\+|-)?)(((((0|1))+)/(((0|1))+))|(((0|1))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)(i|I))|(((((\+|-)?)(((((0|1))+)/(((0|1))+))|(((0|1))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+|-)(i|I))|(((((\+|-)?)(((((0|1))+)/(((0|1))+))|(((0|1))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))@((((\+|-)?)(((((0|1))+)/(((0|1))+))|(((0|1))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)))|((\+|-)(((((0|1))+)/(((0|1))+))|(((0|1))+))(i|I))|((\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)(i|I))|(((((\+|-)?)(((((0|1))+)/(((0|1))+))|(((0|1))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)))|((\+|-)(i|I))))|((((#o)((#[eEiI])?))|(((#[eEiI])?)(#o)))((((((\+|-)?)(((([0-7])+)/(([0-7])+))|(([0-7])+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+|-)(((([0-7])+)/(([0-7])+))|(([0-7])+))(i|I))|(((((\+|-)?)(((([0-7])+)/(([0-7])+))|(([0-7])+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)(i|I))|(((((\+|-)?)(((([0-7])+)/(([0-7])+))|(([0-7])+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+|-)(i|I))|(((((\+|-)?)(((([0-7])+)/(([0-7])+))|(([0-7])+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))@((((\+|-)?)(((([0-7])+)/(([0-7])+))|(([0-7])+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)))|((\+|-)(((([0-7])+)/(([0-7])+))|(([0-7])+))(i|I))|((\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)(i|I))|(((((\+|-)?)(((([0-7])+)/(([0-7])+))|(([0-7])+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)))|((\+|-)(i|I))))|(((((#d)?)((#[eEiI])?))|(((#[eEiI])?)((#d)?)))((((((\+|-)?)(((((([0-9]))+)/((([0-9]))+))|((([0-9]))+))|((((([0-9]))+)(((e|E)((\+|-)?)(([0-9])+))?))|(\.([0-9])+(((e|E)((\+|-)?)(([0-9])+))?))|(([0-9])+\.([0-9])*(((e|E)((\+|-)?)(([0-9])+))?)))))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+|-)(((((([0-9]))+)/((([0-9]))+))|((([0-9]))+))|((((([0-9]))+)(((e|E)((\+|-)?)(([0-9])+))?))|(\.([0-9])+(((e|E)((\+|-)?)(([0-9])+))?))|(([0-9])+\.([0-9])*(((e|E)((\+|-)?)(([0-9])+))?))))(i|I))|(((((\+|-)?)(((((([0-9]))+)/((([0-9]))+))|((([0-9]))+))|((((([0-9]))+)(((e|E)((\+|-)?)(([0-9])+))?))|(\.([0-9])+(((e|E)((\+|-)?)(([0-9])+))?))|(([0-9])+\.([0-9])*(((e|E)((\+|-)?)(([0-9])+))?)))))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)(i|I))|(((((\+|-)?)(((((([0-9]))+)/((([0-9]))+))|((([0-9]))+))|((((([0-9]))+)(((e|E)((\+|-)?)(([0-9])+))?))|(\.([0-9])+(((e|E)((\+|-)?)(([0-9])+))?))|(([0-9])+\.([0-9])*(((e|E)((\+|-)?)(([0-9])+))?)))))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+|-)(i|I))|(((((\+|-)?)(((((([0-9]))+)/((([0-9]))+))|((([0-9]))+))|((((([0-9]))+)(((e|E)((\+|-)?)(([0-9])+))?))|(\.([0-9])+(((e|E)((\+|-)?)(([0-9])+))?))|(([0-9])+\.([0-9])*(((e|E)((\+|-)?)(([0-9])+))?)))))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))@((((\+|-)?)(((((([0-9]))+)/((([0-9]))+))|((([0-9]))+))|((((([0-9]))+)(((e|E)((\+|-)?)(([0-9])+))?))|(\.([0-9])+(((e|E)((\+|-)?)(([0-9])+))?))|(([0-9])+\.([0-9])*(((e|E)((\+|-)?)(([0-9])+))?)))))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)))|((\+|-)(((((([0-9]))+)/((([0-9]))+))|((([0-9]))+))|((((([0-9]))+)(((e|E)((\+|-)?)(([0-9])+))?))|(\.([0-9])+(((e|E)((\+|-)?)(([0-9])+))?))|(([0-9])+\.([0-9])*(((e|E)((\+|-)?)(([0-9])+))?))))(i|I))|((\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)(i|I))|(((((\+|-)?)(((((([0-9]))+)/((([0-9]))+))|((([0-9]))+))|((((([0-9]))+)(((e|E)((\+|-)?)(([0-9])+))?))|(\.([0-9])+(((e|E)((\+|-)?)(([0-9])+))?))|(([0-9])+\.([0-9])*(((e|E)((\+|-)?)(([0-9])+))?)))))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)))|((\+|-)(i|I))))|((((#x)((#[eEiI])?))|(((#[eEiI])?)(#x)))((((((\+|-)?)((((([0-9a-fA-F]))+)/((([0-9a-fA-F]))+))|((([0-9a-fA-F]))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+|-)((((([0-9a-fA-F]))+)/((([0-9a-fA-F]))+))|((([0-9a-fA-F]))+))(i|I))|(((((\+|-)?)((((([0-9a-fA-F]))+)/((([0-9a-fA-F]))+))|((([0-9a-fA-F]))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)(i|I))|(((((\+|-)?)((((([0-9a-fA-F]))+)/((([0-9a-fA-F]))+))|((([0-9a-fA-F]))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))(\+|-)(i|I))|(((((\+|-)?)((((([0-9a-fA-F]))+)/((([0-9a-fA-F]))+))|((([0-9a-fA-F]))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0))@((((\+|-)?)((((([0-9a-fA-F]))+)/((([0-9a-fA-F]))+))|((([0-9a-fA-F]))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)))|((\+|-)((((([0-9a-fA-F]))+)/((([0-9a-fA-F]))+))|((([0-9a-fA-F]))+))(i|I))|((\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)(i|I))|(((((\+|-)?)((((([0-9a-fA-F]))+)/((([0-9a-fA-F]))+))|((([0-9a-fA-F]))+)))|(\+inf\.0|-inf\.0|\+nan\.0|-nan\.0|\+INF\.0|-INF\.0|\+NAN\.0|-NAN\.0)))|((\+|-)(i|I)))))",
         to_number,
-        priority=3)] 
+        priority=3)]
     Number(String),
 
     #[regex(r"\(")]
@@ -73,33 +76,32 @@ pub enum Token {
 
     #[regex(r"(( |\t)|(\r\n|\r|\n))")]
     Whitespace,
-
 }
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let s = match self {
-            Token::Boolean(b) => format!("{}", b),
-            Token::Character(c) => format!("{}", c),
-            Token::Comma => format!(","),
-            Token::CommaAt => format!(",@"),
-            Token::Comment => format!(";"),
-            Token::Directive => format!("#"),
-            Token::VerticalLineIdentifier(s) => format!("|{}|", s),
-            Token::Dot => format!("."),
-            Token::Error => format!("error"),
-            Token::Identifier(s) => format!("{}", s),
-            Token::Number(n) => format!("{}", n),
-            Token::ParenLeft => format!("("),
-            Token::ParenRight => format!(")"),
-            Token::Quasiquote => format!("`"),
-            Token::Quote => format!("'"),
-            Token::SharpOpen => format!("#("),
-            Token::SharpU8Open => format!("#u8("),
-            Token::String(s) => format!("{}", s),
-            Token::Whitespace => format!(" "),
+            Token::Boolean(b) => format!("{b}"),
+            Token::Character(c) => format!("{c}"),
+            Token::Comma => ",".to_string(),
+            Token::CommaAt => ",@".to_string(),
+            Token::Comment => ";".to_string(),
+            Token::Directive => "#".to_string(),
+            Token::VerticalLineIdentifier(s) => format!("|{s}|"),
+            Token::Dot => ".".to_string(),
+            Token::Error => "error".to_string(),
+            Token::Identifier(s) => s.to_string(),
+            Token::Number(n) => n.to_string(),
+            Token::ParenLeft => "(".to_string(),
+            Token::ParenRight => ")".to_string(),
+            Token::Quasiquote => "`".to_string(),
+            Token::Quote => "'".to_string(),
+            Token::SharpOpen => "#(".to_string(),
+            Token::SharpU8Open => "#u8(".to_string(),
+            Token::String(s) => s.to_string(),
+            Token::Whitespace => " ".to_string(),
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 //
@@ -156,5 +158,4 @@ fn to_string(lex: &mut Lexer<Token>) -> Option<String> {
 
     let s: String = String::from(&s[1..s.len() - 1]);
     Some(s)
-}    
-
+}

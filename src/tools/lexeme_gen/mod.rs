@@ -1,9 +1,9 @@
 //! Lexeme generator tool
-//! 
+//!
 //! This tool generates random lexemes for testing purposes
 //! Usage: lexeme_gen <number of lexemes> <type>
 //! e.g. lexeme_gen 100 number
-//! 
+//!
 //! Types:
 //! - number
 //! - identifier
@@ -21,7 +21,6 @@ fn main() {
 
     if args.len() != 3 {
         println!("Usage: {} <number of lexemes> <type>", args[0]);
-        return;
     } else {
         let n = &args[1].parse::<usize>().unwrap_or_else(|_| {
             panic!("Invalid number of lexemes. Must be an integer (usize)");
