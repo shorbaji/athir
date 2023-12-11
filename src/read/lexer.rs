@@ -75,10 +75,7 @@ pub trait Lexer {
             }
         }
 
-        match self.get_tokens().peek() {
-            Some(token) => Some(token.clone()),
-            None => None,
-        }
+        self.get_tokens().peek().cloned()
     }
 
     fn get_next_token(&mut self) -> Option<Token> {

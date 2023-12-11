@@ -54,7 +54,7 @@ pub fn cadr(e: &R) -> R { car(&cdr(e)) }
 pub fn car(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Pair(car, _) => car.clone(),
-        _ => A::runtime_error(format!("not a pair {:?}", e))
+        _ => A::runtime_error(format!("not a pair {e:?}"))
     }
 }
 
@@ -64,7 +64,7 @@ pub fn cddr(e: &R) -> R { cdr(&cdr(e)) }
 pub fn cdr(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::Pair(_, cdr) => cdr.clone(),
-        _ => A::runtime_error(format!("not a pair {:?}", e))
+        _ => A::runtime_error(format!("not a pair {e:?}"))
     }
 }
 
@@ -192,7 +192,7 @@ pub fn call_cc(e: &R, r: &R, k: &R) -> (R, R) {
 //
 
 pub fn display(e: &R) -> R {
-    print!("{:?}", e);
+    print!("{e:?}");
     A::unspecified()
 }
 
@@ -224,7 +224,7 @@ pub fn read(e: Option<&R>) -> R {
 
     let x = match e.deref().borrow_mut().deref_mut() {
         V::Port(port) => port.read(),
-        _ => A::runtime_error(format!("not a port")),
+        _ => A::runtime_error(format!("not a port {e:?}")),
     }; x
 }
 
@@ -239,7 +239,7 @@ pub fn peek_char(e: Option<&R>) -> R {
             Some(c) => A::char(c),
             None => A::eof_object(),
         },
-        _ => A::runtime_error(format!("not a port")),
+        _ => A::runtime_error(format!("not a port {e:?}")),
     }; x
     
 }
@@ -255,7 +255,7 @@ pub fn read_char(e: Option<&R>) -> R {
             Some(c) => A::char(c),
             None => A::eof_object(),
         },
-        _ => A::runtime_error(format!("not a port")),
+        _ => A::runtime_error(format!("not a port {e:?}")),
     }; x
 }
 
@@ -270,14 +270,14 @@ pub fn read_line(e: Option<&R>) -> R {
             Some(s) => A::string(s),
             None => A::eof_object(),
         },
-        _ => A::runtime_error(format!("not a port")),
+        _ => A::runtime_error(format!("not a port {e:?}")),
     }; x
 }
 
 pub fn open_input_string(e: &R) -> R {
     match e.deref().borrow().deref() {
         V::String(s) => A::port_string(s.clone()),
-        _ => A::runtime_error(format!("not a string")),
+        _ => A::runtime_error(format!("not a string {e:?}")),
     }
 }
 

@@ -58,35 +58,32 @@ pub trait Reader {
 
     /// the error recovery function
     fn recover(&mut self, error: &R) {
-        match error.deref().borrow().deref() {
-            V::Error(Error::Syntax { ref depth, .. }) => {
-                if *depth == 0 {
-                    // unexpected token at top level
-                    // skip to next line
-                    self.get_next_token();
-                } else {
-                    // unexpected token in compound expression
-                    // skip to next right parenthesis
-                    
-                    let mut count = *depth;
-                    loop {
-                        match self.get_next_token() {
-                            Some(Token::ParenRight) => {
-                                count -= 1;
-                                if count == 0 {
-                                    break;
-                                }
-                            },
-                            Some(Token::ParenLeft) => {
-                                count += 1;
-                            },
-                            Some(_) => {},
-                            None => break,
-                        }
+        if let V::Error(Error::Syntax { ref depth, .. }) = error.deref().borrow().deref() {
+            if *depth == 0 {
+                // unexpected token at top level
+                // skip to next line
+                self.get_next_token();
+            } else {
+                // unexpected token in compound expression
+                // skip to next right parenthesis
+                
+                let mut count = *depth;
+                loop {
+                    match self.get_next_token() {
+                        Some(Token::ParenRight) => {
+                            count -= 1;
+                            if count == 0 {
+                                break;
+                            }
+                        },
+                        Some(Token::ParenLeft) => {
+                            count += 1;
+                        },
+                        Some(_) => {},
+                        None => break,
                     }
                 }
             }
-            _ => (),
         }
     }
 
@@ -231,7 +228,7 @@ pub trait Reader {
 
         for expr in exprs.clone().into_iter() {
             if Self::is_definition_expr(&expr) {
-                if defs == false {
+                if !defs {
                     return Err(A::syntax_error(rdepth, "definitions must precede expressions"));
                 }
             } else {
@@ -1313,10 +1310,10 @@ pub trait Reader {
 
     fn uinteger10(&mut self, rdepth: usize) -> Result<R, R> {
         match self.peek_or_eof()? {
-            Token::Number(n) if n.chars().all(|c| c.is_digit(10)) => {
+            Token::Number(n) if n.chars().all(|c| c.is_ascii_digit()) => {
                 match self.get_next_token() {
                     Some(Token::Number(n)) => Ok(A::number(n)),
-                    _ => return Err(A::eof_object()),
+                    _ => Err(A::eof_object()),
                 }
             },
             _ => Err(A::syntax_error(rdepth, "unexpected token")),

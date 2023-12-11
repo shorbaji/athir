@@ -193,11 +193,11 @@ type Uinteger = u64;
 
 fn uinteger_to_string(radix: &Radix, uinteger: &Uinteger) -> String {
     match radix {
-        Radix::Binary => format!("{:b}", uinteger),
-        Radix::Octal => format!("{:o}", uinteger),
-        Radix::Decimal => format!("{}", uinteger),
-        Radix::Hexadecimal => format!("{:x}", uinteger),
-        Radix::None => format!("{}", uinteger),
+        Radix::Binary => format!("{uinteger:b}"),
+        Radix::Octal => format!("{uinteger:o}"),
+        Radix::Decimal => format!("{uinteger}"),
+        Radix::Hexadecimal => format!("{uinteger:x}"),
+        Radix::None => format!("{uinteger}"),
     }
 }
 
@@ -417,7 +417,7 @@ impl Randomizable for Number {
         let radix = prefix.radix;
 
         Number {
-            prefix: prefix,
+            prefix,
             complex: Complex::random_with_radix(radix),
         }
     }

@@ -44,10 +44,7 @@ impl Reader for TestReader {
     }
 
     fn peek_next_token(&mut self) -> Option<Token> {
-        match Lexer::peek_next_token(self) {
-            Some(t) => Some(t),
-            None => None,
-        }
+        Lexer::peek_next_token(self)
     }
 }
 
@@ -59,7 +56,7 @@ fn test_parse(goods: &[&str], bads: &[&str]) {
     });
 
     for result in parser {
-        println!("{:?}", result);
+        println!("{result:?}");
         assert!(!matches!(result.deref().borrow().deref(), V::Error(_)));
     }
 
@@ -69,7 +66,7 @@ fn test_parse(goods: &[&str], bads: &[&str]) {
     });
 
     for result in parser {
-        println!("{:?}", result);
+        println!("{result:?}");
         assert!(matches!(result.deref().borrow().deref(), V::Error(_)));
     }
 }

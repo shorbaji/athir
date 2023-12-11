@@ -37,8 +37,8 @@ pub fn trampoline(k: &R, e: &R) -> R{
         (k, e) = match k.deref().borrow().deref() {
             V::Procedure(Procedure::Continuation { f, r, k }) => f(&e, r, k),
             V::Procedure(Procedure::ContinuationPlus { f, o, r, k }) => f(&e, o, r, k),
-            V::Procedure(Procedure::ContinuationNull) => { println!(""); std::process::exit(0) },
-            _ => panic!("not a continuation {:?}", k)
+            V::Procedure(Procedure::ContinuationNull) => { println!(); std::process::exit(0) },
+            _ => panic!("not a continuation {k:?}")
         }    
     }
 }
@@ -48,10 +48,10 @@ pub fn _eval_program(_e: &R, program: &R, r: &R, k: &R) -> (R, R) {
     match program.deref().borrow().deref() {
         V::Null => (k.clone(), A::null()),
         V::Pair(car, cdr) => {
-            let then = A::continuation_plus(_eval_program, cdr, &r, &k);
+            let then = A::continuation_plus(_eval_program, cdr, r, k);
             (A::continuation(eval, r, &then), car.clone())
         },
-        _ => (k.clone(), A::runtime_error(format!("expected a program as a list of exprs {:?}", program)))
+        _ => (k.clone(), A::runtime_error(format!("expected a program as a list of exprs {program:?}")))
     }
 }
 
@@ -66,7 +66,7 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
         | V::Vector(_)
         | V::Null => (k.clone(), e.clone()),
 
-        V::Symbol(s) => (k.clone(), lookup(&s, r)),
+        V::Symbol(s) => (k.clone(), lookup(s, r)),
 
         V::Quotation(e) => (k.clone(), e.clone()),
 
@@ -77,11 +77,11 @@ pub fn eval(e: &R, r: &R, k: &R) -> (R, R) {
                 V::Keyword(Keyword::Lambda) => (A::continuation(eval_lambda, r, k), cdr.clone()),
                 V::Keyword(Keyword::Quote) => (A::continuation(eval_quote, r, k), cdr.clone()),
                 V::Keyword(Keyword::Set) => (A::continuation(eval_set, r, k), cdr.clone()),
-                V::Keyword(keyword) => (k.clone(), A::runtime_error(format!("eval error: keyword not implmeneted {:?}", keyword))),
+                V::Keyword(keyword) => (k.clone(), A::runtime_error(format!("eval error: keyword not implmeneted {keyword:?}"))),
                 _ => (A::continuation_plus(eval_application, cdr, r, k), car.clone()),
             }
         },
-        _ => (k.clone(), A::runtime_error(format!("eval error: malformed expr {:?}", e)))
+        _ => (k.clone(), A::runtime_error(format!("eval error: malformed expr {e:?}")))
     }
 }
 
@@ -102,11 +102,11 @@ fn eval_set(e: &R, r: &R, k: &R) -> (R, R) {
     if let V::Symbol(s) = var.deref().borrow().deref() {
         // It is an error if var is not bound either in some region
         // enclosing the set! expression or else globally. 
-        if let V::Error(_) = lookup(&s, r).deref().borrow().deref() {
-            return (k.clone(), A::runtime_error(format!("unbound variable {:?}", s)))
+        if let V::Error(_) = lookup(s, r).deref().borrow().deref() {
+            return (k.clone(), A::runtime_error(format!("unbound variable {s:?}")))
         }
     } else {
-        return (k.clone(), A::runtime_error(format!("not a symbol {:?}", var)))
+        return (k.clone(), A::runtime_error(format!("not a symbol {var:?}")))
     };
 
     let then = A::continuation_plus(eval_define_or_set_cont, &var, r, k);
@@ -126,7 +126,7 @@ fn eval_define_or_set_cont(val: &R, var: &R, r: &R, k: &R) -> (R, R) {
             (k.clone(), A::runtime_error("not an environment".to_string()))
         }
     } else {
-        (k.clone(), A::runtime_error(format!("not a symbol {:?}", var)))
+        (k.clone(), A::runtime_error(format!("not a symbol {var:?}")))
     }
 }
 
@@ -152,8 +152,8 @@ fn eval_lambda(e: &R, r: &R, k: &R) -> (R, R) {
     let body = cdr(e);
     let env = r.clone();
 
-    println!("formals: {:?}", formals);
-    println!("body: {:?}", body);
+    println!("formals: {formals:?}");
+    println!("body: {body:?}");
     (k.clone(), A::closure(&formals, &body, &env))
 }
 
@@ -190,7 +190,7 @@ pub fn evlis(ls: &R, r: &R, k: &R) -> (R, R) {
             let then = A::continuation_plus(eval_car_cont, cdr, r, k);
             (A::continuation(eval, r, &then), car.clone())
         },
-        _ => (k.clone(), A::runtime_error(format!("not a list {:?}", ls)))
+        _ => (k.clone(), A::runtime_error(format!("not a list {ls:?}")))
     }
 }
 
@@ -214,12 +214,12 @@ pub fn apply(operator: &R, operands: &R, r: &R, k: &R) -> (R, R) {
         V::Procedure(Procedure::PrimitiveOptionalUnary(f, _)) => match operands.deref().borrow().deref() {
                 V::Null => (k.clone(), f(None)),
                 V::Pair(car, _) => (k.clone(), f(Some(car))),
-                _ => (k.clone(), A::runtime_error(format!("not a list {:?}", operands)))
+                _ => (k.clone(), A::runtime_error(format!("not a list {operands:?}")))
         },
         V::Procedure(Procedure::PrimitiveERK(f, _)) => f(operands, r, k),
         V::Procedure(Procedure::Continuation { f:_ , r:_, k:_ }) => (operator.clone(), car(operands)),
         V::Procedure(Procedure::ContinuationPlus { f:_, o:_, r:_, k: _ }) => (operator.clone(), car(operands)),
-        _  => (k.clone(), A::runtime_error(format!("not a procedure {:?}", operator))),
+        _  => (k.clone(), A::runtime_error(format!("not a procedure {operator:?}"))),
     }
 }
 
@@ -263,7 +263,7 @@ fn eval_body_after_car(e: &R, o: &R, r: &R, k: &R) -> (R, R) {
             let then = A::continuation_plus(eval_body_after_car, cdr, r, k);
             (A::continuation(eval, r, &then), car.clone())
         },
-        _ => (k.clone(), A::runtime_error(format!("body is not a list {:?}", o)))
+        _ => (k.clone(), A::runtime_error(format!("body is not a list {o:?}")))
     }
 }
 
@@ -271,7 +271,7 @@ fn lookup(s: &String, r: &R) -> R {
     if let V::Env {map, outer} = r.deref().borrow().deref() {
         if let Some(v) = map.get(s) { v.clone() } 
         else if let Some(o) = outer { lookup(s, o) } 
-        else { A::runtime_error(format!("symbol not found {:?}", s)) }
+        else { A::runtime_error(format!("symbol not found {s:?}")) }
     } else {
         A::runtime_error("not an environment".to_string())
     }

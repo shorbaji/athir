@@ -21,7 +21,6 @@ fn main() {
 
     if args.len() != 3 {
         println!("Usage: {} <number of lexemes> <type>", args[0]);
-        return;
     } else {
         let n = &args[1].parse::<usize>().unwrap_or_else(|_| {
             panic!("Invalid number of lexemes. Must be an integer (usize)");

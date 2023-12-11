@@ -176,7 +176,7 @@ impl Randomizable for Digit {
         let mut rng = rand::thread_rng();
         let n = rng.gen_range(0..10);
         Self {
-            char: (n + 48 as u8) as char,
+            char: (n + 48_u8) as char,
         }
     }
 }

@@ -36,10 +36,7 @@ impl Reader for Port {
     }
 
     fn peek_next_token(&mut self) -> Option<Token> {
-        match Lexer::peek_next_token(self) {
-            Some(t) => Some(t),
-            None => None,
-        }
+        Lexer::peek_next_token(self)
     }
 }
 
@@ -85,7 +82,7 @@ impl Port {
     pub fn read_char(&mut self) -> Option<char> {
         let c = self.peek_char();
 
-        if let Some(_) = c {
+        if c.is_some() {
             self.buffer.remove(0);
         }
         c

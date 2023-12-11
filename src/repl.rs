@@ -5,7 +5,7 @@ use crate::alloc::{A, R};
 use crate::env::global_env;
 use crate::eval::{eval, trampoline};
 use crate::stdlib::base::{car, cons, read};
-use crate::value::{V};
+use crate::value::V;
 
 ///
 /// repl()
@@ -66,6 +66,6 @@ fn eval_cont(e: &R, ports: &R, r: &R, k: &R) -> (R, R) {
 /// The print continuation function prints the expression evaluated by the eval continuation
 /// It returns a read continuation and a null expression therefore completing the read eval print loop
 fn print_cont(e: &R, ports: &R, r: &R, k: &R) -> (R, R) {
-    println!("=> {:?}", e);
+    println!("=> {e:?}");
     (A::continuation(read_cont, r, k), ports.clone())
 }

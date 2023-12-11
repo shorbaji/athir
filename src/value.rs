@@ -28,23 +28,23 @@ pub enum V {
 impl std::fmt::Debug for V {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            V::Boolean(b) => write!(f, "Boolean({})", b),
+            V::Boolean(b) => write!(f, "Boolean({b}"),
             V::Bytevector(_) => write!(f, "Bytevector"),
-            V::Char(c) => write!(f, "Char({})", c),
+            V::Char(c) => write!(f, "Char({c})"),
             V::EofObject => write!(f, "EofObject"),
             V::Null => write!(f, "Null"),
-            V::Number(n) => write!(f, "Number({})", n),
-            V::Pair(car, cdr) => write!(f, "Pair({:?}, {:?})", car, cdr),
-            V::Port(p) => write!(f, "Port {:?}", p),
-            V::Procedure(p) => write!(f, "Procedure {:?}", p),
-            V::String(s) => write!(f, "String({})", s),
-            V::Symbol(s) => write!(f, "Symbol({})", s),
+            V::Number(n) => write!(f, "Number({n})"),
+            V::Pair(car, cdr) => write!(f, "Pair({car:?}, {cdr:?})"),
+            V::Port(p) => write!(f, "Port {p:?}"),
+            V::Procedure(p) => write!(f, "Procedure {p:?}"),
+            V::String(s) => write!(f, "String({s})"),
+            V::Symbol(s) => write!(f, "Symbol({s})"),
             V::Vector(_) => write!(f, "Vector"),
 
             V::Env{ map:_, outer:_ } => write!(f, "Env"),
-            V::Error(s) => write!(f, "Error({:?})", s),
-            V::Keyword(k) => write!(f, "Keyword({:?})", k),
-            V::Quotation(q) => write!(f, "Quotation({:?})", q),
+            V::Error(s) => write!(f, "Error({s:?})"),
+            V::Keyword(k) => write!(f, "Keyword({k:?})"),
+            V::Quotation(q) => write!(f, "Quotation({q:?})"),
             V::Unspecified => write!(f, "Unspecified"),
         }
     }
@@ -76,14 +76,14 @@ pub enum Procedure {
 impl std::fmt::Debug for Procedure {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Procedure::Closure { formals, body, env } => write!(f, "Closure({:?}, {:?}, {:?})", formals, body, env),
+            Procedure::Closure { formals, body, env } => write!(f, "Closure({formals:?}, {body:?}, {env:?})"),
             Procedure::Continuation { f:_, r:_, k:_ } => write!(f, "Continuation"),
             Procedure::ContinuationPlus { f:_, o:_, r:_, k:_ } => write!(f, "ContinuationPlus"),
             Procedure::ContinuationNull => write!(f, "ContinuationNull"),
-            Procedure::PrimitiveUnary(_, s) => write!(f, "PrimitiveUnary({})", s),
-            Procedure::PrimitiveBinary(_, s) => write!(f, "PrimitiveBinary({})", s),
-            Procedure::PrimitiveERK(_, s) => write!(f, "Primitive({})", s),
-            Procedure::PrimitiveOptionalUnary(_, s) => write!(f, "PrimitiveOptionalUnary({})", s),
+            Procedure::PrimitiveUnary(_, s) => write!(f, "PrimitiveUnary({s})"),
+            Procedure::PrimitiveBinary(_, s) => write!(f, "PrimitiveBinary({s})"),
+            Procedure::PrimitiveERK(_, s) => write!(f, "Primitive({s})"),
+            Procedure::PrimitiveOptionalUnary(_, s) => write!(f, "PrimitiveOptionalUnary({s})"),
         }
     }
 }
@@ -168,7 +168,7 @@ impl From<String> for Keyword {
             "syntax-rules" => Keyword::SyntaxRules,
             "_" => Keyword::Underscore,
             "unquote" => Keyword::Unquote,
-            _ => panic!("Cannot convert {} to Keyword", value),
+            _ => panic!("Cannot convert {value} to Keyword"),
         }
     }
 }

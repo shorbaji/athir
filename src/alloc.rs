@@ -3,12 +3,13 @@
 //! Allocates new values and returns references to them.
 //! Currently uses Rust's Rc<RefCell<...>> for reference counting and interior mutability.
 //! 
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::collections::HashMap;
-use std::ops::Deref;
 
 use crate::value::{V, port::Port, Keyword, Procedure, Error};
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::ops::Deref;
+use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub struct R {
